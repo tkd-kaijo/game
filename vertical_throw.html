@@ -309,19 +309,30 @@
   }
 
   // グリッド描画（0〜60m）
-  function renderGrid(scale){
-    gridEl.innerHTML='';
-    const marks = [0,10,20,30,40,50,60];
-    const hScene = scene.clientHeight;
-    for(const m of marks){
-      const yPx = m * scale;
-      const bottom = groundOffsetPx + (m * scale); // m=0 → bottom: 8px（地面）
-      line.style.bottom = bottom + 'px';
-      if(bottom < 8 || bottom > hScene - 2) continue;
-      const line = document.createElement('div'); line.className='gridline'; line.style.bottom = bottom + 'px'; gridEl.appendChild(line);
-      const lab = document.createElement('div'); lab.className='gridlabel'; lab.style.bottom = bottom + 'px'; lab.textContent = m + ' m'; gridEl.appendChild(lab);
-    }
+ function renderGrid(scale){
+  gridEl.innerHTML = '';
+  const marks = [0,10,20,30,40,50,60];
+  const hScene = scene.clientHeight;
+
+  for (const m of marks) {
+    const bottom = groundOffsetPx + m * scale; // 下端基準（m=0 → 8px）
+
+    // まず可視範囲チェック
+    if (bottom < 8 || bottom > hScene - 2) continue;
+
+    // 線を作ってから bottom を設定
+    const line = document.createElement('div');
+    line.className = 'gridline';
+    line.style.bottom = bottom + 'px';
+    gridEl.appendChild(line);
+
+    const lab = document.createElement('div');
+    lab.className = 'gridlabel';
+    lab.style.bottom = bottom + 'px';
+    lab.textContent = m + ' m';
+    gridEl.appendChild(lab);
   }
+}
 
   // ゲーム進行
   const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
