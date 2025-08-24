@@ -101,7 +101,7 @@
   .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
 
   .ball{
-    position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
+    position:absolute; left:50%; transform:translate(-50%,50%); width:18px; aspect-ratio:1; border-radius:50%;
     background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
     box-shadow: 0 8px 24px rgba(106,227,255,.45);
   }
@@ -144,7 +144,15 @@
   /* 常に赤字に固定 */
   #challengeTextHUD, .speed { color:#ff5b5b !important; }
 
-  /* ===== 提出フォーム ===== */
+ + /* ===== 提出フォームのCSS ===== */
++ .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
++ .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
++ .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
++ .submitRow input[type="text"]{ flex:1; min-width:180px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:#0f1430; color:#fff; font-size:16px; }
++ .submitRow button{ padding:10px 14px; border-radius:10px; border:none; font-weight:700; cursor:pointer; color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf); box-shadow: 0 8px 22px rgba(122,255,175,.28); }
++ .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
++ .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
++</style>
 
 <div class="submitBox" id="submitBox" aria-live="polite">
   <h3>提出</h3>
@@ -437,8 +445,7 @@
     pickChallenge(); locked=false; running=true; t0Roulette=performance.now();
     lockBtn.disabled=false; retryBtn.disabled=true; ball.style.bottom=groundOffsetPx+'px';
     yNowEl.textContent='0.00 m'; hValEl.textContent='0.00 m'; tValEl.textContent='0.00 s';
-    roundBadgeHUD.textContent=`ラウンド${round}/${
-      5}`;
+    roundBadgeHUD.textContent = `ラウンド${round}/${5}`;
     renderGrid(scalePxPerMeterForMaxMeters(60));
     hLine.style.bottom = groundOffsetPx + 'px';
     requestAnimationFrame(rouletteLoop);
