@@ -312,15 +312,12 @@
  function renderGrid(scale){
   gridEl.innerHTML = '';
   const marks = [0,10,20,30,40,50,60];
-  const hScene = scene.clientHeight;
+  const hGrid = gridEl.clientHeight; // ← grid コンテナの高さで判定
 
   for (const m of marks) {
-    const bottom = groundOffsetPx + m * scale; // 下端基準（m=0 → 8px）
+    const bottom = m * scale;        // ← もう groundOffsetPx を足さない
+    if (bottom < 0 || bottom > hGrid - 2) continue;
 
-    // まず可視範囲チェック
-    if (bottom < 8 || bottom > hScene - 2) continue;
-
-    // 線を作ってから bottom を設定
     const line = document.createElement('div');
     line.className = 'gridline';
     line.style.bottom = bottom + 'px';
