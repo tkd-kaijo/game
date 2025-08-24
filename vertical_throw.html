@@ -145,133 +145,74 @@
   #challengeTextHUD, .speed { color:#ff5b5b !important; }
 
   /* ===== 提出フォーム ===== */
-  .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px;
-    background:rgba(255,255,255,.06); }
-  .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
-  .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .submitRow input[type="text"]{ flex:1; min-width:180px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18);
-    background:#0f1430; color:#fff; font-size:16px; }
-  .submitRow button{ padding:10px 14px; border-radius:10px; border:none; font-weight:700; cursor:pointer;
-    color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf); box-shadow: 0 8px 22px rgba(122,255,175,.28); }
-  .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
-  .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
-</style>
-</head>
-<body>
-  <main class="app">
-    <div class="title">鉛直投げ上げゲーム〜5球で10点取れ！〜</div>
+ <!-- 提出フォーム -->
+<div class="submitBox" id="submitBox" aria-live="polite">
+  <h3>提出</h3>
+  <div class="submitRow">
+    <label for="studentId">4桁番号(年組番)：</label>
+    <input id="studentId" type="text" placeholder="3143" inputmode="numeric" />
+  </div>
+  <div class="submitRow">
+    <label for="studentName">氏名：</label>
+    <input id="studentName" type="text" placeholder="海城太郎" />
+    <button id="submitBtn">送信</button>
+  </div>
+  <div class="helpText" id="submitHelp">5回分の合計点と一緒に提出されます。</div>
+</div>
+<div class="toast" id="toast"></div>
 
-    <!-- 課題＆スコア（タイトル直下） -->
-    <div class="challengeBox" id="challengeBox">
-      <span class="badge" id="roundBadgeHUD">ラウンド1/5</span>
-      <span id="challengeTextHUD">—</span>
-      <span id="resultTextHUD"></span>
-      <span>｜スコア <strong id="scoreHUD">0点</strong></span>
-    </div>
-
-    <!-- カード全体 -->
-    <section class="card" id="card">
-      <!-- ルーレット -->
-      <div class="roulette" aria-live="polite">
-        <div class="bar" aria-label="初速ルーレット（0〜35 m/s を4.5秒で周回）">
-          <div class="fill" id="fill"></div>
-        </div>
-        <div class="speed" id="speedLabel">0.00 m/s</div>
-      </div>
-      <div class="actions">
-        <button id="lockBtn">投射！</button>
-        <button id="retryBtn" class="secondary" disabled>次のラウンド</button>
-        <button id="resetBtn" class="secondary" style="display:none">もう一度</button>
-      </div>
-
-      <div class="playgrid">
-        <div class="scene" id="scene">
-          <div class="meter">g = 9.8 m/s²</div>
-          <div class="grid" id="grid"></div>
-          <div class="hline" id="hline" style="bottom:8px;"></div>
-          <div class="ball" id="ball" style="bottom:8px"></div>
-          <div class="ground"></div>
-        </div>
-        <div class="readouts" id="readouts">
-          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNow">0.00 m</div></div>
-          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hVal">0.00 m</div></div>
-          <div class="stat"><div class="label">時間t</div><div class="value" id="tVal">0.00 s</div></div>
-        </div>
-
-        <!-- 提出フォーム -->
-        <div class="submitBox" id="submitBox" aria-live="polite">
-          <h3>提出</h3>
-          <div class="submitRow">
-            <label for="studentId">学籍番号：</label>
-            <input id="studentId" type="text" placeholder="例：123456" inputmode="numeric" />
-            <button id="submitBtn">送信</button>
-          </div>
-          <div class="helpText" id="submitHelp">5回分の成績と一緒に提出されます。</div>
-        </div>
-        <div class="toast" id="toast"></div>
-
-      </div>
-    </section>
-
-  </main>
+<!-- 中略 -->
 
 <script>
 (() => {
-  const g = 9.8;
-  const vMin=0,vMax=35,cycleSec=4.5;
-  const fillEl=document.getElementById('fill');
-  const speedLabel=document.getElementById('speedLabel');
-  const lockBtn=document.getElementById('lockBtn');
-  const retryBtn=document.getElementById('retryBtn');
-  const resetBtn=document.getElementById('resetBtn');
-  const scene=document.getElementById('scene');
-  const gridEl=document.getElementById('grid');
-  const hLine=document.getElementById('hline');
-  const ball=document.getElementById('ball');
-  const yNowEl=document.getElementById('yNow');
-  const hValEl=document.getElementById('hVal');
-  const tValEl=document.getElementById('tVal');
-  const roundBadgeHUD=document.getElementById('roundBadgeHUD');
-  const challengeTextHUD=document.getElementById('challengeTextHUD');
-  const resultTextHUD=document.getElementById('resultTextHUD');
-  const scoreHUD=document.getElementById('scoreHUD');
+  /* ... 省略 ... */
 
-  /* Googleフォーム送信設定 */
   const CONFIG = {
     SUBMIT_MODE: 'google_forms',
     GOOGLE_FORMS: {
       url: 'https://docs.google.com/forms/d/e/1FAIpQLSdclzAB4YrLDhGSKkAoOC4IzF91eYF0uaWZuzXnJkZvBXGC7Q/formResponse',
       entry: {
         studentId: 'entry.196095964',
+        studentName: 'entry.914895046',
         totalScore: 'entry.1303752079',
         timestamp: 'entry.1852796806'
       }
     }
   };
+
   const submitBox = document.getElementById('submitBox');
   const submitBtn = document.getElementById('submitBtn');
   const studentIdInput = document.getElementById('studentId');
+  const studentNameInput = document.getElementById('studentName');
   const toast = document.getElementById('toast');
+
   function showToast(msg){
     toast.textContent = msg;
     toast.style.display = 'block';
     setTimeout(()=>toast.style.display='none', 2000);
   }
+
   function showSubmitBox(){
     submitBox.style.display = 'block';
     studentIdInput.focus();
   }
+
   async function submitResult(){
     const studentId = studentIdInput.value.trim();
-    if(!studentId){ showToast('学籍番号を入力してください'); return; }
+    const studentName = studentNameInput.value.trim();
+    if(!studentId || !studentName){
+      showToast('4桁番号と氏名を入力してください');
+      return;
+    }
     try{
       const fd = new FormData();
       fd.append(CONFIG.GOOGLE_FORMS.entry.studentId, studentId);
+      fd.append(CONFIG.GOOGLE_FORMS.entry.studentName, studentName);
       fd.append(CONFIG.GOOGLE_FORMS.entry.totalScore, String(score));
       fd.append(CONFIG.GOOGLE_FORMS.entry.timestamp, new Date().toLocaleString());
       await fetch(CONFIG.GOOGLE_FORMS.url, { method:'POST', mode:'no-cors', body: fd });
       showToast('送信しました！（Googleフォーム）');
-      submitBtn.disabled = true; studentIdInput.disabled = true;
+      submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
     }catch(e){
       console.error(e);
       showToast('送信に失敗しました…');
