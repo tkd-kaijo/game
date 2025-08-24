@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>鉛直投げ上げゲーム 2人対戦（横画面専用）</title>
+<style>
+  :root{
+    --bg:#0f1220; --pane:#14182b; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1;
+    --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
+    --topbar-h: 56px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
+    color:var(--text); font-family: ui-sans-serif, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", system-ui, sans-serif;
+    display:flex; min-height:100svh; align-items:stretch; justify-content:center;
+    overflow:hidden; /* ページスクロールを禁止して中で完結 */
+  }
+  @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
+
+  .topbar{
+    position:fixed; top:8px; left:50%; transform:translateX(-50%);
+    display:flex; gap:16px; align-items:center; z-index:20;
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.12);
+    padding:8px 14px; border-radius:14px; backdrop-filter: blur(6px);
+    height: var(--topbar-h);
+  }
+  .topbar .title{font-weight:800; letter-spacing:.02em}
+  .timer{font-variant-numeric: tabular-nums; font-weight:900; font-size:28px; color:#ffd36a}
+  .startBtn{
+    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf);
+    box-shadow: 0 8px 22px rgba(122,255,175,.28), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+
+  .arena{
+    width:min(1400px, 100%); margin:0 auto;
+    /* 画面高にフィットさせ、上部トップバー分を余白で確保 */
+    padding: calc(var(--topbar-h) + 10px) 10px 10px;
+    height: 100dvh;
+    display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+  }
+  .pane{
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; position:relative;
+    display:flex; flex-direction:column; min-height:0; /* ←縦フレックスで高さ配分 */
+  }
+  .pane header{
+    display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
+    flex:0 0 auto;
+  }
+  .name{font-weight:900; letter-spacing:.02em; font-size:20px}
+  .score{font-variant-numeric: tabular-nums; font-weight:900; font-size:22px}
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:13px; background:rgba(255,255,255,.08); color:var(--yellow)}
+
+  .challenge{font-weight:900; color:#ff5b5b; margin-bottom:8px; flex:0 0 auto;}
+
+  .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; flex:0 0 auto;}
+  .bar{height:18px; background:#111528; border-radius:999px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,.08)}
+  .fill{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .06s linear; box-shadow:0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3)}
+  .speed{font-variant-numeric: tabular-nums; font-weight:900; letter-spacing:.02em; min-width:8ch; text-align:right; font-size:clamp(18px, 2.6vw, 34px); color:#ff5b5b}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto;}
+  .btn{
+    appearance:none; border:none; border-radius:12px; padding:14px 20px; font-weight:900; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+    font-size: clamp(22px, 2.6vw, 34px);
+  }
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+
+  /* ←このブロック全体を残り高さに割り当てる */
+  .gridWrap{
+    display:grid; grid-template-columns: 1fr 220px; gap:10px; align-items:stretch;
+    flex:1 1 auto; min-height:0; /* 余った高さをここに全部入れる */
+  }
+  .scene{
+    position:relative; height:100%; /* ←残り高をまるごと使う */
+    border-radius:14px; overflow:hidden;
+    background: radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%), #0b1022;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
+  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+  .grid{position:absolute; inset:0 0 8px 0; pointer-events:none;}
+  .gridline{position:absolute; left:8px; right:8px; height:1px; background:rgba(255,255,255,.22); opacity:.7}
+  .gridlabel{position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
+  .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
+  .ball{
+    position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
+    box-shadow: 0 8px 24px rgba(106,227,255,.45);
+  }
+
+  .readouts{display:grid; grid-template-columns: 1fr; gap:8px; overflow:auto; /* 必要ならこの中だけスクロール */}
+  .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px}
+  .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
+  .stat .value{font-variant-numeric: tabular-nums; font-weight:900; font-size:20px}
+
+  .result{margin-top:6px; min-height:26px}
+  .great{color:#a7ff6a; font-weight:800}
+  .good{color:var(--ok); font-weight:800}
+  .ok{color:#ffd36a; font-weight:800}
+  .bad{color:var(--ng); font-weight:800}
+
+  .winner{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:30;
+    background:rgba(0,0,0,.55); backdrop-filter: blur(3px);
+  }
+  .winnerCard{
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.18); padding:18px 22px; border-radius:16px; text-align:center;
+    box-shadow: 0 20px 40px rgba(0,0,0,.35);
+  }
+  .winnerCard h2{ margin:0 0 8px; }
+  .winnerBtns{ margin-top:10px; display:flex; gap:10px; justify-content:center; }
+  .overlayPortrait{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+    background:#0b0f20; color:#fff; text-align:center; padding:24px;
+  }
+  @media (orientation: portrait){
+    .overlayPortrait{ display:flex; }
+  }
+</style>
+</head>
+<body>
+  <div class="overlayPortrait">
+    <div>
+      <h2>横画面にしてください</h2>
+      <p>この対戦版は横向き専用です。端末を横に回転してください。</p>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="title">鉛直投げ上げゲーム 2人対戦</div>
+    <div>制限時間</div>
+    <div class="timer" id="timer">30.0</div>
+    <button class="startBtn" id="startBtn">対戦スタート</button>
+  </div>
+
+  <main class="arena">
+    <section class="pane" id="paneA">
+      <header>
+        <div class="name">プレイヤーA</div>
+        <div><span class="badge" id="roundA">Ready</span></div>
+        <div>スコア <span class="score" id="scoreA">0</span></div>
+      </header>
+      <div class="challenge" id="challengeA">—</div>
+
+      <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒で周回）">
+        <div class="bar"><div class="fill" id="fillA"></div></div>
+        <div class="speed" id="speedA">0.00 m/s</div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="fireA">投射！(Aボタン)</button>
+      </div>
+
+      <div class="gridWrap">
+        <div class="scene" id="sceneA">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="gridA"></div>
+          <div class="hline" id="hlineA" style="bottom:8px"></div>
+          <div class="ball" id="ballA" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNowA">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hValA">0.00 m</div></div>
+          <div class="stat"><div class="label">時間 t</div><div class="value" id="tValA">0.00 s</div></div>
+          <div class="result" id="resultA"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" id="paneB">
+      <header>
+        <div class="name">プレイヤーB</div>
+        <div><span class="badge" id="roundB">Ready</span></div>
+        <div>スコア <span class="score" id="scoreB">0</span></div>
+      </header>
+      <div class="challenge" id="challengeB">—</div>
+
+      <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒で周回）">
+        <div class="bar"><div class="fill" id="fillB"></div></div>
+        <div class="speed" id="speedB">0.00 m/s</div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="fireB">投射！(Lボタン)</button>
+      </div>
+
+      <div class="gridWrap">
+        <div class="scene" id="sceneB">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="gridB"></div>
+          <div class="hline" id="hlineB" style="bottom:8px"></div>
+          <div class="ball" id="ballB" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNowB">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hValB">0.00 m</div></div>
+          <div class="stat"><div class="label">時間 t</div><div class="value" id="tValB">0.00 s</div></div>
+          <div class="result" id="resultB"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="winner" id="winner">
+    <div class="winnerCard">
+      <h2 id="winnerTitle">結果</h2>
+      <div id="winnerDetail"></div>
+      <div class="winnerBtns">
+        <button class="startBtn" id="restartBtn">もう一度</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const g = 9.8;
+  const vMin=0, vMax=35, cycleSec=4.5;
+  const Xs=[4.9,19.6]; const Ts=[1,2,3,4,6];
+
+  // 共有サウンド
+  let audioCtx=null;
+  function beep(freq=880,duration=0.15,type='sine',gain=0.08){
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const t0=audioCtx.currentTime;
+      const osc=audioCtx.createOscillator();
+      const gnode=audioCtx.createGain();
+      osc.type=type; osc.frequency.value=freq; gnode.gain.value=gain;
+      osc.connect(gnode).connect(audioCtx.destination);
+      osc.start(t0);
+      gnode.gain.setValueAtTime(gain,t0);
+      gnode.gain.exponentialRampToValueAtTime(0.0001,t0+duration);
+      osc.stop(t0+duration+0.02);
+    }catch(e){}
+  }
+  const okSound = ()=>beep(740,0.12);
+  const goodSound = ()=>{beep(880,0.12); setTimeout(()=>beep(1175,0.12),120);};
+  const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
+  const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
+
+  class DuelGame {
+    constructor(prefix){
+      // 要素
+      this.fill   = document.getElementById('fill'+prefix);
+      this.speedL = document.getElementById('speed'+prefix);
+      this.fireBtn= document.getElementById('fire'+prefix);
+      this.scene  = document.getElementById('scene'+prefix);
+      this.gridEl = document.getElementById('grid'+prefix);
+      this.hLine  = document.getElementById('hline'+prefix);
+      this.ball   = document.getElementById('ball'+prefix);
+      this.yNowEl = document.getElementById('yNow'+prefix);
+      this.hValEl = document.getElementById('hVal'+prefix);
+      this.tValEl = document.getElementById('tVal'+prefix);
+      this.roundBadge = document.getElementById('round'+prefix);
+      this.challengeText = document.getElementById('challenge'+prefix);
+      this.resultEl = document.getElementById('result'+prefix);
+      this.scoreEl = document.getElementById('score'+prefix);
+
+      // 状態
+      this.runningRoulette = false;
+      this.locked = false;
+      this.t0Roulette = 0;
+      this.score = 0;
+      this.challenge = null;
+      this.prevChallenge = null;
+
+      // 定数
+      this.groundOffsetPx=8;
+
+      // 初期描画
+      this.ball.style.transform = 'translateX(-50%)';
+      this.ball.style.bottom = this.groundOffsetPx+'px';
+      this.hLine.style.bottom = this.groundOffsetPx+'px';
+      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+
+      // イベント
+      this.fireBtn.addEventListener('click', ()=>{
+        if(this.locked || this.fireBtn.disabled) return;
+        this.locked = true;
+        const v = parseFloat(this.speedL.textContent.replace(' m/s',''));
+        this.fireBtn.disabled = true;
+        this.animateThrow(v);
+      });
+
+      // 初回課題
+      this.pickChallenge();
+      this.updateScore(0);
+      this.roundBadge.textContent = 'Ready';
+    }
+
+    startRoulette(){
+      this.runningRoulette = true;
+      this.t0Roulette = performance.now();
+      const loop = (now)=>{
+        if(!this.runningRoulette) return;
+        const elapsed = (now - this.t0Roulette)/1000;
+        const v = vMin + ((elapsed % cycleSec)/cycleSec) * (vMax - vMin);
+        this.updateSpeedUI(v);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+    stopRoulette(){ this.runningRoulette = false; }
+
+    updateSpeedUI(v){
+      const c=Math.max(vMin,Math.min(vMax,v));
+      const ratio=(c-vMin)/(vMax-vMin);
+      this.fill.style.width=(ratio*100).toFixed(2)+'%';
+      this.speedL.textContent=c.toFixed(2)+' m/s';
+    }
+
+    scalePxPerMeterFor(v0){
+      const H=(v0*v0)/(2*g);
+      const maxPx=(this.scene.clientHeight - this.groundOffsetPx) - 26;
+      const base=8;
+      return Math.min(base, maxPx/Math.max(H,1e-6));
+    }
+    scalePxPerMeterForMaxMeters(maxMeters){
+      const maxPx=(this.scene.clientHeight - this.groundOffsetPx) - 26;
+      return Math.max(0.5, maxPx/Math.max(maxMeters,1e-6));
+    }
+
+    renderGrid(scale){
+      // grid は inset: 0 0 8px 0 なので、子の bottom は「下端=0m」基準（groundOffsetPx は足さない）
+      this.gridEl.innerHTML='';
+      const marks=[0,10,20,30,40,50,60];
+      const hGrid = this.gridEl.clientHeight;
+      for(const m of marks){
+        const bottom = m * scale;
+        if(bottom < 0 || bottom > hGrid - 2) continue;
+        const line = document.createElement('div');
+        line.className='gridline';
+        line.style.bottom = bottom + 'px';
+        const lab = document.createElement('div');
+        lab.className='gridlabel';
+        lab.style.bottom = bottom + 'px';
+        lab.textContent = m + ' m';
+        this.gridEl.appendChild(line);
+        this.gridEl.appendChild(lab);
+      }
+    }
+
+    pickChallenge(){
+      let newC;
+      do {
+        if(Math.random()<0.5){
+          const x=Xs[Math.floor(Math.random()*Xs.length)];
+          newC={type:'H',target:x,text:`最高到達高度 ${x} m を目指せ！`};
+        }else{
+          const t=Ts[Math.floor(Math.random()*Ts.length)];
+          newC={type:'T',target:t,text:`着地時間 ${t} 秒 を目指せ！`};
+        }
+      } while(this.prevChallenge && newC.type===this.prevChallenge.type && newC.target===this.prevChallenge.target);
+      this.challenge=newC; this.prevChallenge=newC;
+      this.challengeText.textContent=newC.text;
+      this.resultEl.textContent='';
+    }
+
+    animateThrow(v0){
+      const scale=this.scalePxPerMeterFor(v0);
+      this.renderGrid(scale);
+      const T=2*v0/g; const H=(v0*v0)/(2*g);
+      const tPeak = v0/g;
+      const start=performance.now();
+
+      const step=(now)=>{
+        const t=(now-start)/1000;
+        const tC=Math.max(0,Math.min(T,t));
+        const y=Math.max(0, v0*tC - 0.5*g*tC*tC);
+        const yPx=y*scale;
+
+        // 下端基準位置
+        this.ball.style.bottom = (this.groundOffsetPx + yPx) + 'px';
+
+        // 赤線：上昇中は y（下端）に追従、以降は H 固定
+        const hDisp = (tC <= tPeak) ? y : H;
+        this.hLine.style.bottom = (this.groundOffsetPx + hDisp*scale) + 'px';
+
+        // 表示
+        this.yNowEl.textContent = y.toFixed(2)+' m';
+        this.hValEl.textContent  = ((tC <= tPeak) ? y : H).toFixed(2)+' m';
+        this.tValEl.textContent  = tC.toFixed(2)+' s';
+
+        if(t<T-1e-3){
+          requestAnimationFrame(step);
+        }else{
+          // 着地
+          this.ball.style.bottom = this.groundOffsetPx + 'px';
+          this.yNowEl.textContent='0.00 m';
+          this.hValEl.textContent= H.toFixed(2)+' m';
+          this.tValEl.textContent= T.toFixed(2)+' s';
+          this.hLine.style.bottom = (this.groundOffsetPx + H*scale) + 'px';
+          this.evaluateAndContinue(H,T);
+        }
+      };
+      requestAnimationFrame(step);
+    }
+
+    evaluateAndContinue(H,T){
+      const errPct = (this.challenge.type==='H')
+        ? Math.abs(H - this.challenge.target) / this.challenge.target
+        : Math.abs(T - this.challenge.target) / this.challenge.target;
+
+      let gained=0, msgClass='bad', msgText='miss…';
+      if(errPct < 0.10){ gained=3; msgClass='great'; msgText='great!!'; greatSound(); }
+      else if(errPct < 0.20){ gained=2; msgClass='good'; msgText='good!'; goodSound(); }
+      else if(errPct < 0.30){ gained=1; msgClass='ok';   msgText='ok';    okSound(); }
+      else { wrongSound(); }
+
+      if(gained>0) this.updateScore(this.score + gained);
+      this.resultEl.innerHTML = `<span class="${msgClass}">${msgText}（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+
+      // 次課題へ即移行
+      this.pickChallenge();
+      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+      this.hLine.style.bottom = this.groundOffsetPx + 'px';
+      this.fireBtn.disabled = false;
+      this.locked = false;
+    }
+
+    updateScore(v){ this.score = v; this.scoreEl.textContent = String(v); }
+
+    // 対戦開始/停止フック
+    enablePlay(on){ this.fireBtn.disabled = !on; this.roundBadge.textContent = on ? 'Go!' : 'Ready'; }
+    onStart(){ this.enablePlay(true); this.startRoulette(); }
+    onStop(){ this.enablePlay(false); this.stopRoulette(); this.locked=true; }
+    reset(){
+      this.stopRoulette(); this.score=0; this.scoreEl.textContent='0';
+      this.locked=false; this.fireBtn.disabled=true; this.roundBadge.textContent='Ready';
+      this.ball.style.bottom = this.groundOffsetPx+'px';
+      this.hLine.style.bottom = this.groundOffsetPx+'px';
+      this.yNowEl.textContent='0.00 m'; this.hValEl.textContent='0.00 m'; this.tValEl.textContent='0.00 s';
+      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+      this.pickChallenge(); this.updateSpeedUI(0);
+      this.resultEl.textContent='';
+    }
+  }
+
+  const timerEl = document.getElementById('timer');
+  const startBtn = document.getElementById('startBtn');
+  const winner = document.getElementById('winner');
+  const winnerTitle = document.getElementById('winnerTitle');
+  const winnerDetail = document.getElementById('winnerDetail');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const A = new DuelGame('A');
+  const B = new DuelGame('B');
+
+  let tRemain = 30.0;   // ← 制限時間 30秒
+  let ticking = false;
+  let rafId = null, lastTs = 0;
+
+  function tick(ts){
+    if(!ticking) return;
+    if(!lastTs) lastTs = ts;
+    const dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    tRemain = Math.max(0, tRemain - dt);
+    timerEl.textContent = tRemain.toFixed(1);
+    if(tRemain > 0){
+      rafId = requestAnimationFrame(tick);
+    }else{
+      // タイムアップ
+      A.onStop(); B.onStop(); ticking=false;
+      showWinner();
+    }
+  }
+
+  function showWinner(){
+    const a = A.score, b = B.score;
+    if(a > b){ winnerTitle.textContent = '勝者：プレイヤーA'; }
+    else if(b > a){ winnerTitle.textContent = '勝者：プレイヤーB'; }
+    else { winnerTitle.textContent = '引き分け'; }
+    winnerDetail.textContent = `A: ${a} 点　/　B: ${b} 点`;
+    winner.style.display='flex';
+  }
+  function hideWinner(){ winner.style.display='none'; }
+
+  function startMatch(){
+    hideWinner();
+    tRemain = 30.0; timerEl.textContent = tRemain.toFixed(1);
+    lastTs = 0; ticking = true;
+    A.reset(); B.reset();
+    A.onStart(); B.onStart();
+    requestAnimationFrame(tick);
+  }
+
+  startBtn.addEventListener('click', startMatch);
+  restartBtn.addEventListener('click', startMatch);
+
+  // キーボード操作：A/Lで投射（長押しリピート無視）
+  window.addEventListener('keydown', (e)=>{
+    if(e.repeat) return;
+    const key = e.key.toLowerCase();
+    if(key === 'a'){
+      // A 側
+      if(!A.fireBtn.disabled && !A.locked){ A.fireBtn.click(); }
+    }else if(key === 'l'){
+      // B 側
+      if(!B.fireBtn.disabled && !B.locked){ B.fireBtn.click(); }
+    }
+  });
+
+  // レイアウト微調整：横向き時に中のグリッドが常に下端まで見えるように
+  function fitScenes(){
+    // フレックスで自動配分しているため、ここではグリッド描画の更新のみでOK
+    A.renderGrid(A.scalePxPerMeterForMaxMeters(60));
+    B.renderGrid(B.scalePxPerMeterForMaxMeters(60));
+    A.hLine.style.bottom = A.groundOffsetPx + 'px';
+    B.hLine.style.bottom = B.groundOffsetPx + 'px';
+  }
+  window.addEventListener('resize', fitScenes);
+  window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
+  window.addEventListener('DOMContentLoaded', ()=>setTimeout(fitScenes, 50));
+})();
+</script>
+</body>
+</html>
