@@ -56,11 +56,22 @@
   .speed{font-variant-numeric: tabular-nums; font-weight:800; letter-spacing:.02em; min-width:8ch; text-align:right; font-size:18px}
 
   .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; justify-content:center}
-  button{
-    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:700; cursor:pointer;
-    color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
-    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+  button {
+  appearance:none; border:none; border-radius:12px;
+  padding:14px 20px;             /* ←ちょっと広めに */
+  font-weight:700; cursor:pointer;
+  font-size: clamp(22px, 3.8vw, 34px);  /* ←速さ表示に合わせる */
+  color:#03131a;
+  background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+  box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+@media (min-width: 820px) {
+  button {
+    font-size: clamp(34px, 3.8vw, 53px);
+    padding: 18px 28px;
   }
+}
   button.secondary{
     background:linear-gradient(180deg, #d7e7ff, #b8cfff);
     box-shadow: 0 8px 22px rgba(184,207,255,.28), inset 0 1px 0 rgba(255,255,255,.6);
