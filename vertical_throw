@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>鉛直投げ上げゲーム〜5球で10点取れ！〜</title>
+<style>
+  :root{
+    --bg:#0f1220; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1; --text:#e8edf2; --muted:#9aa7b3;
+    --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
+  }
+  *{box-sizing:border-box}
+  html, body{height:100%;}
+  body{
+    margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
+    color:var(--text); display:flex; min-height:100svh; align-items:center; justify-content:center; padding:16px;
+  }
+  @supports (min-height: 100dvh){
+    body{ min-height:100dvh; }
+  }
+  .app{width:min(980px,100%); display:grid; gap:12px}
+  .title{font-weight:700; letter-spacing:.02em; font-size:clamp(18px,3vw,28px); text-align:center}
+
+  /* 課題＆スコア（タイトル直下） */
+  .challengeBox{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;
+    padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04);
+  }
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:14px; background:rgba(255,255,255,.08); color:var(--yellow)}
+  #challengeTextHUD{font-weight:700}
+  #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
+  .great{color:#a7ff6a; font-weight:800; margin-left:8px}
+  .good{color:var(--ok); font-weight:800; margin-left:8px}
+  .ok{color:#ffd36a; font-weight:800; margin-left:8px}
+  .bad{color:var(--ng); font-weight:800; margin-left:8px}
+
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.00));
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+
+  /* ルーレット */
+  .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center}
+  .bar{
+    height:16px; background:#111528; border-radius:999px; overflow:hidden; position:relative;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .fill{
+    height:100%; width:0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .06s linear;
+    box-shadow: 0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3);
+  }
+  .speed{font-variant-numeric: tabular-nums; font-weight:800; letter-spacing:.02em; min-width:8ch; text-align:right; font-size:18px}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; justify-content:center}
+  button{
+    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:700; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  button.secondary{
+    background:linear-gradient(180deg, #d7e7ff, #b8cfff);
+    box-shadow: 0 8px 22px rgba(184,207,255,.28), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  button:disabled{opacity:.5; cursor:not-allowed}
+
+  /* プレイ領域のレイアウト */
+  .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
+  @media (orientation: portrait){
+    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
+    .scene{grid-area: scene}
+    .readouts{grid-area: readouts}
+  }
+  @media (orientation: landscape){
+    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
+    .scene{grid-area: scene}
+    .readouts{grid-area: readouts}
+  }
+
+  /* アニメーション領域（高さはJSでフィット） */
+  .scene{
+    position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:10px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)),
+      radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%),
+      #0b1022;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+
+  /* 10m刻みグリッド */
+  .grid{position:absolute; inset:0 0 8px 0; pointer-events:none;}
+  .gridline{position:absolute; left:8px; right:8px; height:1px; background:rgba(255,255,255,.22); opacity:.7}
+  .gridlabel{position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
+
+  /* 最高到達高度ライン（赤） */
+  .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
+
+  .ball{
+    position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
+    box-shadow: 0 8px 24px rgba(106,227,255,.45);
+  }
+  .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
+
+  /* 連続表示（右側 or 下）*/
+  .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px}
+  @media (max-width: 980px){ .readouts{grid-template-columns:1fr 1fr} }
+  @media (orientation: portrait){
+    .readouts{grid-template-columns:1fr; align-content:start}
+  }
+  .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px}
+  .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
+  .stat .value{font-variant-numeric: tabular-nums; font-weight:800; font-size:22px}
+
+  /* ====== デスクトップ/iPad用の強調（+20%） ====== */
+  @media (min-width: 820px) {
+    .title{ font-size: clamp(24px, 2.6vw, 36px); }
+    .challengeBox{ padding:12px 16px; gap:16px; }
+    .badge{ font-size: 26px; padding:8px 18px; }
+    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); } /* +20% */
+    #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }        /* +20% */
+    .speed{ font-size: clamp(43px, 3.8vw, 53px); }           /* +20% */
+    .bar{ height: 22px; }
+    .stat .label{ font-size: 16px; }
+    .stat .value{ font-size: clamp(30px, 2.6vw, 40px); }
+  }
+
+  /* ====== iPad横向き(1024x768)で1画面に収まるよう微調整 ====== */
+  @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
+    .title{ font-size: 20px; }
+    #challengeTextHUD{ font-size: 28px; }
+    #scoreHUD, .speed{ font-size: 34px; }
+    .stat .value{ font-size: 24px; }
+    .stat .label{ font-size: 14px; }
+    .bar{ height: 18px; }
+  }
+#challengeTextHUD, .speed { color:#ff5b5b !important; }
+</style>
+</head>
+<body>
+  <main class="app">
+    <div class="title">鉛直投げ上げゲーム〜5球で10点取れ！〜</div>
+
+    <!-- 課題＆スコア（タイトル直下） -->
+    <div class="challengeBox" id="challengeBox">
+      <span class="badge" id="roundBadgeHUD">ラウンド1/5</span>
+      <span id="challengeTextHUD">—</span>
+      <span id="resultTextHUD"></span>
+      <span>｜スコア <strong id="scoreHUD">0</strong></span>
+    </div>
+
+    <!-- カード全体 -->
+    <section class="card" id="card">
+      <!-- ルーレット -->
+      <div class="roulette" aria-live="polite">
+        <div class="bar" aria-label="初速ルーレット（0〜35 m/s を4.5秒で周回）">
+          <div class="fill" id="fill"></div>
+        </div>
+        <div class="speed" id="speedLabel">0.00 m/s</div>
+      </div>
+      <div class="actions">
+        <button id="lockBtn">投射！</button>
+        <button id="retryBtn" class="secondary" disabled>次のラウンド</button>
+        <button id="resetBtn" class="secondary" style="display:none">もう一度</button>
+      </div>
+
+      <div class="playgrid">
+        <div class="scene" id="scene">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="grid"></div>
+          <div class="hline" id="hline" style="bottom:8px;"></div>
+          <div class="ball" id="ball" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts" id="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNow">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hVal">0.00 m</div></div>
+          <div class="stat"><div class="label">時間t</div><div class="value" id="tVal">0.00 s</div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+(() => {
+  const g = 9.8;
+  const vMin=0,vMax=35,cycleSec=4.5;
+  const fillEl=document.getElementById('fill');
+  const speedLabel=document.getElementById('speedLabel');
+  const lockBtn=document.getElementById('lockBtn');
+  const retryBtn=document.getElementById('retryBtn');
+  const resetBtn=document.getElementById('resetBtn');
+  const scene=document.getElementById('scene');
+  const gridEl=document.getElementById('grid');
+  const hLine=document.getElementById('hline');
+  const ball=document.getElementById('ball');
+  const yNowEl=document.getElementById('yNow');
+  const hValEl=document.getElementById('hVal');
+  const tValEl=document.getElementById('tVal');
+  const roundBadgeHUD=document.getElementById('roundBadgeHUD');
+  const challengeTextHUD=document.getElementById('challengeTextHUD');
+  const resultTextHUD=document.getElementById('resultTextHUD');
+  const scoreHUD=document.getElementById('scoreHUD');
+
+  const groundOffsetPx=8;
+  const sceneHeight=()=>scene.clientHeight-groundOffsetPx;
+  function scalePxPerMeterFor(v0){
+    const H=(v0*v0)/(2*g);
+    const maxPx=sceneHeight()-26;
+    const base=8;
+    return Math.min(base,maxPx/Math.max(H,1e-6));
+  }
+  function scalePxPerMeterForMaxMeters(maxMeters){
+    const maxPx=sceneHeight()-26;
+    return Math.max(0.5, maxPx/Math.max(maxMeters,1e-6));
+  }
+
+  // ---- デバイスごとの高さ自動フィット ----
+  let baselineTop = null;
+  function getVH(){
+    const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    return Math.min(window.innerHeight, vvh);
+  }
+  function fitSceneToViewport(){
+    const vh = getVH();
+    if(baselineTop === null){
+      baselineTop = scene.getBoundingClientRect().top;
+    }
+    const margin = 12;
+    let desired = Math.floor(vh - baselineTop - margin);
+    desired = Math.max(220, Math.min(desired, vh - margin));
+    const prev = parseFloat(getComputedStyle(scene).height);
+    if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
+    scene.style.height = desired + 'px';
+    renderGrid(scalePxPerMeterForMaxMeters(60));
+    hLine.style.bottom = groundOffsetPx + 'px';
+  }
+
+  // ---- グリッド描画（0,10,20,...,60m） ----
+  function renderGrid(scale){
+    gridEl.innerHTML='';
+    const marks = [0,10,20,30,40,50,60];
+    const hScene = scene.clientHeight;
+    for(const m of marks){
+      const yPx = m * scale;
+      const bottom = groundOffsetPx + yPx;
+      if(bottom < 8 || bottom > hScene - 2) continue;
+      const line = document.createElement('div');
+      line.className='gridline';
+      line.style.bottom = bottom + 'px';
+      gridEl.appendChild(line);
+
+      const lab = document.createElement('div');
+      lab.className='gridlabel';
+      lab.style.bottom = bottom + 'px';
+      lab.textContent = m + ' m';
+      gridEl.appendChild(lab);
+    }
+  }
+
+  // ---- ゲーム進行 ----
+  const maxRounds=5; let round=1; let score=0;
+  const Xs=[4.9,19.6];
+  const Ts=[1,2,3,4,6];
+  let challenge=null;
+  let prevChallenge=null;
+
+  function pickChallenge(){
+    let newC;
+    do {
+      if(Math.random()<0.5){
+        const x=Xs[Math.floor(Math.random()*Xs.length)];
+        newC={type:'H',target:x,text:`最高到達高度 ${x} m を目指せ！`};
+      }else{
+        const t=Ts[Math.floor(Math.random()*Ts.length)];
+        newC={type:'T',target:t,text:`着地時間 ${t} 秒 を目指せ！`};
+      }
+    } while(prevChallenge && newC.type===prevChallenge.type && newC.target===prevChallenge.target);
+    challenge=newC; prevChallenge=newC;
+    challengeTextHUD.textContent=newC.text;
+    resultTextHUD.textContent='';
+    roundBadgeHUD.textContent=`ラウンド${round}/${maxRounds}`;
+  }
+
+  // ---- サウンド ----
+  let audioCtx=null;
+  function beep(freq=880,duration=0.15,type='sine',gain=0.08){
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const t0=audioCtx.currentTime;
+      const osc=audioCtx.createOscillator();
+      const gnode=audioCtx.createGain();
+      osc.type=type; osc.frequency.value=freq; gnode.gain.value=gain;
+      osc.connect(gnode).connect(audioCtx.destination);
+      osc.start(t0);
+      gnode.gain.setValueAtTime(gain,t0);
+      gnode.gain.exponentialRampToValueAtTime(0.0001,t0+duration);
+      osc.stop(t0+duration+0.02);
+    }catch(e){}
+  }
+  function okSound(){beep(740,0.12);}
+  function goodSound(){beep(880,0.12);setTimeout(()=>beep(1175,0.12),120);}
+  function greatSound(){beep(1047,0.10);setTimeout(()=>beep(1319,0.10),110);setTimeout(()=>beep(1661,0.14),230);}
+  function wrongSound(){beep(220,0.25,'square',0.06);setTimeout(()=>beep(175,0.25,'square',0.05),120);}
+
+  // ---- ルーレット ----
+  let running=true; let locked=false; let t0Roulette=performance.now();
+  function rouletteLoop(now){
+    if(!running)return;
+    const elapsed=(now-t0Roulette)/1000;
+    const v=vMin+((elapsed%cycleSec)/cycleSec)*(vMax-vMin);
+    updateSpeedUI(v);
+    requestAnimationFrame(rouletteLoop);
+  }
+  function updateSpeedUI(v){
+    const c=Math.max(vMin,Math.min(vMax,v));
+    const ratio=(c-vMin)/(vMax-vMin);
+    fillEl.style.width=(ratio*100).toFixed(2)+'%';
+    speedLabel.textContent=c.toFixed(2)+' m/s';
+  }
+
+  // ---- アニメーション ----
+  function animateThrow(v0){
+    const scale=scalePxPerMeterFor(v0);
+    renderGrid(scale);
+    const T=2*v0/g; const H=(v0*v0)/(2*g);
+    const tPeak = v0/g;
+    const start=performance.now();
+    function step(now){
+      const t=(now-start)/1000;
+      const tC=Math.max(0,Math.min(T,t));
+      const y=Math.max(0,v0*tC-0.5*g*tC*tC);
+      const yPx=y*scale;
+      ball.style.bottom=(groundOffsetPx+yPx)+'px';
+
+      const hDisp = (tC <= tPeak) ? y : H;
+      yNowEl.textContent=y.toFixed(2)+' m';
+      hValEl.textContent = hDisp.toFixed(2) + ' m';
+      tValEl.textContent=tC.toFixed(2)+' s';
+
+      hLine.style.bottom = (groundOffsetPx + hDisp*scale) + 'px';
+
+      if(t<T-1e-3){
+        requestAnimationFrame(step);
+      }else{
+        ball.style.bottom=groundOffsetPx+'px';
+        yNowEl.textContent='0.00 m'; hValEl.textContent=H.toFixed(2)+' m'; tValEl.textContent=T.toFixed(2)+' s';
+        hLine.style.bottom = (groundOffsetPx + H*scale) + 'px';
+        evaluateAndProceed(H,T);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ---- 採点（<10%:3点 / 10-20%:2点 / 20-30%:1点 / 30%以上:0点） ----
+  function evaluateAndProceed(H,T){
+    const errPct = (challenge.type==='H')
+      ? Math.abs(H - challenge.target) / challenge.target
+      : Math.abs(T - challenge.target) / challenge.target;
+
+    let gained = 0;
+    if(errPct < 0.10){
+      gained = 3;
+      score += gained;
+      scoreHUD.textContent = String(score);
+      resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}）</span>`;
+      greatSound();
+    }else if(errPct < 0.20){
+      gained = 2;
+      score += gained;
+      scoreHUD.textContent = String(score);
+      resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}）</span>`;
+      goodSound();
+    }else if(errPct < 0.30){
+      gained = 1;
+      score += gained;
+      scoreHUD.textContent = String(score);
+      resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}）</span>`;
+      okSound();
+    }else{
+      resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
+      wrongSound();
+    }
+
+    lockBtn.disabled=true; retryBtn.disabled=false;
+    if(round>=maxRounds){
+      const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
+      resultTextHUD.innerHTML =
+        `<div>5回目の得点：<strong>+${gained}</strong> 点</div>` +
+        `<div>全${maxRounds}回の合計スコア：<strong>${score}</strong> 点</div>`;
+      challengeTextHUD.textContent = finalMsg;
+      retryBtn.style.display='none';
+      resetBtn.style.display='inline-block';
+    }
+  }
+
+  function setupNextRound(){
+    if(round<maxRounds){
+      round += 1;
+      retryBtn.textContent='次のラウンド';
+    }
+    pickChallenge(); locked=false; running=true; t0Roulette=performance.now();
+    lockBtn.disabled=false; retryBtn.disabled=true; ball.style.bottom=groundOffsetPx+'px';
+    yNowEl.textContent='0.00 m'; hValEl.textContent='0.00 m'; tValEl.textContent='0.00 s';
+    renderGrid(scalePxPerMeterForMaxMeters(60));
+    hLine.style.bottom = groundOffsetPx + 'px';
+    requestAnimationFrame(rouletteLoop);
+    fitSceneToViewport();
+  }
+
+  function resetGame(){
+    round = 1; score = 0; scoreHUD.textContent='0';
+    retryBtn.style.display='inline-block';
+    resetBtn.style.display='none';
+    pickChallenge(); locked=false; running=true; t0Roulette=performance.now();
+    lockBtn.disabled=false; retryBtn.disabled=true; ball.style.bottom=groundOffsetPx+'px';
+    yNowEl.textContent='0.00 m'; hValEl.textContent='0.00 m'; tValEl.textContent='0.00 s';
+    roundBadgeHUD.textContent=`ラウンド${round}/${maxRounds}`;
+    renderGrid(scalePxPerMeterForMaxMeters(60));
+    hLine.style.bottom = groundOffsetPx + 'px';
+    requestAnimationFrame(rouletteLoop);
+    fitSceneToViewport();
+    window.scrollTo({top:0, behavior:'instant'});
+  }
+
+  lockBtn.addEventListener('click',()=>{
+    if(locked)return; locked=true; running=false;
+    const v=parseFloat(speedLabel.textContent.replace(' m/s',''));
+    lockBtn.disabled=true; retryBtn.disabled=true; animateThrow(v);
+  });
+  retryBtn.addEventListener('click',()=>{setupNextRound();});
+  resetBtn.addEventListener('click',()=>{resetGame();});
+
+  // 初期化
+  requestAnimationFrame(rouletteLoop);
+  pickChallenge();
+
+  // レイアウトフィット（向き変更・リサイズ対応 & スクロール上端へ）
+  function bindFit(){
+    baselineTop = scene.getBoundingClientRect().top;
+    fitSceneToViewport();
+    window.addEventListener('resize', ()=>{ baselineTop=null; fitSceneToViewport(); });
+    window.addEventListener('orientationchange', ()=>setTimeout(()=>{
+      baselineTop=null; fitSceneToViewport(); window.scrollTo({top:0, behavior:'instant'});
+    }, 200));
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize', ()=>{ baselineTop=null; fitSceneToViewport(); });
+    }
+  }
+  if(document.readyState === 'complete' || document.readyState === 'interactive'){
+    setTimeout(bindFit, 50);
+  }else{
+    window.addEventListener('DOMContentLoaded', ()=>setTimeout(bindFit,50));
+  }
+})();
+</script>
+</body>
+</html>
