@@ -288,6 +288,7 @@
 
   // レイアウト関連
   const groundOffsetPx=8; // 地面の線（.ground）の厚み分
+let currentScale = null;   // ★いま使う px/m を保持
   const sceneHeight=()=>scene.clientHeight-groundOffsetPx;
   function scalePxPerMeterFor(v0){
     const H=(v0*v0)/(2*g);
@@ -315,18 +316,26 @@
     const prev = parseFloat(getComputedStyle(scene).height);
     if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
     scene.style.height = desired + 'px';
-    renderGrid(scalePxPerMeterForMaxMeters(60));
-    hLine.style.bottom = groundOffsetPx + 'px'; // 下端=0m
+
+// ★このタイミングで1回だけスケールを計算して保持
+currentScale = scalePxPerMeterForMaxMeters(60);
+
+// ★保持スケールで描画
+renderGrid(); 
+hLine.style.bottom = groundOffsetPx + 'px';
   }
 
   // グリッド描画（0〜60m）
  function renderGrid(scale){
+  // ★引数が無ければ currentScale を使う
+  const s = (typeof scale === 'number') ? scale : currentScale;
+
   gridEl.innerHTML = '';
   const marks = [0,10,20,30,40,50,60];
-  const hGrid = gridEl.clientHeight; // ← grid コンテナの高さで判定
+  const hGrid = gridEl.clientHeight;
 
   for (const m of marks) {
-    const bottom = m * scale;        // ← もう groundOffsetPx を足さない
+    const bottom = m * s;   // ★s を使用
     if (bottom < 0 || bottom > hGrid - 2) continue;
 
     const line = document.createElement('div');
@@ -403,8 +412,8 @@
 
   // アニメーション（下端基準）
   function animateThrow(v0){
-    const scale=scalePxPerMeterFor(v0);
-    renderGrid(scale);
+    const scale = currentScale;  // ★保持スケールを使用
+renderGrid();                // ★引数なし
     const T=2*v0/g; const H=(v0*v0)/(2*g);
     const tPeak = v0/g;
     const start=performance.now();
@@ -470,8 +479,8 @@
     pickChallenge(); locked=false; running=true; t0Roulette=performance.now();
     lockBtn.disabled=false; retryBtn.disabled=true; ball.style.bottom=groundOffsetPx+'px';
     yNowEl.textContent='0.00 m'; hValEl.textContent='0.00 m'; tValEl.textContent='0.00 s';
-    renderGrid(scalePxPerMeterForMaxMeters(60));
-    hLine.style.bottom = groundOffsetPx + 'px';
+    renderGrid();                       // ★保持スケール
+hLine.style.bottom = groundOffsetPx + 'px';
     requestAnimationFrame(rouletteLoop);
     fitSceneToViewport();
   }
@@ -485,8 +494,9 @@
     lockBtn.disabled=false; retryBtn.disabled=true; ball.style.bottom=groundOffsetPx+'px';
     yNowEl.textContent='0.00 m'; hValEl.textContent='0.00 m'; tValEl.textContent='0.00 s';
     roundBadgeHUD.textContent = `ラウンド${round}/${5}`;
-    renderGrid(scalePxPerMeterForMaxMeters(60));
-    hLine.style.bottom = groundOffsetPx + 'px';
+    currentScale = scalePxPerMeterForMaxMeters(60); // ★再計算はリセット時だけ
+renderGrid();
+hLine.style.bottom = groundOffsetPx + 'px';
     requestAnimationFrame(rouletteLoop);
     fitSceneToViewport();
     window.scrollTo({top:0, behavior:'instant'});
@@ -504,6 +514,10 @@
   // 初期化
   requestAnimationFrame(rouletteLoop);
   pickChallenge();
+  renderGrid(scalePxPerMeterForMaxMeters(60));  
+  currentScale = scalePxPerMeterForMaxMeters(60);
+  hLine.style.bottom = groundOffsetPx + 'px';
+  ball.style.bottom = groundOffsetPx + 'px';
 
   // レイアウトフィット
   function bindFit(){
