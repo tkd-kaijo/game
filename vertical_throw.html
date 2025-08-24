@@ -33,7 +33,7 @@
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
   .ok{color:#ffd36a; font-weight:800; margin-left:8px}
-  .bad{color:var(--ng); font-weight:800; margin-left:8px}
+  .bad{color:#ff9aa8; font-weight:800; margin-left:8px}
 
   .card{
     background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.00));
@@ -67,7 +67,7 @@
   }
   button:disabled{opacity:.5; cursor:not-allowed}
 
-  /* プレイ領域のレイアウト */
+  /* プレイ領域レイアウト */
   .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
   @media (orientation: portrait){
     .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
@@ -100,14 +100,15 @@
   .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
 
   .ball{
-    position:absolute; left:50%; transform:translate(-50%, 50%); width:18px; aspect-ratio:1; border-radius:50%;
+    position:absolute; left:50%; transform:translateX(-50%); /* ←下端基準にするため縦方向の変換は無し */
+    width:18px; aspect-ratio:1; border-radius:50%;
     background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
     box-shadow: 0 8px 24px rgba(106,227,255,.45);
   }
   .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
     background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
 
-  /* 連続表示（右側 or 下）*/
+  /* 右側の連続表示 */
   .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px}
   @media (max-width: 980px){ .readouts{grid-template-columns:1fr 1fr} }
   @media (orientation: portrait){ .readouts{grid-template-columns:1fr; align-content:start} }
@@ -120,15 +121,15 @@
     .title{ font-size: clamp(24px, 2.6vw, 36px); }
     .challengeBox{ padding:12px 16px; gap:16px; }
     .badge{ font-size: 26px; padding:8px 18px; }
-    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); } /* +20% */
-    #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }        /* +20% */
-    .speed{ font-size: clamp(43px, 3.8vw, 53px); }           /* +20% */
+    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); }
+    #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }
+    .speed{ font-size: clamp(43px, 3.8vw, 53px); }
     .bar{ height: 22px; }
     .stat .label{ font-size: 16px; }
     .stat .value{ font-size: clamp(30px, 2.6vw, 40px); }
   }
 
-  /* ====== iPad横向き微調整 ====== */
+  /* iPad横向き微調整 */
   @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
     .title{ font-size: 20px; }
     #challengeTextHUD{ font-size: 28px; }
@@ -141,7 +142,7 @@
   /* 常に赤字に固定 */
   #challengeTextHUD, .speed { color:#ff5b5b !important; }
 
-  /* ===== 提出フォームのCSS ===== */
+  /* 提出フォーム */
   .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
   .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
   .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -275,7 +276,7 @@
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   // レイアウト関連
-  const groundOffsetPx=8;
+  const groundOffsetPx=8; // 地面の線（.ground）の厚み分
   const sceneHeight=()=>scene.clientHeight-groundOffsetPx;
   function scalePxPerMeterFor(v0){
     const H=(v0*v0)/(2*g);
@@ -304,7 +305,7 @@
     if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
     scene.style.height = desired + 'px';
     renderGrid(scalePxPerMeterForMaxMeters(60));
-    hLine.style.bottom = groundOffsetPx + 'px';
+    hLine.style.bottom = groundOffsetPx + 'px'; // 下端=0m
   }
 
   // グリッド描画（0〜60m）
@@ -314,7 +315,7 @@
     const hScene = scene.clientHeight;
     for(const m of marks){
       const yPx = m * scale;
-      const bottom = groundOffsetPx + yPx;
+      const bottom = groundOffsetPx + yPx; // 下端基準
       if(bottom < 8 || bottom > hScene - 2) continue;
       const line = document.createElement('div'); line.className='gridline'; line.style.bottom = bottom + 'px'; gridEl.appendChild(line);
       const lab = document.createElement('div'); lab.className='gridlabel'; lab.style.bottom = bottom + 'px'; lab.textContent = m + ' m'; gridEl.appendChild(lab);
@@ -380,26 +381,30 @@
     speedLabel.textContent=c.toFixed(2)+' m/s';
   }
 
-  // アニメーション
+  // アニメーション（下端基準）
   function animateThrow(v0){
     const scale=scalePxPerMeterFor(v0);
     renderGrid(scale);
     const T=2*v0/g; const H=(v0*v0)/(2*g);
     const tPeak = v0/g;
     const start=performance.now();
+
     function step(now){
       const t=(now-start)/1000;
       const tC=Math.max(0,Math.min(T,t));
-      const y=Math.max(0,v0*tC-0.5*g*tC*tC);
+      const y=Math.max(0,v0*tC-0.5*g*tC*tC); // 下端の物理高さ[m]
       const yPx=y*scale;
-      ball.style.bottom=(groundOffsetPx+yPx)+'px';  // y=0 なら下端が地面に一致
 
-      const hDisp = (tC <= tPeak) ? y : H;         // 上昇中は y、以降は H を表示
-      yNowEl.textContent=y.toFixed(2)+' m';
-      hValEl.textContent = hDisp.toFixed(2) + ' m';
-      tValEl.textContent=tC.toFixed(2)+' s';
+      ball.style.bottom=(groundOffsetPx+yPx)+'px'; // y=0 → 下端が地面に一致
 
+      // 赤線：上昇中は下端(y)、以降は最高到達高度(H)
+      const hDisp = (tC <= tPeak) ? y : H;
       hLine.style.bottom = (groundOffsetPx + hDisp*scale) + 'px';
+
+      // 右側表示（Hは頂点到達までは更新し続け、以降固定）
+      yNowEl.textContent=y.toFixed(2)+' m';
+      hValEl.textContent = ((tC <= tPeak) ? y : H).toFixed(2) + ' m';
+      tValEl.textContent=tC.toFixed(2)+' s';
 
       if(t<T-1e-3){
         requestAnimationFrame(step);
