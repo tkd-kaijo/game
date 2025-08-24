@@ -275,11 +275,13 @@
       // 定数
       this.groundOffsetPx=8;
 
-      // 初期描画
-      this.ball.style.transform = 'translateX(-50%)';
-      this.ball.style.bottom = this.groundOffsetPx+'px';
-      this.hLine.style.bottom = this.groundOffsetPx+'px';
-      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+
+      // 初期描画（スケールを保持して使う）
+this.scale = this.scalePxPerMeterForMaxMeters(60);  // ★保持
+this.ball.style.transform = 'translateX(-50%)';
+this.ball.style.bottom = this.groundOffsetPx+'px';
+this.hLine.style.bottom = this.groundOffsetPx+'px';
+this.renderGrid(); // ★引数なし＝保持スケールで描画
 
       // イベント
       this.fireBtn.addEventListener('click', ()=>{
@@ -329,24 +331,26 @@
     }
 
     renderGrid(scale){
-      // grid は inset: 0 0 8px 0 なので、子の bottom は「下端=0m」基準（groundOffsetPx は足さない）
-      this.gridEl.innerHTML='';
-      const marks=[0,10,20,30,40,50,60];
-      const hGrid = this.gridEl.clientHeight;
-      for(const m of marks){
-        const bottom = m * scale;
-        if(bottom < 0 || bottom > hGrid - 2) continue;
-        const line = document.createElement('div');
-        line.className='gridline';
-        line.style.bottom = bottom + 'px';
-        const lab = document.createElement('div');
-        lab.className='gridlabel';
-        lab.style.bottom = bottom + 'px';
-        lab.textContent = m + ' m';
-        this.gridEl.appendChild(line);
-        this.gridEl.appendChild(lab);
-      }
-    }
+  // ★引数が無ければ保持している this.scale を使う
+  const s = (typeof scale === 'number') ? scale : this.scale;
+
+  this.gridEl.innerHTML='';
+  const marks=[0,10,20,30,40,50,60];
+  const hGrid = this.gridEl.clientHeight;
+  for(const m of marks){
+    const bottom = m * s; // ★s を使用
+    if(bottom < 0 || bottom > hGrid - 2) continue;
+    const line = document.createElement('div');
+    line.className='gridline';
+    line.style.bottom = bottom + 'px';
+    const lab = document.createElement('div');
+    lab.className='gridlabel';
+    lab.style.bottom = bottom + 'px';
+    lab.textContent = m + ' m';
+    this.gridEl.appendChild(line);
+    this.gridEl.appendChild(lab);
+  }
+}
 
     pickChallenge(){
       let newC;
@@ -365,8 +369,8 @@
     }
 
     animateThrow(v0){
-      const scale=this.scalePxPerMeterFor(v0);
-      this.renderGrid(scale);
+     const scale=this.scale; // ★保持スケールを使用
+this.renderGrid();      // ★引数なし
       const T=2*v0/g; const H=(v0*v0)/(2*g);
       const tPeak = v0/g;
       const start=performance.now();
@@ -420,8 +424,9 @@
 
       // 次課題へ即移行
       this.pickChallenge();
-      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
-      this.hLine.style.bottom = this.groundOffsetPx + 'px';
+// ★スケールは維持（再計算しない）
+this.renderGrid();
+this.hLine.style.bottom = this.groundOffsetPx + 'px';
       this.fireBtn.disabled = false;
       this.locked = false;
     }
@@ -438,7 +443,8 @@
       this.ball.style.bottom = this.groundOffsetPx+'px';
       this.hLine.style.bottom = this.groundOffsetPx+'px';
       this.yNowEl.textContent='0.00 m'; this.hValEl.textContent='0.00 m'; this.tValEl.textContent='0.00 s';
-      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+      this.scale = this.scalePxPerMeterForMaxMeters(60); // ★再計算はリセット時だけ
+this.renderGrid();
       this.pickChallenge(); this.updateSpeedUI(0);
       this.resultEl.textContent='';
     }
@@ -512,10 +518,11 @@
   // レイアウト微調整：横向き時に中のグリッドが常に下端まで見えるように
   function fitScenes(){
     // フレックスで自動配分しているため、ここではグリッド描画の更新のみでOK
-    A.renderGrid(A.scalePxPerMeterForMaxMeters(60));
-    B.renderGrid(B.scalePxPerMeterForMaxMeters(60));
-    A.hLine.style.bottom = A.groundOffsetPx + 'px';
-    B.hLine.style.bottom = B.groundOffsetPx + 'px';
+    A.scale = A.scalePxPerMeterForMaxMeters(60); // ★ここでだけ再計算（レイアウト変化時）
+B.scale = B.scalePxPerMeterForMaxMeters(60);
+A.renderGrid(); B.renderGrid();
+A.hLine.style.bottom = A.groundOffsetPx + 'px';
+B.hLine.style.bottom = B.groundOffsetPx + 'px';
   }
   window.addEventListener('resize', fitScenes);
   window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
