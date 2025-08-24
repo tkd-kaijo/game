@@ -271,20 +271,32 @@
   function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2000); }
   function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
   async function submitResult(){
-    const studentId = studentIdInput.value.trim();
-    const studentName = studentNameInput.value.trim();
-    if(!studentId || !studentName){ showToast('4桁番号と氏名を入力してください'); return; }
-    try{
-      const fd = new FormData();
-      fd.append(CONFIG.GOOGLE_FORMS.entry.studentId, studentId);
-      fd.append(CONFIG.GOOGLE_FORMS.entry.studentName, studentName);
-      fd.append(CONFIG.GOOGLE_FORMS.entry.totalScore, String(score));
-      fd.append(CONFIG.GOOGLE_FORMS.entry.timestamp, new Date().toLocaleString());
-      await fetch(CONFIG.GOOGLE_FORMS.url, { method:'POST', mode:'no-cors', body: fd });
-      showToast('送信しました！（Googleフォーム）');
-      submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
-    }catch(e){ console.error(e); showToast('送信に失敗しました…'); }
+  // ★ 10点未満は提出不可
+  if (score < 10) {
+    showToast('スコアが10点未満のため提出できません');
+    return;
   }
+
+  const studentId = studentIdInput.value.trim();
+  const studentName = studentNameInput.value.trim();
+  if(!studentId || !studentName){
+    showToast('4桁番号と氏名を入力してください');
+    return;
+  }
+  try{
+    const fd = new FormData();
+    fd.append(CONFIG.GOOGLE_FORMS.entry.studentId, studentId);
+    fd.append(CONFIG.GOOGLE_FORMS.entry.studentName, studentName);
+    fd.append(CONFIG.GOOGLE_FORMS.entry.totalScore, String(score));
+    fd.append(CONFIG.GOOGLE_FORMS.entry.timestamp, new Date().toLocaleString());
+    await fetch(CONFIG.GOOGLE_FORMS.url, { method:'POST', mode:'no-cors', body: fd });
+    showToast('送信しました！（Googleフォーム）');
+    submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+  }catch(e){
+    console.error(e);
+    showToast('送信に失敗しました…');
+  }
+}
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   // レイアウト関連
@@ -464,15 +476,22 @@ renderGrid();                // ★引数なし
     lockBtn.disabled=true; retryBtn.disabled=false;
 
     if(round>=maxRounds){
-      const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
-      resultTextHUD.innerHTML =
-        `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
-        `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
-      challengeTextHUD.textContent = finalMsg;
-      retryBtn.style.display='none';
-      resetBtn.style.display='inline-block';
-      showSubmitBox();
-    }
+  const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
+  resultTextHUD.innerHTML =
+    `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
+    `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
+  challengeTextHUD.textContent = finalMsg;
+  retryBtn.style.display='none';
+  resetBtn.style.display='inline-block';
+
+  // ★ 10点以上だけ提出可
+  if (score >= 10) {
+    showSubmitBox();
+  } else {
+    submitBox.style.display = 'none'; // 念のため隠す
+    showToast('今回はスコアが10点未満のため提出できません');
+  }
+}
   }
 
   function setupNextRound(){
