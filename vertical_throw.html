@@ -315,7 +315,8 @@
     const hScene = scene.clientHeight;
     for(const m of marks){
       const yPx = m * scale;
-      const bottom = groundOffsetPx + yPx; // 下端基準
+      const bottom = groundOffsetPx + (m * scale); // m=0 → bottom: 8px（地面）
+      line.style.bottom = bottom + 'px';
       if(bottom < 8 || bottom > hScene - 2) continue;
       const line = document.createElement('div'); line.className='gridline'; line.style.bottom = bottom + 'px'; gridEl.appendChild(line);
       const lab = document.createElement('div'); lab.className='gridlabel'; lab.style.bottom = bottom + 'px'; lab.textContent = m + ' m'; gridEl.appendChild(lab);
@@ -392,10 +393,9 @@
     function step(now){
       const t=(now-start)/1000;
       const tC=Math.max(0,Math.min(T,t));
-      const y=Math.max(0,v0*tC-0.5*g*tC*tC); // 下端の物理高さ[m]
-      const yPx=y*scale;
-
-      ball.style.bottom=(groundOffsetPx+yPx)+'px'; // y=0 → 下端が地面に一致
+      
+      const y = Math.max(0, v0*tC - 0.5*g*tC*tC);   // 下端の高さ[m]
+    ball.style.bottom = (groundOffsetPx + y*scale) + 'px';
 
       // 赤線：上昇中は下端(y)、以降は最高到達高度(H)
       const hDisp = (tC <= tPeak) ? y : H;
