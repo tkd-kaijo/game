@@ -651,9 +651,9 @@
   function evaluateAndProceed(){
     const errPct = Math.abs(xLand - xTarget) / xTarget;
     let gained = 0;
-    if(errPct < 0.05){ gained=3; score+=3; resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; greatSound(); }
-    else if(errPct < 0.10){ gained=2; score+=2; resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; goodSound(); }
-    else if(errPct < 0.15){ gained=1; score+=1; resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; okSound(); }
+    if(errPct < 0.10){ gained=3; score+=3; resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; greatSound(); }
+    else if(errPct < 0.20){ gained=2; score+=2; resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; goodSound(); }
+    else if(errPct < 0.30){ gained=1; score+=1; resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; okSound(); }
     else { resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`; wrongSound(); }
 
     scoreHUD.textContent = String(score) + '点';
