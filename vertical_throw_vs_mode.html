@@ -138,6 +138,8 @@
     <div class="title">鉛直投げ上げゲーム 2人対戦</div>
     <div>制限時間</div>
     <div class="timer" id="timer">30.0</div>
+    <input type="number" id="limitSec" value="30" min="5" max="600" step="5"
+         style="width: 80px; font-weight:700; text-align:right; border-radius:10px; padding:6px 8px;">
     <button class="startBtn" id="startBtn">対戦スタート</button>
   </div>
 
@@ -452,6 +454,7 @@ this.renderGrid();
 
   const timerEl = document.getElementById('timer');
   const startBtn = document.getElementById('startBtn');
+  const limitSec = document.getElementById('limitSec');
   const winner = document.getElementById('winner');
   const winnerTitle = document.getElementById('winnerTitle');
   const winnerDetail = document.getElementById('winnerDetail');
@@ -460,7 +463,7 @@ this.renderGrid();
   const A = new DuelGame('A');
   const B = new DuelGame('B');
 
-  let tRemain = 30.0;   // ← 制限時間 30秒
+  let tRemain = 0;   
   let ticking = false;
   let rafId = null, lastTs = 0;
 
@@ -481,26 +484,61 @@ this.renderGrid();
   }
 
   function showWinner(){
-    const a = A.score, b = B.score;
-    if(a > b){ winnerTitle.textContent = '勝者：プレイヤーA'; }
-    else if(b > a){ winnerTitle.textContent = '勝者：プレイヤーB'; }
-    else { winnerTitle.textContent = '引き分け'; }
-    winnerDetail.textContent = `A: ${a} 点　/　B: ${b} 点`;
-    winner.style.display='flex';
-  }
+  const a = A.score, b = B.score;
+  if(a > b){ winnerTitle.textContent = '勝者：プレイヤーA'; }
+  else if(b > a){ winnerTitle.textContent = '勝者：プレイヤーB'; }
+  else { winnerTitle.textContent = '引き分け'; }
+  winnerDetail.textContent = `A: ${a} 点　/　B: ${b} 点`;
+  winner.style.display='flex';
+
+  // ★試合後は編集できるように戻す
+  limitSec.disabled = false;
+}
   function hideWinner(){ winner.style.display='none'; }
 
   function startMatch(){
-    hideWinner();
-    tRemain = 30.0; timerEl.textContent = tRemain.toFixed(1);
-    lastTs = 0; ticking = true;
-    A.reset(); B.reset();
-    A.onStart(); B.onStart();
-    requestAnimationFrame(tick);
-  }
+  hideWinner();
+
+  // ★入力欄の秒数を採用（未入力などのときは 30）
+  tRemain = Math.max(1, Number(limitSec.value) || 30);
+  timerEl.textContent = tRemain.toFixed(1);
+
+  // ★試合中は変更できないように
+  limitSec.disabled = true;
+
+  lastTs = 0; 
+  ticking = true;
+
+  A.reset(); 
+  B.reset();
+
+  A.onStart(); 
+  B.onStart();
+
+  requestAnimationFrame(tick);
+}
+  function prepareNext(){
+  hideWinner();
+  ticking = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  lastTs = 0;
+
+  // ★入力欄は編集可のまま
+  limitSec.disabled = false;
+
+  // 表示だけ入力値に合わせる（まだ開始しない）
+  tRemain = Math.max(1, Number(limitSec.value) || 30);
+  timerEl.textContent = tRemain.toFixed(1);
+
+  // ルーレットは回さずに Ready 状態へ
+  A.reset(); 
+  B.reset();
+  A.enablePlay(false);
+  B.enablePlay(false);
+}
 
   startBtn.addEventListener('click', startMatch);
-  restartBtn.addEventListener('click', startMatch);
+  restartBtn.addEventListener('click', prepareNext);
 
   // キーボード操作：A/Lで投射（長押しリピート無視）
   window.addEventListener('keydown', (e)=>{
