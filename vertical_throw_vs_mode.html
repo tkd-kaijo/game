@@ -259,6 +259,9 @@
   class DuelGame {
     constructor(prefix){
       // 要素
+      this.inFlight = false;   // いま投射アニメ中か
+      this.stopped  = false;   // 時間切れで新規投射禁止か
+      this.onLanded = null;    // 時間切れ後に着地した時の通知用コールバック
       this.fill   = document.getElementById('fill'+prefix);
       this.speedL = document.getElementById('speed'+prefix);
       this.fireBtn= document.getElementById('fire'+prefix);
@@ -379,6 +382,7 @@ this.renderGrid(); // ★引数なし＝保持スケールで描画
     }
 
     animateThrow(v0){
+      this.inFlight = true;
      const scale=this.scale; // ★保持スケールを使用
 this.renderGrid();      // ★引数なし
       const T=2*v0/g; const H=(v0*v0)/(2*g);
@@ -413,6 +417,10 @@ this.renderGrid();      // ★引数なし
           this.tValEl.textContent= T.toFixed(2)+' s';
           this.hLine.style.bottom = (this.groundOffsetPx + H*scale) + 'px';
           this.evaluateAndContinue(H,T);
+          this.inFlight = false;              // ←追加
+          if (typeof this.onLanded === 'function') { // 時間切れ後に待機していれば通知
+            this.onLanded();
+}
         }
       };
       requestAnimationFrame(step);
@@ -433,12 +441,17 @@ this.renderGrid();      // ★引数なし
       this.resultEl.innerHTML = `<span class="${msgClass}">${msgText}（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
 
       // 次課題へ即移行
-      this.pickChallenge();
-// ★スケールは維持（再計算しない）
-this.renderGrid();
-this.hLine.style.bottom = this.groundOffsetPx + 'px';
-      this.fireBtn.disabled = false;
-      this.locked = false;
+      if (this.stopped) {
+  // 時間切れ後：課題更新もしないし投射も再開しない
+  return;
+} else {
+  // 試合中：従来どおり次課題へ
+  this.pickChallenge();
+  this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+  this.hLine.style.bottom = this.groundOffsetPx + 'px';
+  this.fireBtn.disabled = false;
+  this.locked = false;
+}
     }
 
     updateScore(v){ this.score = v; this.scoreEl.textContent = String(v); }
@@ -458,6 +471,12 @@ this.renderGrid();
       this.pickChallenge(); this.updateSpeedUI(0);
       this.resultEl.textContent='';
     }
+    onTimeUp(){
+  // 新規投射を不可にする（アニメはそのまま）
+  this.stopped = true;
+  this.fireBtn.disabled = true;
+  this.stopRoulette();
+}
   }
 
   const timerEl = document.getElementById('timer');
@@ -471,6 +490,8 @@ this.renderGrid();
 
   const A = new DuelGame('A');
   const B = new DuelGame('B');
+  let timeUp = false;
+let pendingLandings = 0;
 
   let tRemain = 0;   
   let ticking = false;
@@ -484,13 +505,39 @@ this.renderGrid();
     lastTs = ts;
     tRemain = Math.max(0, tRemain - dt);
     timerEl.textContent = tRemain.toFixed(1);
-    if(tRemain > 0){
-      rafId = requestAnimationFrame(tick);
-    }else{
-      // タイムアップ
-      A.onStop(); B.onStop(); ticking=false;
-      showWinner();
-    }
+    if (tRemain > 0){
+  rafId = requestAnimationFrame(tick);
+} else {
+  // ★タイムアップ：新規投射は禁止するが、飛んでる球は着地まで待つ
+  ticking = false;
+  timeUp = true;
+
+  // 双方を「新規不可」状態へ
+  A.onTimeUp();
+  B.onTimeUp();
+
+  // いま飛んでいる数を数える
+  pendingLandings = (A.inFlight ? 1 : 0) + (B.inFlight ? 1 : 0);
+
+  if (pendingLandings === 0) {
+    // どちらも飛んでいなければ即判定
+    showWinner();
+  } else {
+    // 着地通知を受けてから判定
+    const landedOnce = () => {
+      pendingLandings = Math.max(0, pendingLandings - 1);
+      if (pendingLandings === 0) {
+        showWinner();
+        // ハンドラを解除
+        A.onLanded = null;
+        B.onLanded = null;
+      }
+    };
+    // 時間切れ後にだけ使う通知
+    A.onLanded = landedOnce;
+    B.onLanded = landedOnce;
+  }
+}
   }
 
   function showWinner(){
@@ -555,18 +602,18 @@ this.renderGrid();
   startBtn.addEventListener('click', startMatch);
   restartBtn.addEventListener('click', prepareNext);
 
-  // キーボード操作：A/Lで投射（長押しリピート無視）
-  window.addEventListener('keydown', (e)=>{
-    if(e.repeat) return;
-    const key = e.key.toLowerCase();
-    if(key === 'a'){
-      // A 側
-      if(!A.fireBtn.disabled && !A.locked){ A.fireBtn.click(); }
-    }else if(key === 'l'){
-      // B 側
-      if(!B.fireBtn.disabled && !B.locked){ B.fireBtn.click(); }
-    }
-  });
+  // キーボード操作：A/Lで投射（時間切れは無効）
+window.addEventListener('keydown', (e)=>{
+  if (e.repeat) return;
+  if (timeUp) return; // ★ 時間切れなら全入力無効
+
+  const key = e.key.toLowerCase();
+  if (key === 'a' && !A.fireBtn.disabled && !A.locked) {
+    A.fireBtn.click();
+  } else if (key === 'l' && !B.fireBtn.disabled && !B.locked) {
+    B.fireBtn.click();
+  }
+});
 
   // レイアウト微調整：横向き時に中のグリッドが常に下端まで見えるように
   function fitScenes(){
