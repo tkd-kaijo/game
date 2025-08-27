@@ -461,6 +461,9 @@ this.renderGrid();      // ★引数なし
     onStart(){ this.enablePlay(true); this.startRoulette(); }
     onStop(){ this.enablePlay(false); this.stopRoulette(); this.locked=true; }
     reset(){
+      this.stopped = false;
+      this.inFlight = false;
+      this.onLanded = null;
       this.stopRoulette(); this.score=0; this.scoreEl.textContent='0';
       this.locked=false; this.fireBtn.disabled=true; this.roundBadge.textContent='Ready';
       this.ball.style.bottom = this.groundOffsetPx+'px';
@@ -557,6 +560,7 @@ let pendingLandings = 0;
 
   function startMatch(){
   hideWinner();
+    timeUp = false;
 
   // ★表示切替：入力を隠し、数値表示を見せる
   limitWrap.style.display = 'none';
