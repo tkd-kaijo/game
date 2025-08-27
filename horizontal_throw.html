@@ -254,6 +254,7 @@
   const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
 
   // ====== DOM ======
+  const groundEl = document.querySelector('.ground'); // ★床を動かすため
   const fillEl=document.getElementById('fill');
   const speedLabel=document.getElementById('speedLabel');
   const lockBtn=document.getElementById('lockBtn');
@@ -317,25 +318,35 @@
 
 
 // ====== レイアウト・スケール ======
-const groundOffsetPx=8;
-const LABEL_Y_OFFSET_M = 2; // 水平ラベルを各線より 2 m 下へ
-let scaleY = 8; // px/m
-let scaleX = 40; // px/m
-const origin = { x: 30, y: groundOffsetPx }; // 左下の原点
+// ====== レイアウト・スケール ======
+const groundOffsetPx = 8;
 
-// ★ 44.1 m をほぼ上端に合わせる（上側に少しだけ余白）
-const Y_MAX_VISIBLE = 44.1;
+// ★xラベルを y = -2m に置く＆その分だけ下にも描画余地を確保
+const BOTTOM_LABEL_M = 2;
+
+// 画面上端の余白（px固定・ごく小さく）
 const TOP_PAD_PX = 6;
 
-function toPxX(xm){ return origin.x + xm*scaleX; }
+// 44.1 m を表示範囲の上端にぴったり合わせる
+const Y_MAX_VISIBLE = 44.1;
+
+let scaleY = 8; // px/m
+let scaleX = 40; // px/m
+
+// 原点（y=0 の px）。下に余白を作るので run-time に更新します
+const origin = { x: 30, y: groundOffsetPx };
+let bottomPadPx = 0; // = BOTTOM_LABEL_M * scaleY。毎回再計算
+
+function toPxX(xm){ return origin.x + xm * scaleX; }
 // DOM用（bottom基準）
-function toPxY(ym){ return origin.y + ym*scaleY; }
-// ★Canvas用（上端=0に揃える）
+function toPxY(ym){ return origin.y + ym * scaleY; }
+// Canvas用（上端=0、下向きが正）
 function toCanvasY(ym){
-  const canvasH = scene.clientHeight - groundOffsetPx;
-  return canvasH - (origin.y + ym*scaleY);
+  const canvasH = scene.clientHeight - 0; // キャンバスは下側まで使う
+  return canvasH - (origin.y + ym * scaleY);
 }
 
+// 画面高さにフィット（既存のものでOK。変更不要ならそのまま）
 function fitSceneToViewport(){
   const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
   const vh = Math.min(window.innerHeight, vvh);
@@ -348,14 +359,22 @@ function fitSceneToViewport(){
   scene.style.height = desired + 'px';
 }
 
+// ★縦横どちらでも「[-2m, 44.1m] を上余白TOP_PAD_PXを残してピッタリ入れる」
 function fitScales(){
-  const usableH = scene.clientHeight - groundOffsetPx;
-  // ★上側余白は px 固定。scaleY の上限は外す（縦表示でも 44.1m が天井近くに）
-  scaleY = Math.max(4, (usableH - TOP_PAD_PX) / Y_MAX_VISIBLE);
+  const usableH = scene.clientHeight; // 下側まで描画に使う
+  scaleY = Math.max(4, (usableH - TOP_PAD_PX) / (Y_MAX_VISIBLE + BOTTOM_LABEL_M));
 
   const usableW = scene.clientWidth - origin.x - 16;
   scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
+
+  // 下側パッド（y=-2m が画面内に入るように）
+  bottomPadPx = BOTTOM_LABEL_M * scaleY;
+  origin.y = groundOffsetPx + bottomPadPx;
+
+  // 床（.ground）を y=0 の位置へ移動
+  groundEl.style.bottom = `${bottomPadPx}px`;
 }
+
 
 
   // 速度ベクトルのスケール
@@ -443,7 +462,7 @@ function redrawTrail(){
 function renderGrid(){
   gridEl.innerHTML = '';
 
-  // ---- 高さ（水平）ラインとラベル：線の“真横”に同じ y で表示 ----
+  // ---- 高さ（水平）ライン：ラベルは線の真横（同じy） ----
   for(const ym of H_LINES){
     const line = document.createElement('div');
     line.className = 'hgridline';
@@ -452,23 +471,19 @@ function renderGrid(){
 
     const lab = document.createElement('div');
     lab.className = 'gridlabel hlabel';
-    // ★縦位置のオフセットをやめ、線と同じ y に
-    lab.style.bottom = toPxY(ym) + 'px';
-    lab.textContent = ym + ' m';
+    lab.style.bottom = toPxY(ym) + 'px'; // 線と同じ高さ
+    lab.textContent = `${ym} m`;
     gridEl.appendChild(lab);
   }
-
-  // 0 m ラベル（高さ）
+  // 0 m
   const lab0 = document.createElement('div');
   lab0.className = 'gridlabel hlabel';
   lab0.style.bottom = toPxY(0) + 'px';
   lab0.textContent = '0 m';
   gridEl.appendChild(lab0);
 
-  // ---- 距離（垂直）ラインとラベル：y = -2 m に配置（安全クランプ付き） ----
-  // y=-2m のピクセル位置を計算（下抜けしすぎる場合は 2px までにクランプ）
-  const yLabelPx = Math.max(2, toPxY(0) - 2*scaleY);
-
+  // ---- 距離（垂直）ライン：ラベルは y = -2 m ----
+  const yLabelPx = toPxY(-BOTTOM_LABEL_M); // 下方向に2m
   for(let xm=0; xm<=X_GRID_MAX; xm++){
     const v = document.createElement('div');
     v.className = 'vgridline';
@@ -478,19 +493,22 @@ function renderGrid(){
     const lab = document.createElement('div');
     lab.className = 'gridlabel vlabel';
     lab.style.left = toPxX(xm) + 'px';
-    lab.style.bottom = yLabelPx + 'px'; // ★y=-2m 相当
-    lab.textContent = xm + ' m';
+    lab.style.bottom = yLabelPx + 'px';  // y=-2m
+    lab.textContent = `${xm} m`;
     gridEl.appendChild(lab);
   }
 }
 
+
   // ====== 建物（x<0 域）配置 ======
   function layoutBuilding(heightM){
-    const rightPx = origin.x;
-    buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
-    buildingEl.style.left = '0px';
-    buildingEl.style.height = toPxY(heightM) + 'px';
-  }
+  const rightPx = origin.x;
+  buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
+  buildingEl.style.left = '0px';
+  buildingEl.style.bottom = `${bottomPadPx}px`; // ★y=0 の位置に合わせる
+  buildingEl.style.height = (groundOffsetPx + heightM * scaleY) + 'px'; // 0→h の実高さ
+}
+
 
   // ====== 速度ベクトル（球の中心から） ======
   function placeBallAt(xm, ym){
@@ -498,17 +516,20 @@ function renderGrid(){
     ball.style.left = (toPxX(xm) - 9) + 'px';
     ball.style.bottom = toPxY(ym) + 'px';
   }
-  function updateVelocityVector(vx, vy){
-    const centerX = toPxX(curX);
-    const centerY = toPxY(curY);
-    const mag = Math.sqrt(vx*vx + vy*vy);
-    const len = Math.min(velMaxLenPx, mag * velScalePxPerMs);
-    const angleRad = Math.atan2(-vy, vx); // CSS座標へ変換
-    velvec.style.width = len + 'px';
-    velvec.style.left = centerX + 'px';          // ★中心を起点（左端）に
-    velvec.style.bottom = (centerY - 1.5) + 'px';
-    velvec.style.transform = `rotate(${angleRad}rad)`;
-  }
+ function updateVelocityVector(vx, vy){
+  const centerX = toPxX(curX);
+  const centerY = toPxY(curY);
+  const speed = Math.sqrt(vx*vx + vy*vy);
+  const len = Math.min(velMaxLenPx, speed * velScalePxPerMs);
+
+  // ★px座標系の接線方向：xは scaleX、yは scaleY（かつCSSは下向き正なので -vy）
+  const angleRad = Math.atan2(-vy * scaleY, vx * scaleX);
+
+  velvec.style.width = len + 'px';
+  velvec.style.left = centerX + 'px';
+  velvec.style.bottom = (centerY - 1.5) + 'px';
+  velvec.style.transform = `rotate(${angleRad}rad)`;
+}
 
   // ====== サウンド ======
   let audioCtx=null;
@@ -575,7 +596,7 @@ function renderGrid(){
 
     // ターゲット：床面 y=0 m に
     targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = groundOffsetPx + 'px';
+    targetEl.style.bottom = toPxY(0) + 'px';
 
     // 右側表示初期化
     posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
