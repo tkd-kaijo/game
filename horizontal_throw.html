@@ -10,11 +10,11 @@
     --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
   }
   *{box-sizing:border-box}
-  html, body{height:100%;}
+  html, body{height:100%; overflow:hidden;}  /* ←スクロール禁止＆1画面に収める */
   body{
     margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
     background: radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
-    color:var(--text); display:flex; min-height:100svh; align-items:center; justify-content:center; padding:12px;
+    color:var(--text); display:flex; min-height:100svh; align-items:flex-start; justify-content:center; padding:12px; /* 上寄せ */
   }
   @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
 
@@ -87,7 +87,10 @@
       #0b1022;
     border:1px solid rgba(255,255,255,.08);
   }
-  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+
+  /* 地面は常に最下部。y=0はグリッド線で表現（=太線問題を解消） */
+  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset; z-index:0}
+
   .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
     background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:3}
 
@@ -95,6 +98,7 @@
   .hgridline,.vgridline{position:absolute; background:rgba(255,255,255,.22); opacity:.7}
   .hgridline{left:8px; right:8px; height:1px;}
   .vgridline{top:8px; bottom:8px; width:1px;}
+  .zeroline{left:8px; right:8px; height:2px; background:rgba(255,255,255,.28);} /* y=0 用の細線 */
   .gridlabel{position:absolute; font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
   .hlabel{ right:10px; transform:translateY(-50%); }
   .vlabel{ transform:translateX(-50%); }
@@ -139,7 +143,7 @@
   .target{
     position:absolute; width:14px; height:14px; border-radius:50%;
     border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5);
-    transform:translate(-50%, 0%); /* 床面にぴったり */
+    transform:translate(-50%, 0%); z-index:2; /* 地面より前面に */
   }
   .target::after{
     content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8);
@@ -344,13 +348,16 @@
     return canvasH - (origin.y + ym*scaleY);
   }
 
-  // 画面の高さにフィット
+  // 画面の高さにフィット（ページ全体はスクロール禁止のため、ここで調整）
   let baselineTop = null;
-  function fitSceneToViewport(){
+  function getVH(){
     const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-    const vh = Math.min(window.innerHeight, vvh);
+    return Math.min(window.innerHeight, vvh);
+  }
+  function fitSceneToViewport(){
+    const vh = getVH();
     if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
-    const margin = 12;
+    const margin = 12; // 下側の余白
     let desired = Math.floor(vh - baselineTop - margin);
     desired = Math.max(240, Math.min(desired, vh - margin));
     const prev = parseFloat(getComputedStyle(scene).height);
@@ -366,12 +373,12 @@
     const usableW = scene.clientWidth - origin.x - 16;
     scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
 
-    // y=-BOTTOM_VISIBLE_M が画面内に入るように、原点と床の位置を持ち上げる
+    // y=-BOTTOM_VISIBLE_M が画面内に入るように原点を持ち上げる
     bottomPadPx = BOTTOM_VISIBLE_M * scaleY;
     origin.y = groundOffsetPx + bottomPadPx;
 
-    // 床（.ground）を y=0 の位置へ
-    groundEl.style.bottom = `${bottomPadPx}px`;
+    // 地面は常に最下部（太線問題回避）
+    groundEl.style.bottom = `0px`;
   }
 
   // ====== グリッド描画（高さラベルは線の真横／距離ラベルは y=-2m） ======
@@ -391,15 +398,21 @@
       lab.textContent = `${ym} m`;
       gridEl.appendChild(lab);
     }
-    // 0 m
+
+    // y=0 の細い基準線（地面は最下端なので、ここで0mを示す）
+    const zero = document.createElement('div');
+    zero.className = 'zeroline';
+    zero.style.bottom = toPxY(0) + 'px';
+    gridEl.appendChild(zero);
+
     const lab0 = document.createElement('div');
     lab0.className = 'gridlabel hlabel';
     lab0.style.bottom = toPxY(0) + 'px';
     lab0.textContent = '0 m';
     gridEl.appendChild(lab0);
 
-    // 距離ライン
-    const yLabelPx = toPxY(-2); // y = -2 m に統一
+    // 距離ライン＋ラベル（y=-2m）
+    const yLabelPx = toPxY(-2);
     for(let xm=0; xm<=X_GRID_MAX; xm++){
       const v = document.createElement('div');
       v.className = 'vgridline';
@@ -420,7 +433,7 @@
     const rightPx = origin.x;
     buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
     buildingEl.style.left = '0px';
-    buildingEl.style.bottom = `${bottomPadPx}px`; // y=0 の位置
+    buildingEl.style.bottom = `${toPxY(0)}px`;   // y=0 の高さから
     buildingEl.style.height = (heightM * scaleY) + 'px';
   }
 
@@ -582,7 +595,7 @@
       const vx = v0;
       const vy = -g * tC;
 
-      // 軌跡に追加（中心で描画）
+      // 軌跡（中心で描画）
       const last = trailPts[trailPts.length-1];
       const cur  = {x, y};
       trailPts.push(cur);
@@ -646,7 +659,6 @@
     lockBtn.disabled=false; retryBtn.disabled=true;
     setupRound();
     requestAnimationFrame(rouletteLoop);
-    window.scrollTo({top:0, behavior:'instant'});
   }
   function resetGame(){
     round=1; score=0; lastGainedPoints=0; scoreHUD.textContent='0点';
@@ -657,7 +669,6 @@
     lockBtn.disabled=false; retryBtn.disabled=true;
     setupRound();
     requestAnimationFrame(rouletteLoop);
-    window.scrollTo({top:0, behavior:'instant'});
   }
 
   lockBtn.addEventListener('click',()=>{
@@ -673,12 +684,15 @@
   // ====== リサイズ対応 ======
   function handleResize(){
     baselineTop = null;
-    renderAllStatic();
+    fitSceneToViewport();
+    fitScales();
+    renderGrid();
+    layoutBuilding(curY || y0);
+    resizeTrailCanvas();
     // 位置再配置（中心基準）
     placeBallAt(curX, curY || y0);
     targetEl.style.left = toPxX(xTarget) + 'px';
     targetEl.style.bottom = toPxY(0) + 'px';
-    // ベクトルはルーレットが更新（停止中なら水平で暫定表示）
     const v=parseFloat(speedLabel.textContent.replace(' m/s',''))||0;
     updateVelocityVector(v, 0);
   }
