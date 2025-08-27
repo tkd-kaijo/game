@@ -197,7 +197,7 @@
 
     <section class="card" id="card">
       <div class="roulette" aria-live="polite">
-        <div class="bar" aria-label="初速ルーレット（0〜5 m/s を4秒で周回）">
+        <div class="bar" aria-label="初速ルーレット（0〜6 m/s を4秒で周回）">
           <div class="fill" id="fill"></div>
         </div>
         <div class="speed" id="speedLabel">0.00 m/s</div>
@@ -261,7 +261,7 @@
 (() => {
   // ====== 物理・ゲーム設定 ======
   const g = 9.8; // m/s^2
-  const vMin=0, vMax=5, cycleSec=4;
+  const vMin=0, vMax=6, cycleSec=4;
   const Y_CANDIDATES = [4.9, 19.6, 44.1];
   const H_LINES = [4.9, 9.8, 14.7, 19.6, 24.5, 29.4, 34.3, 39.2, 44.1];
   const TARGET_CANDIDATES = [1,2,3,4,5];
