@@ -79,7 +79,6 @@
     .readouts{grid-area: readouts}
   }
 
-  /* ====== シーン（高さはJSでビューポートにフィット） ====== */
   .scene{
     position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:8px;
     background:
@@ -108,7 +107,7 @@
     box-shadow: inset 0 6px 14px rgba(0,0,0,.25);
     z-index:1;
   }
-  .building::after{ /* 窓のようなスリット */
+  .building::after{
     content:''; position:absolute; inset:10% 15% 10% 15%;
     background: repeating-linear-gradient( to-bottom, rgba(255,255,255,.06), rgba(255,255,255,.06) 8px, transparent 8px, transparent 16px);
   }
@@ -127,7 +126,7 @@
     z-index:2;
   }
   .velvec::after{
-    content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%) rotate(0deg);
+    content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%);
     border-left:8px solid #8ff2ff; border-top:5px solid transparent; border-bottom:5px solid transparent;
     filter: drop-shadow(0 0 6px rgba(106,227,255,.6));
   }
@@ -135,7 +134,7 @@
   .target{
     position:absolute; width:14px; height:14px; border-radius:50%;
     border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5);
-    transform:translate(-50%, 0%); /* 真上に表示 */
+    transform:translate(-50%, 0%); /* 床面にぴったり */
   }
   .target::after{
     content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8);
@@ -148,7 +147,6 @@
   .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
   .stat .value{font-variant-numeric: tabular-nums; font-weight:800; font-size:22px}
 
-  /* iPad横向き最適化：画面に収める */
   @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
     .title{ font-size: 20px; }
     #challengeTextHUD{ font-size: 18px; }
@@ -181,7 +179,6 @@
     </div>
 
     <section class="card" id="card">
-      <!-- ルーレット（0〜5 m/s を4秒で周回） -->
       <div class="roulette" aria-live="polite">
         <div class="bar" aria-label="初速ルーレット（0〜5 m/s を4秒で周回）">
           <div class="fill" id="fill"></div>
@@ -199,10 +196,8 @@
           <div class="meter">g = 9.8 m/s²</div>
           <div class="grid" id="grid"></div>
 
-          <!-- ★建物（x<0 領域） -->
           <div class="building" id="building" aria-hidden="true"></div>
 
-          <!-- 球と速度ベクトル -->
           <div class="ball" id="ball"></div>
           <div class="velvec" id="velvec" aria-hidden="true"></div>
 
@@ -219,7 +214,6 @@
     </section>
   </main>
 
-  <!-- 提出フォーム -->
   <div class="submitBox" id="submitBox" style="display:none" aria-live="polite">
     <h3>提出</h3>
     <div class="submitRow">
@@ -270,7 +264,7 @@
   const resultTextHUD=document.getElementById('resultTextHUD');
   const scoreHUD=document.getElementById('scoreHUD');
 
-  // 提出まわり
+  // ====== 提出設定 ======
   const CONFIG = {
     SUBMIT_MODE: 'google_forms',
     GOOGLE_FORMS: {
@@ -316,19 +310,19 @@
 
   // ====== レイアウト・スケール ======
   const groundOffsetPx=8;
-  const TARGET_OFFSET_ABOVE_LABEL = 28; // ターゲットを縦ラベルの真上に
-  let scaleY = 8; // px/m（高さ）
-  let scaleX = 40; // px/m（横）
-  const origin = { x: 30, y: groundOffsetPx }; // 左下の原点（x=0, y=0）の画面座標(px)
+  const LABEL_Y_OFFSET_PX = 10;   // ★水平ラベルを下側（負方向）へ少しずらす
+  let scaleY = 8; // px/m
+  let scaleX = 40; // px/m
+  const origin = { x: 30, y: groundOffsetPx }; // 左下の原点
 
-  // 速度ベクトルの画面上のスケール
-  const velScalePxPerMs = 4;  // 1 (m/s) あたりの px
-  const velMaxLenPx = 120;    // 長さの上限
+  // 速度ベクトルのスケール
+  const velScalePxPerMs = 4;  // 1 (m/s) → px
+  const velMaxLenPx = 120;
 
   // 現在の位置（m）
   let curX = 0, curY = 0;
 
-  // シーン高さをビューポートにフィット（iPad横で1画面内）
+  // シーン高さをビューポートにフィット
   let baselineTop = null;
   function getVH(){
     const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
@@ -346,7 +340,7 @@
   }
 
   function fitScales(){
-    const maxY = 46; // 44.1m ラインが確実に見えるように
+    const maxY = 46; // 44.1m ラインが見えるように
     const h = scene.clientHeight - groundOffsetPx - 20;
     scaleY = Math.max(4, Math.min(12, h / maxY));
 
@@ -361,7 +355,7 @@
   function renderGrid(){
     gridEl.innerHTML = '';
 
-    // 水平ライン
+    // 水平ラインとラベル（少し下側にシフト）
     for(const ym of H_LINES){
       const line = document.createElement('div');
       line.className = 'hgridline';
@@ -370,15 +364,15 @@
 
       const lab = document.createElement('div');
       lab.className = 'gridlabel hlabel';
-      lab.style.bottom = toPxY(ym) + 'px';
+      lab.style.bottom = (toPxY(ym) - LABEL_Y_OFFSET_PX) + 'px';   // ★下方向へ
       lab.textContent = ym + ' m';
       gridEl.appendChild(lab);
     }
 
-    // 床のラベル(0 m)
+    // 床のラベル(0 m) も少し下げる
     const lab0 = document.createElement('div');
     lab0.className = 'gridlabel hlabel';
-    lab0.style.bottom = toPxY(0) + 'px';
+    lab0.style.bottom = (toPxY(0) - LABEL_Y_OFFSET_PX) + 'px';     // ★下方向へ
     lab0.textContent = '0 m';
     gridEl.appendChild(lab0);
 
@@ -399,33 +393,28 @@
 
   // ====== 建物（x<0 域）配置 ======
   function layoutBuilding(heightM){
-    // 右端は x=0 の位置（= origin.x）。左端はシーン左端（x<0域）。
     const rightPx = origin.x;
-    buildingEl.style.right = (scene.clientWidth - rightPx) + 'px'; // right を「シーン右端からの距離」で指定
+    buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
     buildingEl.style.left = '0px';
     buildingEl.style.height = toPxY(heightM) + 'px';
   }
 
-  // ====== 速度ベクトルの描画 ======
+  // ====== 速度ベクトル ======
   function placeBallAt(xm, ym){
     curX = xm; curY = ym;
     ball.style.left = (toPxX(xm) - 9) + 'px';
     ball.style.bottom = toPxY(ym) + 'px';
   }
   function updateVelocityVector(vx, vy){
-    // アンカー（球の中心から右半径ぶん外側）
-    const anchorX = toPxX(curX) + 9; // 中心 + 半径
-    const anchorY = toPxY(curY) + 9; // 中心
-
+    const anchorX = toPxX(curX) + 9; // 球の右端
+    const anchorY = toPxY(curY) + 9; // 球の中心
     const mag = Math.sqrt(vx*vx + vy*vy);
     const len = Math.min(velMaxLenPx, mag * velScalePxPerMs);
-    const angleRad = Math.atan2(vy, vx); // 右が0、下向きは負
-
+    const angleRad = Math.atan2(-vy, vx);       // ★画面座標に合わせて vy の符号を反転
     velvec.style.width = len + 'px';
     velvec.style.left = anchorX + 'px';
-    velvec.style.bottom = (anchorY - 1.5) + 'px'; // 中心合わせ（高さ3px）
+    velvec.style.bottom = (anchorY - 1.5) + 'px';
     velvec.style.transform = `rotate(${angleRad}rad)`;
-    // 矢印ヘッドは ::after で自動で末端に付く
   }
 
   // ====== サウンド ======
@@ -456,8 +445,7 @@
     const elapsed=(now-t0Roulette)/1000;
     const v=vMin+((elapsed%cycleSec)/cycleSec)*(vMax-vMin);
     updateSpeedUI(v);
-    // ルーレット中は vx=v, vy=0（水平矢印）
-    updateVelocityVector(v, 0);
+    updateVelocityVector(v, 0); // ルーレット中は水平矢印
     requestAnimationFrame(rouletteLoop);
   }
   function updateSpeedUI(v){
@@ -467,65 +455,58 @@
     speedLabel.textContent=c.toFixed(2)+' m/s';
   }
 
-  // ====== ラウンドごとの初期条件 ======
-  let y0 = 19.6;     // 初期高さ（m）
-  let xTarget = 3;   // ターゲット（m）
-  let tFlight = 0;   // 飛行時間（s）
-  let xLand = 0;     // 着地点（m）
+  // ====== ラウンド設定 ======
+  let y0 = 19.6;
+  let xTarget = 3;
+  let tFlight = 0;
+  let xLand = 0;
 
   function setupRound(){
-    // 高さとターゲットをランダムに
     y0 = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
     xTarget = TARGET_CANDIDATES[Math.floor(Math.random()*TARGET_CANDIDATES.length)];
     challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
     resultTextHUD.textContent = '';
     roundBadgeHUD.textContent = `ラウンド${round}/${maxRounds}`;
 
-    // レイアウト準備→スケール→グリッド→建物
     fitSceneToViewport();
     fitScales();
     renderGrid();
     layoutBuilding(y0);
 
-    // 初期配置（x=0, y=y0）
+    // 初期位置（x=0, y=y0）
     placeBallAt(0, y0);
 
-    // ターゲット：縦ラベルの真上
+    // ターゲット：床面 y=0 m に表示
     targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = (groundOffsetPx + TARGET_OFFSET_ABOVE_LABEL) + 'px';
+    targetEl.style.bottom = groundOffsetPx + 'px';
 
     // 右側表示初期化
     posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
     tValEl.textContent = '0.00 s';
     xLandVal.textContent = '0.00 m';
 
-    // 初期の速度ベクトル（vx=ルーレット値が入るまで0）
     updateVelocityVector(0, 0);
   }
 
-  // ====== アニメーション（水平投射：v=(v0,0)） ======
+  // ====== アニメーション（水平投射） ======
   function animateThrow(v0){
-    // 厳密な飛行時間・着地点
     tFlight = Math.sqrt((2*y0)/g);
     xLand = v0 * tFlight;
 
     const start=performance.now();
     function step(now){
       const t = Math.max(0, (now-start)/1000);
-      const tC = Math.min(tFlight, t);     // これ以上進まない
+      const tC = Math.min(tFlight, t);
 
-      const x = v0 * tC;                   // m
+      const x = v0 * tC;
       const y = Math.max(0, y0 - 0.5*g*tC*tC);
 
-      // 速度ベクトル（瞬間）
       const vx = v0;
       const vy = -g * tC;
 
-      // 画面に反映
       placeBallAt(x, y);
       updateVelocityVector(vx, vy);
 
-      // 右側表示
       posNowEl.textContent = `${x.toFixed(2)} m, ${y.toFixed(2)} m`;
       tValEl.textContent = tC.toFixed(2) + ' s';
       xLandVal.textContent = xLand.toFixed(2) + ' m';
@@ -533,9 +514,9 @@
       if(t < tFlight - 1e-3){
         requestAnimationFrame(step);
       }else{
-        // ★着地を厳密に y=0 へスナップ
+        // y=0 にスナップ
         placeBallAt(xLand, 0);
-        updateVelocityVector(v0, -g * tFlight); // 着地直前の速度向き
+        updateVelocityVector(v0, -g * tFlight);
         posNowEl.textContent = `${xLand.toFixed(2)} m, 0.00 m`;
         tValEl.textContent = tFlight.toFixed(2) + ' s';
         xLandVal.textContent = xLand.toFixed(2) + ' m';
@@ -602,18 +583,16 @@
   resetBtn.addEventListener('click', resetGame);
   submitBtn.addEventListener('click', submitResult);
 
-  // リサイズ対応（常に1画面フィット）
+  // リサイズ対応
   function handleResize(){
     baselineTop = null;
     fitSceneToViewport();
     fitScales();
     renderGrid();
-    layoutBuilding(y0);
-    // 位置を再配置
-    placeBallAt(curX, curY);
+    layoutBuilding(curY || y0);
+    placeBallAt(curX, curY || y0);
     targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = (groundOffsetPx + TARGET_OFFSET_ABOVE_LABEL) + 'px';
-    // 速度ベクトルも再描画（方向・大きさは直前のまま。ここでは水平にしておく）
+    targetEl.style.bottom = groundOffsetPx + 'px';
     const v=parseFloat(speedLabel.textContent.replace(' m/s',''))||0;
     updateVelocityVector(v, 0);
   }
