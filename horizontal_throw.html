@@ -315,12 +315,48 @@
   }
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
-  // ====== レイアウト・スケール ======
-  const groundOffsetPx=8;
-  const LABEL_Y_OFFSET_M = 2; // ★水平ラベルを各線より 2 m 下へ（= y_line - 2）
-  let scaleY = 8; // px/m
-  let scaleX = 40; // px/m
-  const origin = { x: 30, y: groundOffsetPx }; // 左下の原点
+
+// ====== レイアウト・スケール ======
+const groundOffsetPx=8;
+const LABEL_Y_OFFSET_M = 2; // 水平ラベルを各線より 2 m 下へ
+let scaleY = 8; // px/m
+let scaleX = 40; // px/m
+const origin = { x: 30, y: groundOffsetPx }; // 左下の原点
+
+// ★ 44.1 m をほぼ上端に合わせる（上側に少しだけ余白）
+const Y_MAX_VISIBLE = 44.1;
+const TOP_PADDING_M = 0.6;  // 上余白(メートル)
+
+function toPxX(xm){ return origin.x + xm*scaleX; }
+// DOM用（bottom基準）
+function toPxY(ym){ return origin.y + ym*scaleY; }
+// ★Canvas用（上端=0に揃える）
+function toCanvasY(ym){
+  const canvasH = scene.clientHeight - groundOffsetPx; // trailCanvas の高さに一致
+  return canvasH - (origin.y + ym*scaleY);
+}
+
+function fitSceneToViewport(){
+  const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+  const vh = Math.min(window.innerHeight, vvh);
+  if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
+  const margin = 12;
+  let desired = Math.floor(vh - baselineTop - margin);
+  desired = Math.max(240, Math.min(desired, vh - margin));
+  const prev = parseFloat(getComputedStyle(scene).height);
+  if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
+  scene.style.height = desired + 'px';
+}
+
+function fitScales(){
+  // 縦横どちらでも、見切れないように 44.1m + 上余白 をぴったり入れる
+  const usableH = scene.clientHeight - groundOffsetPx - 4; // 小バッファ
+  scaleY = Math.max(4, Math.min(12, usableH / (Y_MAX_VISIBLE + TOP_PADDING_M)));
+
+  const usableW = scene.clientWidth - origin.x - 16;
+  scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
+}
+
 
   // 速度ベクトルのスケール
   const velScalePxPerMs = 4;
@@ -333,39 +369,46 @@
   let trailPts = [];
 
   // キャンバス設定
-  function resizeTrailCanvas(){
-    const dpr = window.devicePixelRatio || 1;
-    const rect = scene.getBoundingClientRect();
-    trailCanvas.width = Math.floor(rect.width * dpr);
-    trailCanvas.height = Math.floor((rect.height - groundOffsetPx) * dpr);
-    trailCanvas.style.width = rect.width + 'px';
-    trailCanvas.style.height = (rect.height - groundOffsetPx) + 'px';
-    const ctx = trailCanvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    redrawTrail(); // スケール変更後に再描画
+function resizeTrailCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  const rect = scene.getBoundingClientRect();
+  // キャンバスは groundOffsetPx 分だけ低くする（.trail の inset と一致）
+  trailCanvas.width  = Math.floor(rect.width * dpr);
+  trailCanvas.height = Math.floor((rect.height - groundOffsetPx) * dpr);
+  trailCanvas.style.width  = rect.width + 'px';
+  trailCanvas.style.height = (rect.height - groundOffsetPx) + 'px';
+
+  const ctx = trailCanvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  redrawTrail(); // サイズ変更後に再描画
+}
+
+function clearTrail(){
+  const ctx = trailCanvas.getContext('2d');
+  ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+}
+
+// ★Canvasは「下向きが正」なので Y は toCanvasY を使う
+function drawTrailSegment(from, to){
+  const ctx = trailCanvas.getContext('2d');
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#6ae3ff';
+  ctx.shadowColor = 'rgba(106,227,255,.6)';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(toPxX(from.x), toCanvasY(from.y));
+  ctx.lineTo(toPxX(to.x),   toCanvasY(to.y));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function redrawTrail(){
+  clearTrail();
+  for(let i=1;i<trailPts.length;i++){
+    drawTrailSegment(trailPts[i-1], trailPts[i]);
   }
-  function clearTrail(){
-    const ctx = trailCanvas.getContext('2d');
-    ctx.clearRect(0, 0, trailCanvas.clientWidth, trailCanvas.clientHeight);
-  }
-  function drawTrailSegment(from, to){
-    const ctx = trailCanvas.getContext('2d');
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#6ae3ff';
-    ctx.shadowColor = 'rgba(106,227,255,.6)';
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    ctx.moveTo(toPxX(from.x), toPxY(from.y));
-    ctx.lineTo(toPxX(to.x), toPxY(to.y));
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-  function redrawTrail(){
-    clearTrail();
-    for(let i=1;i<trailPts.length;i++){
-      drawTrailSegment(trailPts[i-1], trailPts[i]);
-    }
-  }
+}
+
 
   // ビューポートフィット
   let baselineTop = null;
@@ -521,6 +564,8 @@
 
     // 初期位置
     placeBallAt(0, y0);
+    trailPts.push({x:0, y:y0});   // ★軌跡の始点を y0 に
+
 
     // ターゲット：床面 y=0 m に
     targetEl.style.left = toPxX(xTarget) + 'px';
@@ -540,8 +585,7 @@
     tFlight = Math.sqrt((2*y0)/g);
     xLand = v0 * tFlight;
 
-    trailPts = [{x:0, y:y0}];
-    clearTrail();
+
 
     const start=performance.now();
     function step(now){
