@@ -10,11 +10,11 @@
     --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
   }
   *{box-sizing:border-box}
-  html, body{height:100%; overflow:hidden;}  /* ←スクロール禁止＆1画面に収める */
+  html, body{height:100%; overflow:hidden;}
   body{
     margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
     background: radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
-    color:var(--text); display:flex; min-height:100svh; align-items:flex-start; justify-content:center; padding:12px; /* 上寄せ */
+    color:var(--text); display:flex; min-height:100svh; align-items:flex-start; justify-content:center; padding:12px;
   }
   @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
 
@@ -88,18 +88,26 @@
     border:1px solid rgba(255,255,255,.08);
   }
 
-  /* 地面は常に最下部。y=0はグリッド線で表現（=太線問題を解消） */
+  /* 地面（常に最下部） */
   .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset; z-index:0}
 
   .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
     background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:3}
 
+  /* y<0 全域のサブグラウンド（灰） */
+  .subground{
+    position:absolute; left:0; right:0;
+    background:linear-gradient(180deg, #3a3f55, #2a2f44);
+    opacity:.45;
+    z-index:0; /* gridを後で描くので、ラベル等は手前に来る */
+  }
+
   .grid{position:absolute; inset:0 0 8px 0; pointer-events:none; z-index:0}
-  .hgridline,.vgridline{position:absolute; background:rgba(255,255,255,.22); opacity:.7}
+  .hgridline,.vgridline,.zeroline{position:absolute; background:rgba(255,255,255,.22); opacity:.7}
   .hgridline{left:8px; right:8px; height:1px;}
   .vgridline{top:8px; bottom:8px; width:1px;}
   .zeroline{left:8px; right:8px; height:2px; background:rgba(255,255,255,.28);} /* y=0 用の細線 */
-  .gridlabel{position:absolute; font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
+  .gridlabel{position:absolute; font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12); z-index:1}
   .hlabel{ right:10px; transform:translateY(-50%); }
   .vlabel{ transform:translateX(-50%); }
 
@@ -126,7 +134,7 @@
   .velvec{
     position:absolute; height:3px; background:#8ff2ff;
     box-shadow: 0 0 10px rgba(106,227,255,.6);
-    transform-origin: left center; /* 左端＝起点（球中心） */
+    transform-origin: left center;
     z-index:2;
   }
   .velvec::after{
@@ -143,7 +151,7 @@
   .target{
     position:absolute; width:14px; height:14px; border-radius:50%;
     border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5);
-    transform:translate(-50%, 0%); z-index:2; /* 地面より前面に */
+    transform:translate(-50%, 0%); z-index:2;
   }
   .target::after{
     content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8);
@@ -203,6 +211,10 @@
       <div class="playgrid">
         <div class="scene" id="scene">
           <div class="meter">g = 9.8 m/s²</div>
+
+          <!-- y<0 の灰色領域 -->
+          <div class="subground" id="subground" aria-hidden="true"></div>
+
           <div class="grid" id="grid"></div>
 
           <!-- 軌跡キャンバス -->
@@ -266,6 +278,7 @@
 
   const scene=document.getElementById('scene');
   const gridEl=document.getElementById('grid');
+  const subgroundEl=document.getElementById('subground');
   const buildingEl=document.getElementById('building');
   const trailCanvas=document.getElementById('trail');
   const ball=document.getElementById('ball');
@@ -321,17 +334,14 @@
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   // ====== レイアウト・スケール ======
-  const BALL_DIAM = 18;
-  const BALL_R = BALL_DIAM/2;
+  const BALL_DIAM = 18, BALL_R = BALL_DIAM/2;
 
-  // 下側に -3.2 m まで表示を広げる（距離ラベル y=-2m を必ず映す）
+  // 表示範囲：下は -3.2m、上は 44.1m（縦画面で余白ゼロ）
   const BOTTOM_VISIBLE_M = 3.2;
-  // 上側余白（px 固定・ほぼゼロ）
-  const TOP_PAD_PX = 2;
-  // 上端は 44.1 m に合わせる
+  const TOP_PAD_PX = 0;
   const Y_MAX_VISIBLE = 44.1;
 
-  const groundOffsetPx = 8; // 地面の線（厚み）
+  const groundOffsetPx = 8; // 地面の厚み
   let scaleY = 8; // px/m
   let scaleX = 40; // px/m
 
@@ -340,15 +350,18 @@
   let bottomPadPx = 0; // = BOTTOM_VISIBLE_M * scaleY（毎回再計算）
 
   function toPxX(xm){ return origin.x + xm*scaleX; }
-  // DOM 用（bottom基準）
+  // DOM用（bottom基準）
   function toPxY(ym){ return origin.y + ym*scaleY; }
-  // Canvas 用（上端=0・下向きが正）
+  // Canvas用：シーン上端基準（中心を描くため BALL_R は別途加算）
   function toCanvasY(ym){
-    const canvasH = scene.clientHeight - groundOffsetPx; // .trail の高さに一致
-    return canvasH - (origin.y + ym*scaleY);
+    return scene.clientHeight - (origin.y + ym*scaleY);
+  }
+  // 中心用 Canvas Y
+  function toCanvasYCenter(ym){
+    return scene.clientHeight - (origin.y + ym*scaleY + BALL_R);
   }
 
-  // 画面の高さにフィット（ページ全体はスクロール禁止のため、ここで調整）
+  // 画面の高さにフィット
   let baselineTop = null;
   function getVH(){
     const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
@@ -357,7 +370,7 @@
   function fitSceneToViewport(){
     const vh = getVH();
     if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
-    const margin = 12; // 下側の余白
+    const margin = 12;
     let desired = Math.floor(vh - baselineTop - margin);
     desired = Math.max(240, Math.min(desired, vh - margin));
     const prev = parseFloat(getComputedStyle(scene).height);
@@ -365,23 +378,31 @@
     scene.style.height = desired + 'px';
   }
 
-  // ★[-3.2 m, 44.1 m] を上余白 TOP_PAD_PX を残して“ちょうど”入れる
+  // [-3.2, 44.1] を上余白 TOP_PAD_PX でぴったり入れる
   function fitScales(){
-    const usableH = scene.clientHeight; // 下側も全て描画に使う
+    const usableH = scene.clientHeight;
     scaleY = Math.max(4, (usableH - TOP_PAD_PX) / (Y_MAX_VISIBLE + BOTTOM_VISIBLE_M));
 
     const usableW = scene.clientWidth - origin.x - 16;
     scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
 
-    // y=-BOTTOM_VISIBLE_M が画面内に入るように原点を持ち上げる
+    // y=-BOTTOM_VISIBLE_M が収まるように原点を持ち上げる
     bottomPadPx = BOTTOM_VISIBLE_M * scaleY;
     origin.y = groundOffsetPx + bottomPadPx;
 
-    // 地面は常に最下部（太線問題回避）
+    // 地面は最下部固定
     groundEl.style.bottom = `0px`;
   }
 
-  // ====== グリッド描画（高さラベルは線の真横／距離ラベルは y=-2m） ======
+  // サブグラウンド配置（y<0 全域）
+  function layoutSubground(){
+    // y=-BOTTOM_VISIBLE_M から y=0 まで
+    subgroundEl.style.bottom = `${toPxY(-BOTTOM_VISIBLE_M)}px`; // = groundOffsetPx
+    subgroundEl.style.height = `${BOTTOM_VISIBLE_M * scaleY}px`;
+  }
+
+  // ====== グリッド描画（高さは線の真横 ／ 距離は y=-2.6m） ======
+  const DIST_LABEL_Y_M = -2.6;
   function renderGrid(){
     gridEl.innerHTML = '';
 
@@ -394,12 +415,12 @@
 
       const lab = document.createElement('div');
       lab.className = 'gridlabel hlabel';
-      lab.style.bottom = toPxY(ym) + 'px'; // 線の真横（同じy）
+      lab.style.bottom = toPxY(ym) + 'px';
       lab.textContent = `${ym} m`;
       gridEl.appendChild(lab);
     }
 
-    // y=0 の細い基準線（地面は最下端なので、ここで0mを示す）
+    // y=0 の細線とラベル
     const zero = document.createElement('div');
     zero.className = 'zeroline';
     zero.style.bottom = toPxY(0) + 'px';
@@ -411,8 +432,8 @@
     lab0.textContent = '0 m';
     gridEl.appendChild(lab0);
 
-    // 距離ライン＋ラベル（y=-2m）
-    const yLabelPx = toPxY(-2);
+    // 距離ライン＋ラベル（y=-2.6m／サブグラウンドより前面）
+    const yLabelPx = toPxY(DIST_LABEL_Y_M);
     for(let xm=0; xm<=X_GRID_MAX; xm++){
       const v = document.createElement('div');
       v.className = 'vgridline';
@@ -428,12 +449,12 @@
     }
   }
 
-  // ====== 建物（x<0 域）配置：y=0 から y0 まで ======
+  // 建物（x<0 域）：y=0 から y0
   function layoutBuilding(heightM){
     const rightPx = origin.x;
     buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
     buildingEl.style.left = '0px';
-    buildingEl.style.bottom = `${toPxY(0)}px`;   // y=0 の高さから
+    buildingEl.style.bottom = `${toPxY(0)}px`;
     buildingEl.style.height = (heightM * scaleY) + 'px';
   }
 
@@ -453,7 +474,7 @@
     const ctx = trailCanvas.getContext('2d');
     ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
   }
-  // ★球の中心で描く（Y は toCanvasY(y) - BALL_R）
+  // ★中心軌跡（ずれ無し）
   function drawTrailSegment(from, to){
     const ctx = trailCanvas.getContext('2d');
     ctx.lineWidth = 2;
@@ -461,8 +482,8 @@
     ctx.shadowColor = 'rgba(106,227,255,.6)';
     ctx.shadowBlur = 6;
     ctx.beginPath();
-    ctx.moveTo(toPxX(from.x), toCanvasY(from.y) - BALL_R);
-    ctx.lineTo(toPxX(to.x),   toCanvasY(to.y)   - BALL_R);
+    ctx.moveTo(toPxX(from.x), toCanvasYCenter(from.y));
+    ctx.lineTo(toPxX(to.x),   toCanvasYCenter(to.y));
     ctx.stroke();
     ctx.shadowBlur = 0;
   }
@@ -483,14 +504,13 @@
   const velScalePxPerMs = 4;
   const velMaxLenPx = 120;
   function updateVelocityVector(vx, vy){
-    // 球の中心（px）
     const centerX = toPxX(curX);
     const centerY = toPxY(curY) + BALL_R;
 
     const speed = Math.sqrt(vx*vx + vy*vy);
     const len = Math.min(velMaxLenPx, speed * velScalePxPerMs);
 
-    // 画素スケール補正つき接線方向（CSSは下向き正）
+    // 異方性スケール補正＋CSS座標（下向き正）
     const angleRad = Math.atan2(-vy * scaleY, vx * scaleX);
 
     velvec.style.width = len + 'px';
@@ -527,7 +547,7 @@
     const elapsed=(now-t0Roulette)/1000;
     const v=vMin+((elapsed%cycleSec)/cycleSec)*(vMax-vMin);
     updateSpeedUI(v);
-    updateVelocityVector(v, 0); // 水平矢印（中心から）
+    updateVelocityVector(v, 0);
     requestAnimationFrame(rouletteLoop);
   }
   function updateSpeedUI(v){
@@ -549,6 +569,7 @@
   function renderAllStatic(){
     fitSceneToViewport();
     fitScales();
+    layoutSubground();
     renderGrid();
     layoutBuilding(y0);
     resizeTrailCanvas();
@@ -563,15 +584,15 @@
 
     renderAllStatic();
 
-    // 初期位置＆軌跡始点（球の中心基準）
+    // 初期位置＆軌跡始点（中心基準）
     placeBallAt(0, y0);
     trailPts = [{x:0, y:y0}]; clearTrail();
 
-    // ターゲット：床面 y=0 m に
+    // ターゲット：y=0
     targetEl.style.left = toPxX(xTarget) + 'px';
     targetEl.style.bottom = toPxY(0) + 'px';
 
-    // 右側表示初期化
+    // 表示
     posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
     tValEl.textContent = '0.00 s';
     xLandVal.textContent = '0.00 m';
@@ -686,6 +707,7 @@
     baselineTop = null;
     fitSceneToViewport();
     fitScales();
+    layoutSubground();
     renderGrid();
     layoutBuilding(curY || y0);
     resizeTrailCanvas();
