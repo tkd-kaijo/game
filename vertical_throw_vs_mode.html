@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>鉛直投げ上げゲーム 2人対戦（横画面専用）</title>
+<title>鉛直投げ上げゲーム 2人対戦</title>
 <style>
   :root{
     --bg:#0f1220; --pane:#14182b; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1;
@@ -223,7 +223,7 @@
 (() => {
   const g = 9.8;
   const vMin=0, vMax=35, cycleSec=4.5;
-  const Xs=[4.9,19.6]; const Ts=[1,2,3,4,6];
+  const Xs=[4.9,19.6,44.1]; const Ts=[1,2,3,4,6];
 
   // 共有サウンド
   let audioCtx=null;
