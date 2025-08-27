@@ -97,11 +97,11 @@
   .vgridline{top:8px; bottom:8px; width:1px;}
   .gridlabel{position:absolute; font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
   .hlabel{ right:10px; transform:translateY(-50%); }
-  .vlabel{ bottom:10px; transform:translateX(-50%); }
+  .vlabel{ transform:translateX(-50%); }
 
   /* 建物（x<0 の領域） */
   .building{
-    position:absolute; left:0; bottom:8px; right:auto;
+    position:absolute; left:0; right:auto;
     background:linear-gradient(180deg, #8f95a3, #6f7482);
     border:1px solid rgba(255,255,255,.1);
     box-shadow: inset 0 6px 14px rgba(0,0,0,.25);
@@ -243,7 +243,7 @@
 
 <script>
 (() => {
-  // ====== 物理 & ルール ======
+  // ====== 物理・ゲーム設定 ======
   const g = 9.8; // m/s^2
   const vMin=0, vMax=5, cycleSec=4;
   const Y_CANDIDATES = [4.9, 19.6, 44.1];
@@ -254,7 +254,6 @@
   const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
 
   // ====== DOM ======
-  const groundEl = document.querySelector('.ground'); // ★床を動かすため
   const fillEl=document.getElementById('fill');
   const speedLabel=document.getElementById('speedLabel');
   const lockBtn=document.getElementById('lockBtn');
@@ -268,6 +267,7 @@
   const ball=document.getElementById('ball');
   const velvec=document.getElementById('velvec');
   const targetEl=document.getElementById('target');
+  const groundEl = document.querySelector('.ground');
 
   const posNowEl=document.getElementById('posNow');
   const tValEl=document.getElementById('tVal');
@@ -278,7 +278,7 @@
   const resultTextHUD=document.getElementById('resultTextHUD');
   const scoreHUD=document.getElementById('scoreHUD');
 
-  // ====== 提出設定（同） ======
+  // ====== 提出設定 ======
   const CONFIG = {
     SUBMIT_MODE: 'google_forms',
     GOOGLE_FORMS: {
@@ -316,127 +316,39 @@
   }
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
+  // ====== レイアウト・スケール ======
+  const BALL_DIAM = 18;
+  const BALL_R = BALL_DIAM/2;
 
-// ====== レイアウト・スケール ======
-// ====== レイアウト・スケール ======
-const groundOffsetPx = 8;
+  // 下側に -3.2 m まで表示を広げる（距離ラベル y=-2m を必ず映す）
+  const BOTTOM_VISIBLE_M = 3.2;
+  // 上側余白（px 固定・ほぼゼロ）
+  const TOP_PAD_PX = 2;
+  // 上端は 44.1 m に合わせる
+  const Y_MAX_VISIBLE = 44.1;
 
-// ★xラベルを y = -2m に置く＆その分だけ下にも描画余地を確保
-const BOTTOM_LABEL_M = 2;
+  const groundOffsetPx = 8; // 地面の線（厚み）
+  let scaleY = 8; // px/m
+  let scaleX = 40; // px/m
 
-// 画面上端の余白（px固定・ごく小さく）
-const TOP_PAD_PX = 6;
+  // 原点（y=0 の px）。下側パッド分だけ上げる
+  const origin = { x: 30, y: groundOffsetPx };
+  let bottomPadPx = 0; // = BOTTOM_VISIBLE_M * scaleY（毎回再計算）
 
-// 44.1 m を表示範囲の上端にぴったり合わせる
-const Y_MAX_VISIBLE = 44.1;
-
-let scaleY = 8; // px/m
-let scaleX = 40; // px/m
-
-// 原点（y=0 の px）。下に余白を作るので run-time に更新します
-const origin = { x: 30, y: groundOffsetPx };
-let bottomPadPx = 0; // = BOTTOM_LABEL_M * scaleY。毎回再計算
-
-function toPxX(xm){ return origin.x + xm * scaleX; }
-// DOM用（bottom基準）
-function toPxY(ym){ return origin.y + ym * scaleY; }
-// Canvas用（上端=0、下向きが正）
-function toCanvasY(ym){
-  const canvasH = scene.clientHeight - 0; // キャンバスは下側まで使う
-  return canvasH - (origin.y + ym * scaleY);
-}
-
-// 画面高さにフィット（既存のものでOK。変更不要ならそのまま）
-function fitSceneToViewport(){
-  const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-  const vh = Math.min(window.innerHeight, vvh);
-  if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
-  const margin = 12;
-  let desired = Math.floor(vh - baselineTop - margin);
-  desired = Math.max(240, Math.min(desired, vh - margin));
-  const prev = parseFloat(getComputedStyle(scene).height);
-  if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
-  scene.style.height = desired + 'px';
-}
-
-// ★縦横どちらでも「[-2m, 44.1m] を上余白TOP_PAD_PXを残してピッタリ入れる」
-function fitScales(){
-  const usableH = scene.clientHeight; // 下側まで描画に使う
-  scaleY = Math.max(4, (usableH - TOP_PAD_PX) / (Y_MAX_VISIBLE + BOTTOM_LABEL_M));
-
-  const usableW = scene.clientWidth - origin.x - 16;
-  scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
-
-  // 下側パッド（y=-2m が画面内に入るように）
-  bottomPadPx = BOTTOM_LABEL_M * scaleY;
-  origin.y = groundOffsetPx + bottomPadPx;
-
-  // 床（.ground）を y=0 の位置へ移動
-  groundEl.style.bottom = `${bottomPadPx}px`;
-}
-
-
-
-  // 速度ベクトルのスケール
-  const velScalePxPerMs = 4;
-  const velMaxLenPx = 120;
-
-  // 現在の位置（m）
-  let curX = 0, curY = 0;
-
-  // 軌跡データ（m座標列）
-  let trailPts = [];
-
-  // キャンバス設定
-function resizeTrailCanvas(){
-  const dpr = window.devicePixelRatio || 1;
-  const rect = scene.getBoundingClientRect();
-  // キャンバスは groundOffsetPx 分だけ低くする（.trail の inset と一致）
-  trailCanvas.width  = Math.floor(rect.width * dpr);
-  trailCanvas.height = Math.floor((rect.height - groundOffsetPx) * dpr);
-  trailCanvas.style.width  = rect.width + 'px';
-  trailCanvas.style.height = (rect.height - groundOffsetPx) + 'px';
-
-  const ctx = trailCanvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  redrawTrail(); // サイズ変更後に再描画
-}
-
-function clearTrail(){
-  const ctx = trailCanvas.getContext('2d');
-  ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-}
-
-// ★Canvasは「下向きが正」なので Y は toCanvasY を使う
-function drawTrailSegment(from, to){
-  const ctx = trailCanvas.getContext('2d');
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#6ae3ff';
-  ctx.shadowColor = 'rgba(106,227,255,.6)';
-  ctx.shadowBlur = 6;
-  ctx.beginPath();
-  ctx.moveTo(toPxX(from.x), toCanvasY(from.y));
-  ctx.lineTo(toPxX(to.x),   toCanvasY(to.y));
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-}
-
-function redrawTrail(){
-  clearTrail();
-  for(let i=1;i<trailPts.length;i++){
-    drawTrailSegment(trailPts[i-1], trailPts[i]);
+  function toPxX(xm){ return origin.x + xm*scaleX; }
+  // DOM 用（bottom基準）
+  function toPxY(ym){ return origin.y + ym*scaleY; }
+  // Canvas 用（上端=0・下向きが正）
+  function toCanvasY(ym){
+    const canvasH = scene.clientHeight - groundOffsetPx; // .trail の高さに一致
+    return canvasH - (origin.y + ym*scaleY);
   }
-}
 
-
-  // ビューポートフィット
+  // 画面の高さにフィット
   let baselineTop = null;
-  function getVH(){
-    const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-    return Math.min(window.innerHeight, vvh);
-  }
   function fitSceneToViewport(){
-    const vh = getVH();
+    const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    const vh = Math.min(window.innerHeight, vvh);
     if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
     const margin = 12;
     let desired = Math.floor(vh - baselineTop - margin);
@@ -446,90 +358,133 @@ function redrawTrail(){
     scene.style.height = desired + 'px';
   }
 
+  // ★[-3.2 m, 44.1 m] を上余白 TOP_PAD_PX を残して“ちょうど”入れる
   function fitScales(){
-    const maxY = 46;
-    const h = scene.clientHeight - groundOffsetPx - 20;
-    scaleY = Math.max(4, Math.min(12, h / maxY));
+    const usableH = scene.clientHeight; // 下側も全て描画に使う
+    scaleY = Math.max(4, (usableH - TOP_PAD_PX) / (Y_MAX_VISIBLE + BOTTOM_VISIBLE_M));
 
-    const w = scene.clientWidth - origin.x - 16;
-    scaleX = Math.max(24, Math.min(90, w / (X_GRID_MAX + 0.6)));
+    const usableW = scene.clientWidth - origin.x - 16;
+    scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
+
+    // y=-BOTTOM_VISIBLE_M が画面内に入るように、原点と床の位置を持ち上げる
+    bottomPadPx = BOTTOM_VISIBLE_M * scaleY;
+    origin.y = groundOffsetPx + bottomPadPx;
+
+    // 床（.ground）を y=0 の位置へ
+    groundEl.style.bottom = `${bottomPadPx}px`;
   }
 
-  function toPxX(xm){ return origin.x + xm*scaleX; }
-  function toPxY(ym){ return origin.y + ym*scaleY; }
+  // ====== グリッド描画（高さラベルは線の真横／距離ラベルは y=-2m） ======
+  function renderGrid(){
+    gridEl.innerHTML = '';
 
-  // ====== グリッド描画（ラベルは y_line - 2 m） ======
-function renderGrid(){
-  gridEl.innerHTML = '';
+    // 高さライン
+    for(const ym of H_LINES){
+      const line = document.createElement('div');
+      line.className = 'hgridline';
+      line.style.bottom = toPxY(ym) + 'px';
+      gridEl.appendChild(line);
 
-  // ---- 高さ（水平）ライン：ラベルは線の真横（同じy） ----
-  for(const ym of H_LINES){
-    const line = document.createElement('div');
-    line.className = 'hgridline';
-    line.style.bottom = toPxY(ym) + 'px';
-    gridEl.appendChild(line);
+      const lab = document.createElement('div');
+      lab.className = 'gridlabel hlabel';
+      lab.style.bottom = toPxY(ym) + 'px'; // 線の真横（同じy）
+      lab.textContent = `${ym} m`;
+      gridEl.appendChild(lab);
+    }
+    // 0 m
+    const lab0 = document.createElement('div');
+    lab0.className = 'gridlabel hlabel';
+    lab0.style.bottom = toPxY(0) + 'px';
+    lab0.textContent = '0 m';
+    gridEl.appendChild(lab0);
 
-    const lab = document.createElement('div');
-    lab.className = 'gridlabel hlabel';
-    lab.style.bottom = toPxY(ym) + 'px'; // 線と同じ高さ
-    lab.textContent = `${ym} m`;
-    gridEl.appendChild(lab);
+    // 距離ライン
+    const yLabelPx = toPxY(-2); // y = -2 m に統一
+    for(let xm=0; xm<=X_GRID_MAX; xm++){
+      const v = document.createElement('div');
+      v.className = 'vgridline';
+      v.style.left = toPxX(xm) + 'px';
+      gridEl.appendChild(v);
+
+      const lab = document.createElement('div');
+      lab.className = 'gridlabel vlabel';
+      lab.style.left = toPxX(xm) + 'px';
+      lab.style.bottom = yLabelPx + 'px';
+      lab.textContent = `${xm} m`;
+      gridEl.appendChild(lab);
+    }
   }
-  // 0 m
-  const lab0 = document.createElement('div');
-  lab0.className = 'gridlabel hlabel';
-  lab0.style.bottom = toPxY(0) + 'px';
-  lab0.textContent = '0 m';
-  gridEl.appendChild(lab0);
 
-  // ---- 距離（垂直）ライン：ラベルは y = -2 m ----
-  const yLabelPx = toPxY(-BOTTOM_LABEL_M); // 下方向に2m
-  for(let xm=0; xm<=X_GRID_MAX; xm++){
-    const v = document.createElement('div');
-    v.className = 'vgridline';
-    v.style.left = toPxX(xm) + 'px';
-    gridEl.appendChild(v);
-
-    const lab = document.createElement('div');
-    lab.className = 'gridlabel vlabel';
-    lab.style.left = toPxX(xm) + 'px';
-    lab.style.bottom = yLabelPx + 'px';  // y=-2m
-    lab.textContent = `${xm} m`;
-    gridEl.appendChild(lab);
-  }
-}
-
-
-  // ====== 建物（x<0 域）配置 ======
+  // ====== 建物（x<0 域）配置：y=0 から y0 まで ======
   function layoutBuilding(heightM){
-  const rightPx = origin.x;
-  buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
-  buildingEl.style.left = '0px';
-  buildingEl.style.bottom = `${bottomPadPx}px`; // ★y=0 の位置に合わせる
-  buildingEl.style.height = (groundOffsetPx + heightM * scaleY) + 'px'; // 0→h の実高さ
-}
+    const rightPx = origin.x;
+    buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
+    buildingEl.style.left = '0px';
+    buildingEl.style.bottom = `${bottomPadPx}px`; // y=0 の位置
+    buildingEl.style.height = (heightM * scaleY) + 'px';
+  }
 
+  // ====== キャンバス（軌跡） ======
+  function resizeTrailCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = scene.getBoundingClientRect();
+    trailCanvas.width  = Math.floor(rect.width * dpr);
+    trailCanvas.height = Math.floor((rect.height - groundOffsetPx) * dpr);
+    trailCanvas.style.width  = rect.width + 'px';
+    trailCanvas.style.height = (rect.height - groundOffsetPx) + 'px';
+    const ctx = trailCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redrawTrail();
+  }
+  function clearTrail(){
+    const ctx = trailCanvas.getContext('2d');
+    ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+  }
+  // ★球の中心で描く（Y は toCanvasY(y) - BALL_R）
+  function drawTrailSegment(from, to){
+    const ctx = trailCanvas.getContext('2d');
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#6ae3ff';
+    ctx.shadowColor = 'rgba(106,227,255,.6)';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(toPxX(from.x), toCanvasY(from.y) - BALL_R);
+    ctx.lineTo(toPxX(to.x),   toCanvasY(to.y)   - BALL_R);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  function redrawTrail(){
+    clearTrail();
+    for(let i=1;i<trailPts.length;i++){
+      drawTrailSegment(trailPts[i-1], trailPts[i]);
+    }
+  }
 
-  // ====== 速度ベクトル（球の中心から） ======
+  // ====== 位置＆速度ベクトル ======
+  let curX = 0, curY = 0;
   function placeBallAt(xm, ym){
     curX = xm; curY = ym;
-    ball.style.left = (toPxX(xm) - 9) + 'px';
+    ball.style.left = (toPxX(xm) - BALL_R) + 'px';
     ball.style.bottom = toPxY(ym) + 'px';
   }
- function updateVelocityVector(vx, vy){
-  const centerX = toPxX(curX);
-  const centerY = toPxY(curY);
-  const speed = Math.sqrt(vx*vx + vy*vy);
-  const len = Math.min(velMaxLenPx, speed * velScalePxPerMs);
+  const velScalePxPerMs = 4;
+  const velMaxLenPx = 120;
+  function updateVelocityVector(vx, vy){
+    // 球の中心（px）
+    const centerX = toPxX(curX);
+    const centerY = toPxY(curY) + BALL_R;
 
-  // ★px座標系の接線方向：xは scaleX、yは scaleY（かつCSSは下向き正なので -vy）
-  const angleRad = Math.atan2(-vy * scaleY, vx * scaleX);
+    const speed = Math.sqrt(vx*vx + vy*vy);
+    const len = Math.min(velMaxLenPx, speed * velScalePxPerMs);
 
-  velvec.style.width = len + 'px';
-  velvec.style.left = centerX + 'px';
-  velvec.style.bottom = (centerY - 1.5) + 'px';
-  velvec.style.transform = `rotate(${angleRad}rad)`;
-}
+    // 画素スケール補正つき接線方向（CSSは下向き正）
+    const angleRad = Math.atan2(-vy * scaleY, vx * scaleX);
+
+    velvec.style.width = len + 'px';
+    velvec.style.left = centerX + 'px';
+    velvec.style.bottom = (centerY - 1.5) + 'px';
+    velvec.style.transform = `rotate(${angleRad}rad)`;
+  }
 
   // ====== サウンド ======
   let audioCtx=null;
@@ -569,11 +524,22 @@ function renderGrid(){
     speedLabel.textContent=c.toFixed(2)+' m/s';
   }
 
-  // ====== ラウンド設定 ======
+  // ====== ラウンド状態 ======
   let y0 = 19.6;
   let xTarget = 3;
   let tFlight = 0;
   let xLand = 0;
+
+  // 軌跡データ
+  let trailPts = [];
+
+  function renderAllStatic(){
+    fitSceneToViewport();
+    fitScales();
+    renderGrid();
+    layoutBuilding(y0);
+    resizeTrailCanvas();
+  }
 
   function setupRound(){
     y0 = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
@@ -582,17 +548,11 @@ function renderGrid(){
     resultTextHUD.textContent = '';
     roundBadgeHUD.textContent = `ラウンド${round}/${maxRounds}`;
 
-    fitSceneToViewport();
-    fitScales();
-    renderGrid();
-    layoutBuilding(y0);
-    resizeTrailCanvas();
-    trailPts = []; clearTrail();
+    renderAllStatic();
 
-    // 初期位置
+    // 初期位置＆軌跡始点（球の中心基準）
     placeBallAt(0, y0);
-    trailPts.push({x:0, y:y0});   // ★軌跡の始点を y0 に
-
+    trailPts = [{x:0, y:y0}]; clearTrail();
 
     // ターゲット：床面 y=0 m に
     targetEl.style.left = toPxX(xTarget) + 'px';
@@ -603,20 +563,17 @@ function renderGrid(){
     tValEl.textContent = '0.00 s';
     xLandVal.textContent = '0.00 m';
 
-    // 速度ベクトル初期化
     updateVelocityVector(0, 0);
   }
 
-  // ====== アニメーション（水平投射）＋軌跡描画 ======
+  // ====== アニメーション（水平投射） ======
   function animateThrow(v0){
     tFlight = Math.sqrt((2*y0)/g);
     xLand = v0 * tFlight;
 
-
-
     const start=performance.now();
     function step(now){
-      const t = Math.max(0, (now-start)/1000);
+      const t  = Math.max(0, (now-start)/1000);
       const tC = Math.min(tFlight, t);
 
       const x = v0 * tC;
@@ -625,19 +582,17 @@ function renderGrid(){
       const vx = v0;
       const vy = -g * tC;
 
-      // 軌跡に追加＆線分描画
+      // 軌跡に追加（中心で描画）
       const last = trailPts[trailPts.length-1];
-      const cur = {x, y};
+      const cur  = {x, y};
       trailPts.push(cur);
       drawTrailSegment(last, cur);
 
-      // 位置・ベクトル更新
       placeBallAt(x, y);
       updateVelocityVector(vx, vy);
 
-      // 右側表示
       posNowEl.textContent = `${x.toFixed(2)} m, ${y.toFixed(2)} m`;
-      tValEl.textContent = tC.toFixed(2) + ' s';
+      tValEl.textContent   = tC.toFixed(2) + ' s';
       xLandVal.textContent = xLand.toFixed(2) + ' m';
 
       if(t < tFlight - 1e-3){
@@ -646,12 +601,9 @@ function renderGrid(){
         // y=0 にスナップ
         placeBallAt(xLand, 0);
         updateVelocityVector(v0, -g * tFlight);
-        posNowEl.textContent = `${xLand.toFixed(2)} m, 0.00 m`;
-        tValEl.textContent = tFlight.toFixed(2) + ' s';
-        xLandVal.textContent = xLand.toFixed(2) + ' m';
-        // 終点を軌跡に反映
+
         const last2 = trailPts[trailPts.length-1];
-        const endp = {x:xLand, y:0};
+        const endp  = {x:xLand, y:0};
         trailPts.push(endp);
         drawTrailSegment(last2, endp);
 
@@ -718,19 +670,15 @@ function renderGrid(){
   resetBtn.addEventListener('click', resetGame);
   submitBtn.addEventListener('click', submitResult);
 
-  // ====== リサイズ対応（常に再描画） ======
+  // ====== リサイズ対応 ======
   function handleResize(){
     baselineTop = null;
-    fitSceneToViewport();
-    fitScales();
-    renderGrid();
-    layoutBuilding(curY || y0);
-    resizeTrailCanvas();
-    // 位置再配置
+    renderAllStatic();
+    // 位置再配置（中心基準）
     placeBallAt(curX, curY || y0);
     targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = groundOffsetPx + 'px';
-    // 速度ベクトルは水平に暫定保持（投射中でなければルーレット更新が上書き）
+    targetEl.style.bottom = toPxY(0) + 'px';
+    // ベクトルはルーレットが更新（停止中なら水平で暫定表示）
     const v=parseFloat(speedLabel.textContent.replace(' m/s',''))||0;
     updateVelocityVector(v, 0);
   }
