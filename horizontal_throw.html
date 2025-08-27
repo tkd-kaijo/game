@@ -94,12 +94,12 @@
   .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
     background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:3}
 
-  /* y<0 全域のサブグラウンド（灰） */
+  /* y<0 全域のサブグラウンド（茶色） */
   .subground{
     position:absolute; left:0; right:0;
-    background:linear-gradient(180deg, #3a3f55, #2a2f44);
-    opacity:.45;
-    z-index:0; /* gridを後で描くので、ラベル等は手前に来る */
+    background:linear-gradient(180deg, #8b5e3c, #5e3b23); /* ←茶色系 */
+    opacity:.55;
+    z-index:0;
   }
 
   .grid{position:absolute; inset:0 0 8px 0; pointer-events:none; z-index:0}
@@ -212,7 +212,7 @@
         <div class="scene" id="scene">
           <div class="meter">g = 9.8 m/s²</div>
 
-          <!-- y<0 の灰色領域 -->
+          <!-- y<0 の茶色領域 -->
           <div class="subground" id="subground" aria-hidden="true"></div>
 
           <div class="grid" id="grid"></div>
@@ -336,10 +336,10 @@
   // ====== レイアウト・スケール ======
   const BALL_DIAM = 18, BALL_R = BALL_DIAM/2;
 
-  // 表示範囲：下は -3.2m、上は 44.1m（縦画面で余白ゼロ）
+  // 表示範囲：下は -3.2m、上は **50m** に変更
   const BOTTOM_VISIBLE_M = 3.2;
   const TOP_PAD_PX = 0;
-  const Y_MAX_VISIBLE = 44.1;
+  const Y_MAX_VISIBLE = 50;     // ★ここを 50 に
 
   const groundOffsetPx = 8; // 地面の厚み
   let scaleY = 8; // px/m
@@ -378,7 +378,7 @@
     scene.style.height = desired + 'px';
   }
 
-  // [-3.2, 44.1] を上余白 TOP_PAD_PX でぴったり入れる
+  // [-3.2, 50] を上余白 TOP_PAD_PX でぴったり入れる
   function fitScales(){
     const usableH = scene.clientHeight;
     scaleY = Math.max(4, (usableH - TOP_PAD_PX) / (Y_MAX_VISIBLE + BOTTOM_VISIBLE_M));
@@ -394,10 +394,9 @@
     groundEl.style.bottom = `0px`;
   }
 
-  // サブグラウンド配置（y<0 全域）
+  // サブグラウンド配置（y<0 全域・茶色）
   function layoutSubground(){
-    // y=-BOTTOM_VISIBLE_M から y=0 まで
-    subgroundEl.style.bottom = `${toPxY(-BOTTOM_VISIBLE_M)}px`; // = groundOffsetPx
+    subgroundEl.style.bottom = `${toPxY(-BOTTOM_VISIBLE_M)}px`;
     subgroundEl.style.height = `${BOTTOM_VISIBLE_M * scaleY}px`;
   }
 
@@ -406,7 +405,7 @@
   function renderGrid(){
     gridEl.innerHTML = '';
 
-    // 高さライン
+    // 高さライン（必要な刻みのみ。上限は 50m 表示だが、最上段 44.1m まで表示）
     for(const ym of H_LINES){
       const line = document.createElement('div');
       line.className = 'hgridline';
@@ -463,9 +462,9 @@
     const dpr = window.devicePixelRatio || 1;
     const rect = scene.getBoundingClientRect();
     trailCanvas.width  = Math.floor(rect.width * dpr);
-    trailCanvas.height = Math.floor((rect.height - groundOffsetPx) * dpr);
+    trailCanvas.height = Math.floor((rect.height - 8) * dpr);  // groundOffsetPx
     trailCanvas.style.width  = rect.width + 'px';
-    trailCanvas.style.height = (rect.height - groundOffsetPx) + 'px';
+    trailCanvas.style.height = (rect.height - 8) + 'px';
     const ctx = trailCanvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     redrawTrail();
@@ -474,7 +473,7 @@
     const ctx = trailCanvas.getContext('2d');
     ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
   }
-  // ★中心軌跡（ずれ無し）
+  // 中心軌跡
   function drawTrailSegment(from, to){
     const ctx = trailCanvas.getContext('2d');
     ctx.lineWidth = 2;
@@ -495,17 +494,18 @@
   }
 
   // ====== 位置＆速度ベクトル ======
+  const BALL_DIAM_PX = 18;
   let curX = 0, curY = 0;
   function placeBallAt(xm, ym){
     curX = xm; curY = ym;
-    ball.style.left = (toPxX(xm) - BALL_R) + 'px';
+    ball.style.left = (toPxX(xm) - BALL_DIAM_PX/2) + 'px';
     ball.style.bottom = toPxY(ym) + 'px';
   }
   const velScalePxPerMs = 4;
   const velMaxLenPx = 120;
   function updateVelocityVector(vx, vy){
     const centerX = toPxX(curX);
-    const centerY = toPxY(curY) + BALL_R;
+    const centerY = toPxY(curY) + BALL_DIAM_PX/2;
 
     const speed = Math.sqrt(vx*vx + vy*vy);
     const len = Math.min(velMaxLenPx, speed * velScalePxPerMs);
