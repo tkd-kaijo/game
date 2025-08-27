@@ -325,14 +325,14 @@ const origin = { x: 30, y: groundOffsetPx }; // 左下の原点
 
 // ★ 44.1 m をほぼ上端に合わせる（上側に少しだけ余白）
 const Y_MAX_VISIBLE = 44.1;
-const TOP_PADDING_M = 0.6;  // 上余白(メートル)
+const TOP_PAD_PX = 6;
 
 function toPxX(xm){ return origin.x + xm*scaleX; }
 // DOM用（bottom基準）
 function toPxY(ym){ return origin.y + ym*scaleY; }
 // ★Canvas用（上端=0に揃える）
 function toCanvasY(ym){
-  const canvasH = scene.clientHeight - groundOffsetPx; // trailCanvas の高さに一致
+  const canvasH = scene.clientHeight - groundOffsetPx;
   return canvasH - (origin.y + ym*scaleY);
 }
 
@@ -349,9 +349,9 @@ function fitSceneToViewport(){
 }
 
 function fitScales(){
-  // 縦横どちらでも、見切れないように 44.1m + 上余白 をぴったり入れる
-  const usableH = scene.clientHeight - groundOffsetPx - 4; // 小バッファ
-  scaleY = Math.max(4, Math.min(12, usableH / (Y_MAX_VISIBLE + TOP_PADDING_M)));
+  const usableH = scene.clientHeight - groundOffsetPx;
+  // ★上側余白は px 固定。scaleY の上限は外す（縦表示でも 44.1m が天井近くに）
+  scaleY = Math.max(4, (usableH - TOP_PAD_PX) / Y_MAX_VISIBLE);
 
   const usableW = scene.clientWidth - origin.x - 16;
   scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
@@ -440,43 +440,49 @@ function redrawTrail(){
   function toPxY(ym){ return origin.y + ym*scaleY; }
 
   // ====== グリッド描画（ラベルは y_line - 2 m） ======
-  function renderGrid(){
-    gridEl.innerHTML = '';
+function renderGrid(){
+  gridEl.innerHTML = '';
 
-    for(const ym of H_LINES){
-      const line = document.createElement('div');
-      line.className = 'hgridline';
-      line.style.bottom = toPxY(ym) + 'px';
-      gridEl.appendChild(line);
+  // ---- 高さ（水平）ラインとラベル：線の“真横”に同じ y で表示 ----
+  for(const ym of H_LINES){
+    const line = document.createElement('div');
+    line.className = 'hgridline';
+    line.style.bottom = toPxY(ym) + 'px';
+    gridEl.appendChild(line);
 
-      const lab = document.createElement('div');
-      lab.className = 'gridlabel hlabel';
-      lab.style.bottom = toPxY(ym - LABEL_Y_OFFSET_M) + 'px'; // ★2m下
-      lab.textContent = ym + ' m';
-      gridEl.appendChild(lab);
-    }
-
-    // 0 m ラベルも 0 - 2 = -2 m に
-    const lab0 = document.createElement('div');
-    lab0.className = 'gridlabel hlabel';
-    lab0.style.bottom = toPxY(0 - LABEL_Y_OFFSET_M) + 'px';
-    lab0.textContent = '0 m';
-    gridEl.appendChild(lab0);
-
-    // 垂直ライン（x=0〜5m）
-    for(let xm=0; xm<=X_GRID_MAX; xm++){
-      const v = document.createElement('div');
-      v.className = 'vgridline';
-      v.style.left = toPxX(xm) + 'px';
-      gridEl.appendChild(v);
-
-      const lab = document.createElement('div');
-      lab.className = 'gridlabel vlabel';
-      lab.style.left = toPxX(xm) + 'px';
-      lab.textContent = xm + ' m';
-      gridEl.appendChild(lab);
-    }
+    const lab = document.createElement('div');
+    lab.className = 'gridlabel hlabel';
+    // ★縦位置のオフセットをやめ、線と同じ y に
+    lab.style.bottom = toPxY(ym) + 'px';
+    lab.textContent = ym + ' m';
+    gridEl.appendChild(lab);
   }
+
+  // 0 m ラベル（高さ）
+  const lab0 = document.createElement('div');
+  lab0.className = 'gridlabel hlabel';
+  lab0.style.bottom = toPxY(0) + 'px';
+  lab0.textContent = '0 m';
+  gridEl.appendChild(lab0);
+
+  // ---- 距離（垂直）ラインとラベル：y = -2 m に配置（安全クランプ付き） ----
+  // y=-2m のピクセル位置を計算（下抜けしすぎる場合は 2px までにクランプ）
+  const yLabelPx = Math.max(2, toPxY(0) - 2*scaleY);
+
+  for(let xm=0; xm<=X_GRID_MAX; xm++){
+    const v = document.createElement('div');
+    v.className = 'vgridline';
+    v.style.left = toPxX(xm) + 'px';
+    gridEl.appendChild(v);
+
+    const lab = document.createElement('div');
+    lab.className = 'gridlabel vlabel';
+    lab.style.left = toPxX(xm) + 'px';
+    lab.style.bottom = yLabelPx + 'px'; // ★y=-2m 相当
+    lab.textContent = xm + ' m';
+    gridEl.appendChild(lab);
+  }
+}
 
   // ====== 建物（x<0 域）配置 ======
   function layoutBuilding(heightM){
