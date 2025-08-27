@@ -135,13 +135,21 @@
   </div>
 
   <div class="topbar">
-    <div class="title">鉛直投げ上げゲーム 2人対戦</div>
-    <div>制限時間</div>
-    <div class="timer" id="timer">30.0</div>
+  <div class="title">鉛直投げ上げゲーム 2人対戦</div>
+
+  <!-- ★スタート前に見せるブロック：制限時間 [入力] 秒 -->
+  <div id="limitWrap" style="display:flex; gap:8px; align-items:center;">
+    <span>制限時間</span>
     <input type="number" id="limitSec" value="30" min="5" max="600" step="5"
-         style="width: 80px; font-weight:700; text-align:right; border-radius:10px; padding:6px 8px;">
-    <button class="startBtn" id="startBtn">対戦スタート</button>
+           style="width:80px; font-weight:700; text-align:right; border-radius:10px; padding:6px 8px;">
+    <span>秒</span>
   </div>
+
+  <!-- ★スタート後に見せる数値表示（初期は非表示） -->
+  <div class="timer" id="timer" style="display:none">30.0</div>
+
+  <button class="startBtn" id="startBtn">対戦スタート</button>
+</div>
 
   <main class="arena">
     <section class="pane" id="paneA">
@@ -454,6 +462,7 @@ this.renderGrid();
 
   const timerEl = document.getElementById('timer');
   const startBtn = document.getElementById('startBtn');
+  const limitWrap = document.getElementById('limitWrap');
   const limitSec = document.getElementById('limitSec');
   const winner = document.getElementById('winner');
   const winnerTitle = document.getElementById('winnerTitle');
@@ -466,6 +475,7 @@ this.renderGrid();
   let tRemain = 0;   
   let ticking = false;
   let rafId = null, lastTs = 0;
+  tRemain = Math.max(1, Number(limitSec.value) || 30);
 
   function tick(ts){
     if(!ticking) return;
@@ -491,20 +501,24 @@ this.renderGrid();
   winnerDetail.textContent = `A: ${a} 点　/　B: ${b} 点`;
   winner.style.display='flex';
 
-  // ★試合後は編集できるように戻す
+  // ★試合後は入力に戻す
   limitSec.disabled = false;
+  limitWrap.style.display = 'flex';
+  timerEl.style.display = 'none';
 }
   function hideWinner(){ winner.style.display='none'; }
 
   function startMatch(){
   hideWinner();
 
-  // ★入力欄の秒数を採用（未入力などのときは 30）
+  // ★表示切替：入力を隠し、数値表示を見せる
+  limitWrap.style.display = 'none';
+  limitSec.disabled = true;           // 念のため
+  timerEl.style.display = 'block';
+
+  // ★入力欄の値を採用
   tRemain = Math.max(1, Number(limitSec.value) || 30);
   timerEl.textContent = tRemain.toFixed(1);
-
-  // ★試合中は変更できないように
-  limitSec.disabled = true;
 
   lastTs = 0; 
   ticking = true;
@@ -523,14 +537,15 @@ this.renderGrid();
   if (rafId) cancelAnimationFrame(rafId);
   lastTs = 0;
 
-  // ★入力欄は編集可のまま
+  // ★表示は待機モードへ
   limitSec.disabled = false;
+  limitWrap.style.display = 'flex';
+  timerEl.style.display = 'none';
 
-  // 表示だけ入力値に合わせる（まだ開始しない）
+  // 内部の表示だけ整える（実際のカウントは startMatch で）
   tRemain = Math.max(1, Number(limitSec.value) || 30);
-  timerEl.textContent = tRemain.toFixed(1);
 
-  // ルーレットは回さずに Ready 状態へ
+  // ルーレットは止めたまま Ready 状態へ
   A.reset(); 
   B.reset();
   A.enablePlay(false);
