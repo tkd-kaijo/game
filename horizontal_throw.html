@@ -14,20 +14,20 @@
   body{
     margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
     background: radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
-    color:var(--text); display:flex; min-height:100svh; align-items:center; justify-content:center; padding:16px;
+    color:var(--text); display:flex; min-height:100svh; align-items:center; justify-content:center; padding:12px;
   }
   @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
 
-  .app{width:min(980px,100%); display:grid; gap:12px}
+  .app{width:min(980px,100%); display:grid; gap:10px}
   .title{font-weight:700; letter-spacing:.02em; font-size:clamp(18px,3vw,28px); text-align:center}
 
   .challengeBox{
     display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;
-    padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
+    padding:6px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
     background:rgba(255,255,255,.04);
   }
   .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:14px; background:rgba(255,255,255,.08); color:var(--yellow)}
-  #challengeTextHUD{font-weight:700}
+  #challengeTextHUD{font-weight:700; color:#ff5b5b}
   #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
@@ -36,7 +36,7 @@
 
   .card{
     background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.00));
-    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px 14px;
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:10px 12px;
     box-shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
   }
 
@@ -53,18 +53,18 @@
   }
   .speed{font-variant-numeric: tabular-nums; font-weight:800; letter-spacing:.02em; min-width:8ch; text-align:right; font-size:18px; color:#ff5b5b}
 
-  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; justify-content:center}
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; justify-content:center}
   button {
     appearance:none; border:none; border-radius:12px;
-    padding:14px 20px;
+    padding:12px 16px;
     font-weight:700; cursor:pointer;
-    font-size: clamp(22px, 3.8vw, 34px);
+    font-size: clamp(20px, 3.4vw, 30px);
     color:#03131a;
     background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
     box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
   }
   @media (min-width: 820px) {
-    button { font-size: clamp(34px, 3.8vw, 53px); padding: 18px 28px; }
+    button { font-size: clamp(26px, 3.2vw, 42px); padding: 14px 22px; }
   }
   button.secondary{
     background:linear-gradient(180deg, #d7e7ff, #b8cfff);
@@ -73,19 +73,15 @@
   button:disabled{opacity:.5; cursor:not-allowed}
 
   .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
-  @media (orientation: portrait){
-    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
-    .scene{grid-area: scene}
-    .readouts{grid-area: readouts}
-  }
   @media (orientation: landscape){
-    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
+    .playgrid{grid-template-columns: 1fr 0.9fr; grid-template-areas: 'scene readouts';}
     .scene{grid-area: scene}
     .readouts{grid-area: readouts}
   }
 
+  /* ====== シーン：JSで高さをビューポートにフィット ====== */
   .scene{
-    position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:10px;
+    position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:8px;
     background:
       linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)),
       radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%),
@@ -113,32 +109,32 @@
   .target{
     position:absolute; width:14px; height:14px; border-radius:50%;
     border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5);
-    transform:translate(-50%, 50%); bottom:8px;
+    transform:translate(-50%, 0%); /* ←真下でなく真上に来るようY移動を0%に */
   }
   .target::after{
     content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8);
   }
 
-  .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px}
+  .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:8px; margin-top:8px}
   @media (max-width: 980px){ .readouts{grid-template-columns:1fr 1fr} }
   @media (orientation: portrait){ .readouts{grid-template-columns:1fr; align-content:start} }
   .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px}
   .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
   .stat .value{font-variant-numeric: tabular-nums; font-weight:800; font-size:22px}
 
-  @media (min-width: 820px) {
-    .title{ font-size: clamp(24px, 2.6vw, 36px); }
-    .challengeBox{ padding:12px 16px; gap:16px; }
-    .badge{ font-size: 26px; padding:8px 18px; }
-    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); color:#ff5b5b; }
-    #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }
-    .speed{ font-size: clamp(43px, 3.8vw, 53px); }
-    .bar{ height: 22px; }
-    .stat .label{ font-size: 16px; }
-    .stat .value{ font-size: clamp(30px, 2.6vw, 40px); }
+  /* iPad横向き最適化：全体を少し小さくして画面に収める */
+  @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
+    .title{ font-size: 20px; }
+    #challengeTextHUD{ font-size: 18px; }
+    #scoreHUD, .speed{ font-size: 24px; }
+    .stat .value{ font-size: 18px; }
+    .stat .label{ font-size: 12px; }
+    .bar{ height: 14px; }
+    .actions{ gap:8px; }
+    button{ padding:10px 14px; }
   }
 
-  .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
+  .submitBox{ display:none; margin-top:10px; padding:10px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
   .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
   .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .submitRow input[type="text"]{ flex:1; min-width:180px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:#0f1430; color:#fff; font-size:16px; }
@@ -211,10 +207,12 @@
   // ====== 物理 & ルール ======
   const g = 9.8; // m/s^2
   const vMin=0, vMax=5, cycleSec=4; // 0〜5 m/sを4秒で周回
-  const Y_CANDIDATES = [4.9, 9.8, 19.6, 29.4]; // 初期高さ候補
-  const H_LINES = [4.9, 9.8, 14.7, 19.6, 24.5, 29.4]; // 表示用水平ライン
+  // ★初期高さ：4.9 / 19.6 / 44.1
+  const Y_CANDIDATES = [4.9, 19.6, 44.1];
+  // ★水平ライン：既存6本 + 34.3 / 39.2 / 44.1
+  const H_LINES = [4.9, 9.8, 14.7, 19.6, 24.5, 29.4, 34.3, 39.2, 44.1];
   const TARGET_CANDIDATES = [1,2,3,4,5]; // m
-  const X_GRID_MAX = 5; // 縦ライン 0〜5 m
+  const X_GRID_MAX = 5; // 垂直ライン 0〜5 m
 
   const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
 
@@ -285,14 +283,32 @@
 
   // ====== レイアウト・スケール ======
   const groundOffsetPx=8;
+  const TARGET_OFFSET_ABOVE_LABEL = 28; // ★ターゲットを縦ラベルの真上に（ラベルbottom=10pxより上）
   let scaleY = 8; // px/m（高さ）
   let scaleX = 40; // px/m（横）
   const origin = { x: 30, y: groundOffsetPx }; // 左下の原点（x=0, y=0）の画面座標(px)
 
+  // ★ビューポートにシーン高さをフィット（iPad横で1画面内に収める）
+  let baselineTop = null;
+  function getVH(){
+    const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    return Math.min(window.innerHeight, vvh);
+  }
+  function fitSceneToViewport(){
+    const vh = getVH();
+    if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
+    const margin = 12; // フッター余白
+    let desired = Math.floor(vh - baselineTop - margin);
+    desired = Math.max(240, Math.min(desired, vh - margin));
+    const prev = parseFloat(getComputedStyle(scene).height);
+    if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
+    scene.style.height = desired + 'px';
+  }
+
   function fitScales(){
-    // 縦は約30m表示できるようにフィット
-    const maxY = 30.5; // 少し余白
-    const h = scene.clientHeight - groundOffsetPx - 16; // 上余白考慮
+    // ★最大高さは44.1mラインが見切れないよう約46mを想定
+    const maxY = 46;
+    const h = scene.clientHeight - groundOffsetPx - 20; // 上余白少し取る
     scaleY = Math.max(4, Math.min(12, h / maxY));
 
     // 横は5m＋余白
@@ -307,7 +323,7 @@
   function renderGrid(){
     gridEl.innerHTML = '';
 
-    // 水平ライン（指定の6本）
+    // 水平ライン（指定の9本）
     for(const ym of H_LINES){
       const line = document.createElement('div');
       line.className = 'hgridline';
@@ -381,10 +397,10 @@
   }
 
   // ====== ラウンドごとの初期条件 ======
-  let y0 = 9.8;          // 初期高さ（m）
-  let xTarget = 3;        // ターゲット（m）
-  let tFlight = 0;        // 飛行時間（s）
-  let xLand = 0;          // 着地点（m）
+  let y0 = 19.6;     // 初期高さ（m）
+  let xTarget = 3;   // ターゲット（m）
+  let tFlight = 0;   // 飛行時間（s）
+  let xLand = 0;     // 着地点（m）
 
   function setupRound(){
     // 高さとターゲットをランダムに
@@ -394,7 +410,8 @@
     resultTextHUD.textContent = '';
     roundBadgeHUD.textContent = `ラウンド${round}/${maxRounds}`;
 
-    // 配置・グリッド
+    // レイアウト準備→スケール→グリッド
+    fitSceneToViewport();
     fitScales();
     renderGrid();
 
@@ -404,9 +421,9 @@
     ball.style.left = bx + 'px';
     ball.style.bottom = by + 'px';
 
-    // ターゲット表示（床上）
+    // ★ターゲット：縦ラベルの「真上」に来るようYを持ち上げる
     targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = groundOffsetPx + 'px';
+    targetEl.style.bottom = (groundOffsetPx + TARGET_OFFSET_ABOVE_LABEL) + 'px';
 
     // 右側表示初期化
     posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
@@ -452,13 +469,13 @@
     requestAnimationFrame(step);
   }
 
-  // ====== 採点 ======
+  // ====== 採点（<5%:3 / <10%:2 / <15%:1） ======
   function evaluateAndProceed(){
     const errPct = Math.abs(xLand - xTarget) / xTarget;
     let gained = 0;
-    if(errPct < 0.10){ gained=3; score+=3; resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; greatSound(); }
-    else if(errPct < 0.20){ gained=2; score+=2; resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; goodSound(); }
-    else if(errPct < 0.30){ gained=1; score+=1; resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; okSound(); }
+    if(errPct < 0.05){ gained=3; score+=3; resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; greatSound(); }
+    else if(errPct < 0.10){ gained=2; score+=2; resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; goodSound(); }
+    else if(errPct < 0.15){ gained=1; score+=1; resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; okSound(); }
     else { resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`; wrongSound(); }
 
     scoreHUD.textContent = String(score) + '点';
@@ -509,17 +526,17 @@
   resetBtn.addEventListener('click', resetGame);
   submitBtn.addEventListener('click', submitResult);
 
-  // レイアウトリサイズ対応
+  // リサイズ対応（常に1画面フィット）
   function handleResize(){
-    const prevX = parseFloat(ball.style.left)||toPxX(0)-9;
-    const prevY = parseFloat(ball.style.bottom)||toPxY(0);
+    baselineTop = null;
+    fitSceneToViewport();
     fitScales();
     renderGrid();
-    // 現在の (x,y) を再配置したいが、ここでは初期配置だけ合わせておく
+    // 初期配置を更新（ラウンド中のリサイズでも破綻しない程度に）
     ball.style.left = (toPxX(0)-9) + 'px';
     ball.style.bottom = toPxY(y0) + 'px';
     targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = groundOffsetPx + 'px';
+    targetEl.style.bottom = (groundOffsetPx + TARGET_OFFSET_ABOVE_LABEL) + 'px';
   }
   window.addEventListener('resize', ()=>{ handleResize(); });
   window.addEventListener('orientationchange', ()=>setTimeout(handleResize, 200));
