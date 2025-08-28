@@ -8,7 +8,7 @@
   :root {
     --bg:#0f1117; --panel:#161a22; --ink:#e6edf3; --muted:#9aa4b2; --accent:#5dd4ff; --ok:#2ecc71; --ng:#ff6b6b; --warn:#ffd166;
   }
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans JP,sans-serif;}
   .wrap{max-width:980px;margin:24px auto;padding:0 16px;}
   header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
   h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.02em}
@@ -30,7 +30,7 @@
   .c-purple{background:#c59eff}
   .c-yellow{background:#ffd166}
   .footer{margin-top:16px;color:var(--muted);font-size:14px}
-  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;background:#0e1220;padding:2px 6px;border:1px solid #242a3a;border-radius:6px}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;background:#0e1220;padding:2px 6px;border:1px solid #242a3a;border-radius:6px}
 </style>
 </head>
 <body>
@@ -67,42 +67,44 @@
 <script>
 (() => {
   // ====== 基本設定 ======
-  const gridSquares = 10;              // 10マス × 10マス
-  const points = gridSquares + 1;      // 交点は 11 × 11
-  const centerIndex = Math.floor(points / 2); // 5（0..10 の中央）
-  const margin = 28;                   // 余白（px）
-  const maxSeconds = 20.0;             // 制限時間（秒）
+  const gridSquares = 10;                  // 10マス × 10マス
+  const points = gridSquares + 1;          // 交点は 11 × 11
+  const centerIndex = Math.floor(points/2);// 5（0..10 の中央）
+  const margin = 28;                       // 余白（px）
+  const maxSeconds = 20.0;                 // 制限時間（秒）
   const totalRounds = 5;
 
   // ====== キャンバス & DPI 補正 ======
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
+
   function fitCanvasDPI(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    // 画面幅に応じてキャンバスのCSS幅は自動調整される前提（width/height 属性はピクセル密度用）
-    const cssSize = Math.min(canvas.clientWidth, 760); // 安全マージン
-    const size = Math.floor(cssSize * dpr);
+    // clientWidth が 0 の場合は親要素幅か初期値にフォールバック
+    const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+    const base = canvas.clientWidth || parentW || 720;
+    const cssSize = Math.min(base, 760);
+    const size = Math.max(200, Math.floor(cssSize * dpr)); // 最低サイズを確保
     canvas.width = size;
     canvas.height = size;
-    canvas.style.height = (size / dpr) + 'px';
     canvas.style.width = (size / dpr) + 'px';
+    canvas.style.height = (size / dpr) + 'px';
   }
-  fitCanvasDPI();
+
+  // 初期レイアウト完了後に実行
+  requestAnimationFrame(() => { fitCanvasDPI(); draw(); });
   window.addEventListener('resize', () => { fitCanvasDPI(); draw(); });
 
-  // グリッド間隔計算（都度）
+  // グリッド座標変換
   function spacing(){ return (Math.min(canvas.width, canvas.height) - margin*2) / gridSquares; }
-  function ijToXY(i, j){
-    const s = spacing();
-    return { x: margin + i*s, y: margin + j*s };
-  }
-  function xyToIJ(x, y){
+  function ijToXY(i,j){ const s = spacing(); return { x: margin + i*s, y: margin + j*s }; }
+  function xyToIJ(x,y){
     const s = spacing();
     let i = Math.round((x - margin) / s);
     let j = Math.round((y - margin) / s);
     i = Math.max(0, Math.min(points-1, i));
     j = Math.max(0, Math.min(points-1, j));
-    return {i, j};
+    return {i,j};
   }
 
   // ====== ゲーム状態 ======
@@ -111,8 +113,8 @@
   let timerId = null;
   let playing = false;
   let awaitingAnswer = false;
-  let forces = null;    // {A:{i,j}, B:{i,j}, C:{i,j}} 全て中心からの終点
-  let lastAnswer = null; // プレイヤーの提出先端 {i,j}
+  let forces = null;       // {A:{i,j}, B:{i,j}, C:{i,j}}
+  let lastAnswer = null;   // プレイヤーの終点 {i,j}
   let revealCorrect = false;
   let gameOverFlag = false;
 
@@ -125,24 +127,25 @@
   startBtn.addEventListener('click', startGame);
   resetBtn.addEventListener('click', hardReset);
 
-  // ====== ランダム生成：2本→3本目は自動でつり合い ======
+  // ====== 補助関数 ======
   function randInt(n){ return Math.floor(Math.random()*n); }
   function pickEndpointExceptCenter(){
     while(true){
-      const i = randInt(points);
-      const j = randInt(points);
+      const i = randInt(points), j = randInt(points);
       if(!(i===centerIndex && j===centerIndex)) return {i,j};
     }
   }
   function endpointsEqual(p,q){ return p.i===q.i && p.j===q.j; }
-  function endpointOpposite(a,b){ // 中心対称（ベクトルがちょうど逆）
+
+  // ★ 修正版：中心対称（真逆）判定
+  function endpointOpposite(a,b){
     const dax = a.i - centerIndex, day = a.j - centerIndex;
     const dbx = b.i - centerIndex, dby = b.j - centerIndex;
-    return (d ax + dbx===0 && day + dby===0); // eslint-disable-line
+    return (dax + dbx === 0 && day + dby === 0);
   }
 
+  // ラウンド生成：A,B をランダム、C = −(A+B)
   function generateRound(){
-    // A,B をランダムに取り、C = -(A+B) が有効になるまでループ
     let A, B, C;
     let safety = 0;
     do{
@@ -155,7 +158,6 @@
       const dxB = B.i - centerIndex, dyB = B.j - centerIndex;
       const dxC = -(dxA + dxB), dyC = -(dyA + dyB);
       C = { i: centerIndex + dxC, j: centerIndex + dyC };
-      // C がグリッド内かつ非中心、A/Bと重複しない
       const inBounds = (C.i>=0 && C.i<points && C.j>=0 && C.j<points);
       const notCenter = !(C.i===centerIndex && C.j===centerIndex);
       const distinct = !endpointsEqual(C,A) && !endpointsEqual(C,B);
@@ -173,20 +175,16 @@
     const s = spacing();
     ctx.save();
     ctx.lineWidth = Math.max(1, canvas.width/900);
-    // 補助の枠
     ctx.strokeStyle = '#1f2635';
     ctx.strokeRect(margin, margin, s*gridSquares, s*gridSquares);
 
-    // グリッド線
     ctx.strokeStyle = '#20293a';
     for(let i=0;i<=gridSquares;i++){
-      const x = margin + i*s;
-      const y = margin + i*s;
+      const x = margin + i*s, y = margin + i*s;
       ctx.beginPath(); ctx.moveTo(x, margin); ctx.lineTo(x, margin+s*gridSquares); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(margin+s*gridSquares, y); ctx.stroke();
     }
 
-    // 交点を小ドットで
     ctx.fillStyle = '#2a3347';
     for(let i=0;i<points;i++){
       for(let j=0;j<points;j++){
@@ -227,11 +225,10 @@
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
 
-    // 矢印ヘッド
     const dx = to.x - from.x, dy = to.y - from.y;
     const len = Math.hypot(dx,dy);
     if(len > 0.0001){
-      const ux = dx / len, uy = dy / len;
+      const ux = dx/len, uy = dy/len;
       const hx = to.x - ux * head;
       const hy = to.y - uy * head;
       const wing = head * 0.55;
@@ -264,18 +261,15 @@
 
     if(forces){
       const O = ijToXY(centerIndex, centerIndex);
-      // 表示される2本（A, B）
       const Axy = ijToXY(forces.A.i, forces.A.j);
       const Bxy = ijToXY(forces.B.i, forces.B.j);
       drawArrow(O, Axy, '#69b7ff');
       drawArrow(O, Bxy, '#7dffa7');
 
-      // 解答の描画（提出済み）またはホバー中のガイド
       if(lastAnswer){
         const Ans = ijToXY(lastAnswer.i, lastAnswer.j);
-        drawArrow(O, Ans, '#c59eff', [8,6]); // 自分の答えは破線
+        drawArrow(O, Ans, '#c59eff', [8,6]);
       }
-      // 正解の開示（ラウンド終了時）
       if(revealCorrect){
         const Cxy = ijToXY(forces.C.i, forces.C.j);
         drawArrow(O, Cxy, '#ffd166');
@@ -296,10 +290,7 @@
     }, 30);
   }
   function stopTimer(){ if(timerId){ clearInterval(timerId); timerId = null; } }
-  function elapsedSeconds(){
-    if(!startTime) return 0;
-    return (performance.now() - startTime) / 1000;
-  }
+  function elapsedSeconds(){ return startTime ? (performance.now() - startTime)/1000 : 0; }
 
   // ====== 進行管理 ======
   function startGame(){
@@ -315,10 +306,7 @@
   }
   function nextRound(){
     round++;
-    if(round > totalRounds){
-      finishGame();
-      return;
-    }
+    if(round > totalRounds){ finishGame(); return; }
     roundLabel.textContent = `${round} / ${totalRounds}`;
     generateRound();
     draw();
@@ -330,7 +318,6 @@
     stopTimer();
     const t = elapsedSeconds();
     draw();
-
     if(t <= maxSeconds){
       announce(`クリア！ 5回連続正解。記録：${t.toFixed(2)}秒（20秒以内達成）🎉`);
     }else{
@@ -367,11 +354,9 @@
     draw();
   }
 
-  function announce(text){
-    msgEl.innerHTML = text.replace(/\n/g,'<br/>');
-  }
+  function announce(text){ msgEl.innerHTML = text.replace(/\n/g,'<br/>'); }
 
-  // ====== 入力（クリック／タッチ） ======
+  // ====== 入力 ======
   function handlePick(clientX, clientY){
     if(!playing || !awaitingAnswer || !forces) return;
     const rect = canvas.getBoundingClientRect();
@@ -386,11 +371,10 @@
     lastAnswer = {i,j};
     draw();
 
-    // 判定
     const correct = (i===forces.C.i && j===forces.C.j);
     if(correct){
       awaitingAnswer = false;
-      revealCorrect = true; // 正解位置を見せてから次へ
+      revealCorrect = true;
       draw();
       announce('✅ 正解！ 次のラウンドへ…');
       setTimeout(() => { revealCorrect = false; nextRound(); }, 450);
@@ -401,14 +385,13 @@
   }
 
   canvas.addEventListener('mousemove', (e) => {
-    draw(); // クリアしてから
+    draw();
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top)  * (canvas.height / rect.height);
     drawHoverSnap(x,y);
   });
   canvas.addEventListener('mouseleave', draw);
-
   canvas.addEventListener('click', (e) => handlePick(e.clientX, e.clientY));
   canvas.addEventListener('touchstart', (e) => {
     const t = e.changedTouches[0];
@@ -416,18 +399,6 @@
     e.preventDefault();
   }, {passive:false});
 
-  // 初期描画
-  draw();
-
-  // ====== ヘルパー：バグ修正（ミス変数名） ======
-  // endpointOpposite 内の誤植（d ax）をケア
-  // （上の関数を上書き）
-  function endpointOppositeFixed(a,b){
-    const dax = a.i - centerIndex, day = a.j - centerIndex;
-    const dbx = b.i - centerIndex, dby = b.j - centerIndex;
-    return (dax + dbx === 0 && day + dby === 0);
-  }
-  endpointOpposite = endpointOppositeFixed;
 })();
 </script>
 </body>
