@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>力のつり合い：欠けた矢印を描け！</title>
+<style>
+  :root {
+    --bg:#0f1117; --panel:#161a22; --ink:#e6edf3; --muted:#9aa4b2; --accent:#5dd4ff; --ok:#2ecc71; --ng:#ff6b6b; --warn:#ffd166;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif;}
+  .wrap{max-width:980px;margin:24px auto;padding:0 16px;}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
+  h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.02em}
+  .hud{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:var(--panel);color:var(--ink);border:1px solid #222836}
+  .pill b{font-variant-numeric:tabular-nums}
+  button{all:unset;cursor:pointer;padding:10px 14px;border-radius:10px;background:linear-gradient(180deg,#1c2331,#141923);border:1px solid #1e2432}
+  button:hover{filter:brightness(1.05)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #canvasBox{background:var(--panel);border:1px solid #1e2432;border-radius:16px;padding:12px}
+  #canvas{width:100%;height:auto;display:block;background:linear-gradient(180deg,#151a23,#131722);border-radius:12px}
+  .msg{margin-top:10px;min-height:28px;color:var(--muted)}
+  .msg strong{color:var(--ink)}
+  .legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:14px}
+  .chip{display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border-radius:999px;background:#121722;border:1px solid #252c3b}
+  .dot{width:12px;height:12px;border-radius:50%}
+  .c-blue{background:#69b7ff}
+  .c-green{background:#7dffa7}
+  .c-purple{background:#c59eff}
+  .c-yellow{background:#ffd166}
+  .footer{margin-top:16px;color:var(--muted);font-size:14px}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;background:#0e1220;padding:2px 6px;border:1px solid #242a3a;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>力のつり合い：欠けた矢印を描け！</h1>
+    <div class="hud">
+      <div class="pill">ラウンド：<b id="roundLabel">0 / 5</b></div>
+      <div class="pill">タイム：<b id="timeLabel">0.00s</b></div>
+      <div class="pill">制限：<b>20.00s</b></div>
+      <button id="startBtn">スタート</button>
+      <button id="resetBtn" disabled>リセット</button>
+    </div>
+  </header>
+
+  <div id="canvasBox">
+    <canvas id="canvas" width="720" height="720"></canvas>
+    <div class="legend">
+      <span class="chip"><span class="dot c-blue"></span>表示中の力①</span>
+      <span class="chip"><span class="dot c-green"></span>表示中の力②</span>
+      <span class="chip"><span class="dot c-purple"></span>あなたの解答</span>
+      <span class="chip"><span class="dot c-yellow"></span>正解の力（結果表示時）</span>
+      <span class="chip">10×10マス（交点は11×11）／中央の交点に物体</span>
+    </div>
+    <div class="msg" id="msg">[操作] 中央から目的の格子点をクリック（タッチ）して “欠けた矢印” を作図してね。1回でも誤答か時間切れでゲームオーバー。</div>
+  </div>
+
+  <div class="footer">
+    ヒント：3つの力はベクトル和が <span class="kbd">0</span>。表示されている2本 <span class="kbd">F₁</span> と <span class="kbd">F₂</span> に対して、欠けた力は <span class="kbd">F₃ = −(F₁ + F₂)</span>。<br/>
+    交点をホバーするとスナップし、クリックで確定します（中央は選べません）。
+  </div>
+</div>
+
+<script>
+(() => {
+  // ====== 基本設定 ======
+  const gridSquares = 10;              // 10マス × 10マス
+  const points = gridSquares + 1;      // 交点は 11 × 11
+  const centerIndex = Math.floor(points / 2); // 5（0..10 の中央）
+  const margin = 28;                   // 余白（px）
+  const maxSeconds = 20.0;             // 制限時間（秒）
+  const totalRounds = 5;
+
+  // ====== キャンバス & DPI 補正 ======
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  function fitCanvasDPI(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    // 画面幅に応じてキャンバスのCSS幅は自動調整される前提（width/height 属性はピクセル密度用）
+    const cssSize = Math.min(canvas.clientWidth, 760); // 安全マージン
+    const size = Math.floor(cssSize * dpr);
+    canvas.width = size;
+    canvas.height = size;
+    canvas.style.height = (size / dpr) + 'px';
+    canvas.style.width = (size / dpr) + 'px';
+  }
+  fitCanvasDPI();
+  window.addEventListener('resize', () => { fitCanvasDPI(); draw(); });
+
+  // グリッド間隔計算（都度）
+  function spacing(){ return (Math.min(canvas.width, canvas.height) - margin*2) / gridSquares; }
+  function ijToXY(i, j){
+    const s = spacing();
+    return { x: margin + i*s, y: margin + j*s };
+  }
+  function xyToIJ(x, y){
+    const s = spacing();
+    let i = Math.round((x - margin) / s);
+    let j = Math.round((y - margin) / s);
+    i = Math.max(0, Math.min(points-1, i));
+    j = Math.max(0, Math.min(points-1, j));
+    return {i, j};
+  }
+
+  // ====== ゲーム状態 ======
+  let round = 0;
+  let startTime = null;
+  let timerId = null;
+  let playing = false;
+  let awaitingAnswer = false;
+  let forces = null;    // {A:{i,j}, B:{i,j}, C:{i,j}} 全て中心からの終点
+  let lastAnswer = null; // プレイヤーの提出先端 {i,j}
+  let revealCorrect = false;
+  let gameOverFlag = false;
+
+  const msgEl = document.getElementById('msg');
+  const roundLabel = document.getElementById('roundLabel');
+  const timeLabel  = document.getElementById('timeLabel');
+  const startBtn   = document.getElementById('startBtn');
+  const resetBtn   = document.getElementById('resetBtn');
+
+  startBtn.addEventListener('click', startGame);
+  resetBtn.addEventListener('click', hardReset);
+
+  // ====== ランダム生成：2本→3本目は自動でつり合い ======
+  function randInt(n){ return Math.floor(Math.random()*n); }
+  function pickEndpointExceptCenter(){
+    while(true){
+      const i = randInt(points);
+      const j = randInt(points);
+      if(!(i===centerIndex && j===centerIndex)) return {i,j};
+    }
+  }
+  function endpointsEqual(p,q){ return p.i===q.i && p.j===q.j; }
+  function endpointOpposite(a,b){ // 中心対称（ベクトルがちょうど逆）
+    const dax = a.i - centerIndex, day = a.j - centerIndex;
+    const dbx = b.i - centerIndex, dby = b.j - centerIndex;
+    return (d ax + dbx===0 && day + dby===0); // eslint-disable-line
+  }
+
+  function generateRound(){
+    // A,B をランダムに取り、C = -(A+B) が有効になるまでループ
+    let A, B, C;
+    let safety = 0;
+    do{
+      safety++;
+      A = pickEndpointExceptCenter();
+      do{
+        B = pickEndpointExceptCenter();
+      } while(endpointsEqual(A,B) || endpointOpposite(A,B));
+      const dxA = A.i - centerIndex, dyA = A.j - centerIndex;
+      const dxB = B.i - centerIndex, dyB = B.j - centerIndex;
+      const dxC = -(dxA + dxB), dyC = -(dyA + dyB);
+      C = { i: centerIndex + dxC, j: centerIndex + dyC };
+      // C がグリッド内かつ非中心、A/Bと重複しない
+      const inBounds = (C.i>=0 && C.i<points && C.j>=0 && C.j<points);
+      const notCenter = !(C.i===centerIndex && C.j===centerIndex);
+      const distinct = !endpointsEqual(C,A) && !endpointsEqual(C,B);
+      if(inBounds && notCenter && distinct) break;
+    } while(safety<999);
+
+    forces = {A,B,C};
+    lastAnswer = null;
+    revealCorrect = false;
+    awaitingAnswer = true;
+  }
+
+  // ====== 描画 ======
+  function drawGrid(){
+    const s = spacing();
+    ctx.save();
+    ctx.lineWidth = Math.max(1, canvas.width/900);
+    // 補助の枠
+    ctx.strokeStyle = '#1f2635';
+    ctx.strokeRect(margin, margin, s*gridSquares, s*gridSquares);
+
+    // グリッド線
+    ctx.strokeStyle = '#20293a';
+    for(let i=0;i<=gridSquares;i++){
+      const x = margin + i*s;
+      const y = margin + i*s;
+      ctx.beginPath(); ctx.moveTo(x, margin); ctx.lineTo(x, margin+s*gridSquares); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(margin+s*gridSquares, y); ctx.stroke();
+    }
+
+    // 交点を小ドットで
+    ctx.fillStyle = '#2a3347';
+    for(let i=0;i<points;i++){
+      for(let j=0;j<points;j++){
+        const {x,y} = ijToXY(i,j);
+        ctx.beginPath();
+        ctx.arc(x,y, Math.max(2, s*0.04), 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawCenterBody(){
+    const {x,y} = ijToXY(centerIndex, centerIndex);
+    const r = Math.max(8, spacing()*0.14);
+    ctx.save();
+    const grad = ctx.createRadialGradient(x,y,r*0.2, x,y,r);
+    grad.addColorStop(0, '#2a3347');
+    grad.addColorStop(1, '#111621');
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = '#2e3a52';
+    ctx.lineWidth = Math.max(2, spacing()*0.05);
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, color='#69b7ff', lineDash=null){
+    const head = Math.max(8, spacing()*0.22);
+    const shaft = Math.max(2, spacing()*0.06);
+    ctx.save();
+    if(lineDash) ctx.setLineDash(lineDash);
+    ctx.lineWidth = shaft;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+
+    // 矢印ヘッド
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx,dy);
+    if(len > 0.0001){
+      const ux = dx / len, uy = dy / len;
+      const hx = to.x - ux * head;
+      const hy = to.y - uy * head;
+      const wing = head * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(hx - uy*wing, hy + ux*wing);
+      ctx.lineTo(hx + uy*wing, hy - ux*wing);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawHoverSnap(x, y){
+    const {i,j} = xyToIJ(x,y);
+    const {x:gx, y:gy} = ijToXY(i,j);
+    ctx.save();
+    ctx.strokeStyle = '#3a4761';
+    ctx.lineWidth = Math.max(1, spacing()*0.04);
+    ctx.beginPath();
+    ctx.arc(gx, gy, Math.max(10, spacing()*0.22), 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawGrid();
+    drawCenterBody();
+
+    if(forces){
+      const O = ijToXY(centerIndex, centerIndex);
+      // 表示される2本（A, B）
+      const Axy = ijToXY(forces.A.i, forces.A.j);
+      const Bxy = ijToXY(forces.B.i, forces.B.j);
+      drawArrow(O, Axy, '#69b7ff');
+      drawArrow(O, Bxy, '#7dffa7');
+
+      // 解答の描画（提出済み）またはホバー中のガイド
+      if(lastAnswer){
+        const Ans = ijToXY(lastAnswer.i, lastAnswer.j);
+        drawArrow(O, Ans, '#c59eff', [8,6]); // 自分の答えは破線
+      }
+      // 正解の開示（ラウンド終了時）
+      if(revealCorrect){
+        const Cxy = ijToXY(forces.C.i, forces.C.j);
+        drawArrow(O, Cxy, '#ffd166');
+      }
+    }
+  }
+
+  // ====== タイマー ======
+  function startTimer(){
+    stopTimer();
+    timerId = setInterval(() => {
+      if(!playing) return;
+      const t = elapsedSeconds();
+      timeLabel.textContent = t.toFixed(2) + 's';
+      if(t > maxSeconds && !gameOverFlag){
+        gameOver('時間切れ… 20秒以内に5連続正解が必要です。');
+      }
+    }, 30);
+  }
+  function stopTimer(){ if(timerId){ clearInterval(timerId); timerId = null; } }
+  function elapsedSeconds(){
+    if(!startTime) return 0;
+    return (performance.now() - startTime) / 1000;
+  }
+
+  // ====== 進行管理 ======
+  function startGame(){
+    playing = true;
+    gameOverFlag = false;
+    round = 0;
+    startTime = performance.now();
+    startBtn.disabled = true;
+    resetBtn.disabled = false;
+    nextRound();
+    startTimer();
+    announce('スタート！ 欠けた矢印を作図してね。');
+  }
+  function nextRound(){
+    round++;
+    if(round > totalRounds){
+      finishGame();
+      return;
+    }
+    roundLabel.textContent = `${round} / ${totalRounds}`;
+    generateRound();
+    draw();
+  }
+  function finishGame(){
+    playing = false;
+    awaitingAnswer = false;
+    revealCorrect = true;
+    stopTimer();
+    const t = elapsedSeconds();
+    draw();
+
+    if(t <= maxSeconds){
+      announce(`クリア！ 5回連続正解。記録：${t.toFixed(2)}秒（20秒以内達成）🎉`);
+    }else{
+      announce(`5回連続正解！ でも ${t.toFixed(2)}秒 で制限超過… 惜しい！もう一度挑戦してね。`);
+    }
+    startBtn.disabled = false;
+    startBtn.textContent = 'もう一度';
+  }
+  function gameOver(reason='ゲームオーバー'){
+    playing = false;
+    awaitingAnswer = false;
+    gameOverFlag = true;
+    revealCorrect = true;
+    stopTimer();
+    draw();
+    announce(`❌ ${reason}`);
+    startBtn.disabled = false;
+    startBtn.textContent = 'リトライ';
+  }
+  function hardReset(){
+    playing = false;
+    awaitingAnswer = false;
+    gameOverFlag = false;
+    revealCorrect = false;
+    lastAnswer = null;
+    forces = null;
+    round = 0;
+    startTime = null;
+    timeLabel.textContent = '0.00s';
+    roundLabel.textContent = '0 / 5';
+    startBtn.disabled = false;
+    startBtn.textContent = 'スタート';
+    announce('[操作] 中央から目的の格子点をクリック（タッチ）して “欠けた矢印” を作図してね。');
+    draw();
+  }
+
+  function announce(text){
+    msgEl.innerHTML = text.replace(/\n/g,'<br/>');
+  }
+
+  // ====== 入力（クリック／タッチ） ======
+  function handlePick(clientX, clientY){
+    if(!playing || !awaitingAnswer || !forces) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    const y = (clientY - rect.top)  * (canvas.height / rect.height);
+
+    const {i,j} = xyToIJ(x,y);
+    if(i===centerIndex && j===centerIndex){
+      announce('中央（物体位置）は終点にできません。別の交点を選んでください。');
+      return;
+    }
+    lastAnswer = {i,j};
+    draw();
+
+    // 判定
+    const correct = (i===forces.C.i && j===forces.C.j);
+    if(correct){
+      awaitingAnswer = false;
+      revealCorrect = true; // 正解位置を見せてから次へ
+      draw();
+      announce('✅ 正解！ 次のラウンドへ…');
+      setTimeout(() => { revealCorrect = false; nextRound(); }, 450);
+    }else{
+      revealCorrect = true; draw();
+      gameOver('ベクトルがつり合いません（不正解）。');
+    }
+  }
+
+  canvas.addEventListener('mousemove', (e) => {
+    draw(); // クリアしてから
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top)  * (canvas.height / rect.height);
+    drawHoverSnap(x,y);
+  });
+  canvas.addEventListener('mouseleave', draw);
+
+  canvas.addEventListener('click', (e) => handlePick(e.clientX, e.clientY));
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    handlePick(t.clientX, t.clientY);
+    e.preventDefault();
+  }, {passive:false});
+
+  // 初期描画
+  draw();
+
+  // ====== ヘルパー：バグ修正（ミス変数名） ======
+  // endpointOpposite 内の誤植（d ax）をケア
+  // （上の関数を上書き）
+  function endpointOppositeFixed(a,b){
+    const dax = a.i - centerIndex, day = a.j - centerIndex;
+    const dbx = b.i - centerIndex, dby = b.j - centerIndex;
+    return (dax + dbx === 0 && day + dby === 0);
+  }
+  endpointOpposite = endpointOppositeFixed;
+})();
+</script>
+</body>
+</html>
