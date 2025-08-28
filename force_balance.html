@@ -40,7 +40,7 @@
     <div class="hud">
       <div class="pill">ラウンド：<b id="roundLabel">0 / 5</b></div>
       <div class="pill">タイム：<b id="timeLabel">0.00s</b></div>
-      <div class="pill">制限：<b>20.00s</b></div>
+      <div class="pill">制限：<b id="limitLabel">--</b></div>
       <button id="startBtn">スタート</button>
       <button id="resetBtn" disabled>リセット</button>
     </div>
@@ -71,26 +71,45 @@
   const points = gridSquares + 1;          // 交点は 11 × 11
   const centerIndex = Math.floor(points/2);// 5（0..10 の中央）
   const margin = 28;                       // 余白（px）
-  const maxSeconds = 20.0;                 // 制限時間（秒）
+  const maxSeconds = 40.0;                 // ★ 制限時間を40秒に
   const totalRounds = 5;
 
   // ====== キャンバス & DPI 補正 ======
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
+  // 画面に収まるように、親ボックスの幅と「下端までの残り高」の小さい方で正方形にフィット
   function fitCanvasDPI(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
-    const base = canvas.clientWidth || parentW || 720;
-    const cssSize = Math.min(base, 760);
-    const size = Math.max(200, Math.floor(cssSize * dpr));
+
+    // キャンバスボックスと画面サイズを取得
+    const box = canvas.parentElement || document.body;
+    const boxRect = box.getBoundingClientRect();
+
+    // 画面下端までの残り高さ（ボックス上辺から下端まで）
+    const remainH = Math.max(220, window.innerHeight - boxRect.top - 24); // 下に24px余裕
+    // 横方向はボックスの内幅（スクロールバー等考慮）
+    const availW = box.clientWidth || boxRect.width;
+
+    // 実際のCSSピクセルの辺長：正方形。iPad縦横でもはみ出さない値
+    const cssSize = Math.max(200, Math.floor(Math.min(availW, remainH)));
+
+    // 高解像度対応
+    const size = Math.floor(cssSize * dpr);
     canvas.width = size;
     canvas.height = size;
     canvas.style.width = (size / dpr) + 'px';
     canvas.style.height = (size / dpr) + 'px';
   }
+
+  // 初期レイアウト完了後に実行
   requestAnimationFrame(() => { fitCanvasDPI(); draw(); });
+  // リサイズ/向き変更に追従
   window.addEventListener('resize', () => { fitCanvasDPI(); draw(); });
+  window.addEventListener('orientationchange', () => {
+    // iPad Safariで向き変更直後は innerHeight が安定しないためワンテンポ置く
+    setTimeout(() => { fitCanvasDPI(); draw(); }, 60);
+  });
 
   // 座標変換
   function spacing(){ return (Math.min(canvas.width, canvas.height) - margin*2) / gridSquares; }
@@ -118,13 +137,17 @@
   // ★ ドラッグ入力状態
   let dragging = false;
   let dragPos = null;      // {x,y}（キャンバス座標）
-  const startFromCenterRadiusFactor = 0.5; // 中心からこの半径内で開始した時だけドラッグ受付
+  const startFromCenterRadiusFactor = 0.5; // 中央近傍からのみ開始
 
   const msgEl = document.getElementById('msg');
   const roundLabel = document.getElementById('roundLabel');
   const timeLabel  = document.getElementById('timeLabel');
+  const limitLabel = document.getElementById('limitLabel');
   const startBtn   = document.getElementById('startBtn');
   const resetBtn   = document.getElementById('resetBtn');
+
+  // ★ 制限時間表示を動的に設定
+  if(limitLabel) limitLabel.textContent = maxSeconds.toFixed(2) + 's';
 
   startBtn.addEventListener('click', startGame);
   resetBtn.addEventListener('click', hardReset);
@@ -270,20 +293,19 @@
       // ドラッグ中はリアルタイムの矢印（紫・破線）
       if(dragging && dragPos){
         drawArrow(O, dragPos, '#c59eff', [8,6]);
-        // 現在位置からスナップされる格子点を薄いリングで示す
         const snapped = xyToIJ(dragPos.x, dragPos.y);
         if(!(snapped.i===centerIndex && snapped.j===centerIndex)){
           drawHoverSnapCircle(snapped.i, snapped.j);
         }
       }
 
-      // 提出済みの解答（破線）
+      // 提出済み
       if(lastAnswer){
         const Ans = ijToXY(lastAnswer.i, lastAnswer.j);
         drawArrow(O, Ans, '#c59eff', [8,6]);
       }
 
-      // ラウンド終了時の正解表示
+      // 正解表示
       if(revealCorrect){
         const Cxy = ijToXY(forces.C.i, forces.C.j);
         drawArrow(O, Cxy, '#ffd166');
@@ -299,7 +321,7 @@
       const t = elapsedSeconds();
       timeLabel.textContent = t.toFixed(2) + 's';
       if(t > maxSeconds && !gameOverFlag){
-        gameOver('時間切れ… 20秒以内に5連続正解が必要です。');
+        gameOver(`時間切れ… ${maxSeconds.toFixed(0)}秒以内に5連続正解が必要です。`);
       }
     }, 30);
   }
@@ -316,7 +338,7 @@
     resetBtn.disabled = false;
     nextRound();
     startTimer();
-    announce('スタート！ 中央からドラッグして矢印を引き、指（マウス）を離すと最近傍の交点にスナップします。');
+    announce('スタート！ 中央からドラッグして矢印を引き、離すと最近傍の交点にスナップします。');
   }
   function nextRound(){
     round++;
@@ -333,7 +355,7 @@
     const t = elapsedSeconds();
     draw();
     if(t <= maxSeconds){
-      announce(`クリア！ 5回連続正解。記録：${t.toFixed(2)}秒（20秒以内達成）🎉`);
+      announce(`クリア！ 5回連続正解。記録：${t.toFixed(2)}秒（${maxSeconds.toFixed(0)}秒以内達成）🎉`);
     }else{
       announce(`5回連続正解！ でも ${t.toFixed(2)}秒 で制限超過… 惜しい！もう一度挑戦してね。`);
     }
@@ -367,12 +389,13 @@
     startBtn.disabled = false;
     startBtn.textContent = 'スタート';
     announce('[操作] 中央からドラッグで矢印を作図。離すと最近傍の交点へスナップします（中央は不可）。');
+    fitCanvasDPI(); // リセット時も再フィット
     draw();
   }
 
   function announce(text){ msgEl.innerHTML = text.replace(/\n/g,'<br/>'); }
 
-  // ====== 入力：Pointer Events でドラッグ対応 ======
+  // ====== 入力：Pointer Events ======
   function getCanvasXYFromEvent(e){
     const rect = canvas.getBoundingClientRect();
     const px = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -384,7 +407,7 @@
     if(!playing || !awaitingAnswer || !forces) return;
     const pos = getCanvasXYFromEvent(e);
     const O = ijToXY(centerIndex, centerIndex);
-    const r = Math.max(8, spacing()*startFromCenterRadiusFactor); // 中央円 近傍からのみ開始
+    const r = Math.max(8, spacing()*startFromCenterRadiusFactor); // 中央近傍からのみ開始
     if(Math.hypot(pos.x - O.x, pos.y - O.y) <= r * 2.0){
       dragging = true;
       dragPos = pos;
