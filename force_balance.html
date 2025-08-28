@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>力のつり合い：欠けた矢印を描け！</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>力のつり合いゲーム〜力を加えてつり合わせろ！〜</title>
 <style>
   :root {
-    --bg:#0f1117; --panel:#161a22; --ink:#e6edf3; --muted:#9aa4b2; --accent:#5dd4ff; --ok:#2ecc71; --ng:#ff6b6b; --warn:#ffd166;
+    --bg:#0f1117; --panel:#161a22; --ink:#e6edf3; --muted:#9aa4b2;
   }
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans JP,sans-serif;}
   .wrap{max-width:980px;margin:24px auto;padding:0 16px;}
@@ -21,7 +21,6 @@
   #canvasBox{background:var(--panel);border:1px solid #1e2432;border-radius:16px;padding:12px}
   #canvas{width:100%;height:auto;display:block;background:linear-gradient(180deg,#151a23,#131722);border-radius:12px}
   .msg{margin-top:10px;min-height:28px;color:var(--muted)}
-  .msg strong{color:var(--ink)}
   .legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:14px}
   .chip{display:inline-flex;gap:6px;align-items:center;padding:4px 8px;border-radius:999px;background:#121722;border:1px solid #252c3b}
   .dot{width:12px;height:12px;border-radius:50%}
@@ -36,7 +35,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>力のつり合い：欠けた矢印を描け！</h1>
+    <h1>力のつり合いゲーム〜力を加えてつり合わせろ！〜</h1>
     <div class="hud">
       <div class="pill">ラウンド：<b id="roundLabel">0 / 5</b></div>
       <div class="pill">タイム：<b id="timeLabel">0.00s</b></div>
@@ -51,65 +50,48 @@
     <div class="legend">
       <span class="chip"><span class="dot c-blue"></span>表示中の力①</span>
       <span class="chip"><span class="dot c-green"></span>表示中の力②</span>
-      <span class="chip"><span class="dot c-purple"></span>あなたの解答</span>
-      <span class="chip"><span class="dot c-yellow"></span>正解の力（結果表示時）</span>
-      <span class="chip">10×10マス（交点は11×11）／中央の交点に物体</span>
+      <span class="chip"><span class="dot c-purple"></span>あなたの解答（ドラッグ中/提出済）</span>
+      <span class="chip"><span class="dot c-yellow"></span>正解（ラウンド終了時）</span>
+      <span class="chip">8×8マス（交点は9×9）／中央の交点に物体</span>
     </div>
-    <div class="msg" id="msg">[操作] 中央から目的の格子点をクリック（タッチ）して “欠けた矢印” を作図してね。1回でも誤答か時間切れでゲームオーバー。</div>
+    <div class="msg" id="msg">[操作] 中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。1回でも誤答か時間切れでゲームオーバー。</div>
   </div>
 
   <div class="footer">
-    ヒント：3つの力はベクトル和が <span class="kbd">0</span>。表示されている2本 <span class="kbd">F₁</span> と <span class="kbd">F₂</span> に対して、欠けた力は <span class="kbd">F₃ = −(F₁ + F₂)</span>。<br/>
-    交点をホバーするとスナップし、クリックで確定します（中央は選べません）。
+    ヒント：3つの力のベクトル和は <span class="kbd">0</span>。表示の2本 <span class="kbd">F₁</span>, <span class="kbd">F₂</span> に対して欠けた力は <span class="kbd">F₃ = −(F₁ + F₂)</span>。
   </div>
 </div>
 
 <script>
 (() => {
   // ====== 基本設定 ======
-  const gridSquares = 10;                  // 10マス × 10マス
-  const points = gridSquares + 1;          // 交点は 11 × 11
-  const centerIndex = Math.floor(points/2);// 5（0..10 の中央）
+  const gridSquares = 8;                   // ★ 8×8マス
+  const points = gridSquares + 1;          // 交点は 9 × 9
+  const centerIndex = Math.floor(points/2);// 中央インデックス（0基準）
   const margin = 28;                       // 余白（px）
-  const maxSeconds = 40.0;                 // ★ 制限時間を40秒に
+  const maxSeconds = 40.0;                 // 制限時間 40秒
   const totalRounds = 5;
 
   // ====== キャンバス & DPI 補正 ======
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
-  // 画面に収まるように、親ボックスの幅と「下端までの残り高」の小さい方で正方形にフィット
   function fitCanvasDPI(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-    // キャンバスボックスと画面サイズを取得
     const box = canvas.parentElement || document.body;
     const boxRect = box.getBoundingClientRect();
-
     // 画面下端までの残り高さ（ボックス上辺から下端まで）
-    const remainH = Math.max(220, window.innerHeight - boxRect.top - 24); // 下に24px余裕
-    // 横方向はボックスの内幅（スクロールバー等考慮）
-    const availW = box.clientWidth || boxRect.width;
-
-    // 実際のCSSピクセルの辺長：正方形。iPad縦横でもはみ出さない値
+    const remainH = Math.max(220, window.innerHeight - boxRect.top - 24);
+    const availW  = box.clientWidth || boxRect.width;
     const cssSize = Math.max(200, Math.floor(Math.min(availW, remainH)));
-
-    // 高解像度対応
     const size = Math.floor(cssSize * dpr);
-    canvas.width = size;
-    canvas.height = size;
-    canvas.style.width = (size / dpr) + 'px';
-    canvas.style.height = (size / dpr) + 'px';
+    canvas.width = size; canvas.height = size;
+    canvas.style.width = (size/dpr) + 'px';
+    canvas.style.height = (size/dpr) + 'px';
   }
-
-  // 初期レイアウト完了後に実行
   requestAnimationFrame(() => { fitCanvasDPI(); draw(); });
-  // リサイズ/向き変更に追従
   window.addEventListener('resize', () => { fitCanvasDPI(); draw(); });
-  window.addEventListener('orientationchange', () => {
-    // iPad Safariで向き変更直後は innerHeight が安定しないためワンテンポ置く
-    setTimeout(() => { fitCanvasDPI(); draw(); }, 60);
-  });
+  window.addEventListener('orientationchange', () => setTimeout(()=>{ fitCanvasDPI(); draw(); }, 60));
 
   // 座標変換
   function spacing(){ return (Math.min(canvas.width, canvas.height) - margin*2) / gridSquares; }
@@ -134,7 +116,7 @@
   let revealCorrect = false;
   let gameOverFlag = false;
 
-  // ★ ドラッグ入力状態
+  // ドラッグ入力状態
   let dragging = false;
   let dragPos = null;      // {x,y}（キャンバス座標）
   const startFromCenterRadiusFactor = 0.5; // 中央近傍からのみ開始
@@ -145,8 +127,6 @@
   const limitLabel = document.getElementById('limitLabel');
   const startBtn   = document.getElementById('startBtn');
   const resetBtn   = document.getElementById('resetBtn');
-
-  // ★ 制限時間表示を動的に設定
   if(limitLabel) limitLabel.textContent = maxSeconds.toFixed(2) + 's';
 
   startBtn.addEventListener('click', startGame);
@@ -220,17 +200,34 @@
     ctx.restore();
   }
 
+  // ★中央の球：不透明寄り（alpha 0.95）＋グローで強調
   function drawCenterBody(){
     const {x,y} = ijToXY(centerIndex, centerIndex);
-    const r = Math.max(8, spacing()*0.14);
+    const r = Math.max(10, spacing()*0.18);   // やや大きめ
     ctx.save();
-    const grad = ctx.createRadialGradient(x,y,r*0.2, x,y,r);
-    grad.addColorStop(0, '#2a3347');
-    grad.addColorStop(1, '#111621');
+    ctx.globalAlpha = 0.95;                   // 透明度を下げ（=不透明寄りに）
+    const grad = ctx.createRadialGradient(x,y,r*0.15, x,y,r);
+    grad.addColorStop(0, '#3a4a6b');
+    grad.addColorStop(0.55, '#23304a');
+    grad.addColorStop(1, '#101722');
     ctx.fillStyle = grad;
+
+    // 外側グロー
+    ctx.shadowColor = 'rgba(120,170,255,0.45)';
+    ctx.shadowBlur = Math.max(8, r*0.8);
+    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+
+    // エッジ強調ストローク（二重）
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = Math.max(2, r*0.14);
+    ctx.strokeStyle = 'rgba(130,180,255,0.55)';
+    ctx.stroke();
+    ctx.lineWidth = Math.max(1, r*0.06);
     ctx.strokeStyle = '#2e3a52';
-    ctx.lineWidth = Math.max(2, spacing()*0.05);
-    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.stroke();
+
     ctx.restore();
   }
 
@@ -243,10 +240,7 @@
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
 
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
 
     const dx = to.x - from.x, dy = to.y - from.y;
     const len = Math.hypot(dx,dy);
@@ -284,13 +278,13 @@
     const O = ijToXY(centerIndex, centerIndex);
 
     if(forces){
-      // 表示ベクトル
+      // 表示中の2ベクトル
       const Axy = ijToXY(forces.A.i, forces.A.j);
       const Bxy = ijToXY(forces.B.i, forces.B.j);
       drawArrow(O, Axy, '#69b7ff');
       drawArrow(O, Bxy, '#7dffa7');
 
-      // ドラッグ中はリアルタイムの矢印（紫・破線）
+      // ドラッグ中の仮表示
       if(dragging && dragPos){
         drawArrow(O, dragPos, '#c59eff', [8,6]);
         const snapped = xyToIJ(dragPos.x, dragPos.y);
@@ -299,13 +293,13 @@
         }
       }
 
-      // 提出済み
+      // 提出済みの解答
       if(lastAnswer){
         const Ans = ijToXY(lastAnswer.i, lastAnswer.j);
         drawArrow(O, Ans, '#c59eff', [8,6]);
       }
 
-      // 正解表示
+      // 正解の可視化
       if(revealCorrect){
         const Cxy = ijToXY(forces.C.i, forces.C.j);
         drawArrow(O, Cxy, '#ffd166');
@@ -389,7 +383,7 @@
     startBtn.disabled = false;
     startBtn.textContent = 'スタート';
     announce('[操作] 中央からドラッグで矢印を作図。離すと最近傍の交点へスナップします（中央は不可）。');
-    fitCanvasDPI(); // リセット時も再フィット
+    fitCanvasDPI();
     draw();
   }
 
@@ -407,7 +401,7 @@
     if(!playing || !awaitingAnswer || !forces) return;
     const pos = getCanvasXYFromEvent(e);
     const O = ijToXY(centerIndex, centerIndex);
-    const r = Math.max(8, spacing()*startFromCenterRadiusFactor); // 中央近傍からのみ開始
+    const r = Math.max(10, spacing()*startFromCenterRadiusFactor);
     if(Math.hypot(pos.x - O.x, pos.y - O.y) <= r * 2.0){
       dragging = true;
       dragPos = pos;
@@ -416,35 +410,27 @@
       draw();
     }
   }
-
   function pointerMove(e){
     if(!dragging) return;
     dragPos = getCanvasXYFromEvent(e);
     draw();
   }
-
   function pointerUp(e){
     if(!dragging) return;
     dragging = false;
     const pos = getCanvasXYFromEvent(e);
-    // スナップ
     const {i,j} = xyToIJ(pos.x, pos.y);
     if(i===centerIndex && j===centerIndex){
       announce('中央（物体位置）は終点にできません。もう一度ドラッグしてね。');
-      dragPos = null;
-      draw();
-      return;
+      dragPos = null; draw(); return;
     }
     lastAnswer = {i,j};
-    dragPos = null;
-    draw();
+    dragPos = null; draw();
 
-    // 判定
     const correct = (i===forces.C.i && j===forces.C.j);
     if(correct){
       awaitingAnswer = false;
-      revealCorrect = true;
-      draw();
+      revealCorrect = true; draw();
       announce('✅ 正解！ 次のラウンドへ…');
       setTimeout(() => { revealCorrect = false; nextRound(); }, 450);
     }else{
@@ -458,12 +444,10 @@
   canvas.addEventListener('pointerup',    pointerUp,   {passive:false});
   canvas.addEventListener('pointercancel', () => { dragging = false; dragPos = null; draw(); });
 
-  // スクロール抑止（タッチ中のキャンバス内）
+  // タッチスクロール抑止（キャンバス上のみ）
   canvas.addEventListener('touchstart', (e)=>e.preventDefault(), {passive:false});
   canvas.addEventListener('touchmove',  (e)=>e.preventDefault(), {passive:false});
 })();
 </script>
-
-
 </body>
 </html>
