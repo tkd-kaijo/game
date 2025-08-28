@@ -268,6 +268,8 @@
   const X_GRID_MAX = 5;
 
   const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
+  let prevCombo = null;   // 直前の { y0, x } を保持
+  
 
   // ====== DOM ======
   const fillEl=document.getElementById('fill');
@@ -575,30 +577,39 @@
     resizeTrailCanvas();
   }
 
-  function setupRound(){
-    y0 = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
-    xTarget = TARGET_CANDIDATES[Math.floor(Math.random()*TARGET_CANDIDATES.length)];
-    challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
-    resultTextHUD.textContent = '';
-    roundBadgeHUD.textContent = `ラウンド${round}/${maxRounds}`;
+function setupRound(){
+  // ★ 直前と同じ {y0, xTarget} を避けて抽選
+  let y, x, safety = 32; // 無限ループ防止
+  do{
+    y = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
+    x = TARGET_CANDIDATES[Math.floor(Math.random()*TARGET_CANDIDATES.length)];
+  }while (prevCombo && prevCombo.y === y && prevCombo.x === x && --safety > 0);
 
-    renderAllStatic();
+  y0 = y;
+  xTarget = x;
+  prevCombo = { y: y0, x: xTarget }; // ★更新
 
-    // 初期位置＆軌跡始点（中心基準）
-    placeBallAt(0, y0);
-    trailPts = [{x:0, y:y0}]; clearTrail();
+  challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
+  resultTextHUD.textContent = '';
+  roundBadgeHUD.textContent = `ラウンド${round}/${maxRounds}`;
 
-    // ターゲット：y=0
-    targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = toPxY(0) + 'px';
+  renderAllStatic();
 
-    // 表示
-    posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
-    tValEl.textContent = '0.00 s';
-    xLandVal.textContent = '0.00 m';
+  // 初期位置＆軌跡始点（中心基準）
+  placeBallAt(0, y0);
+  trailPts = [{x:0, y:y0}]; clearTrail();
 
-    updateVelocityVector(0, 0);
-  }
+  // ターゲット：y=0
+  targetEl.style.left = toPxX(xTarget) + 'px';
+  targetEl.style.bottom = toPxY(0) + 'px';
+
+  // 表示
+  posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
+  tValEl.textContent = '0.00 s';
+  xLandVal.textContent = '0.00 m';
+
+  updateVelocityVector(0, 0);
+}
 
   // ====== アニメーション（水平投射） ======
   function animateThrow(v0){
@@ -686,6 +697,7 @@
     retryBtn.style.display='inline-block'; resetBtn.style.display='none';
     submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
     studentIdInput.value=''; studentNameInput.value='';
+    prevCombo = null; // ★ 連続出題チェックをリセット
     locked=false; running=true; t0Roulette=performance.now();
     lockBtn.disabled=false; retryBtn.disabled=true;
     setupRound();
