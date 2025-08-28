@@ -80,22 +80,19 @@
 
   function fitCanvasDPI(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    // clientWidth が 0 の場合は親要素幅か初期値にフォールバック
     const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
     const base = canvas.clientWidth || parentW || 720;
     const cssSize = Math.min(base, 760);
-    const size = Math.max(200, Math.floor(cssSize * dpr)); // 最低サイズを確保
+    const size = Math.max(200, Math.floor(cssSize * dpr));
     canvas.width = size;
     canvas.height = size;
     canvas.style.width = (size / dpr) + 'px';
     canvas.style.height = (size / dpr) + 'px';
   }
-
-  // 初期レイアウト完了後に実行
   requestAnimationFrame(() => { fitCanvasDPI(); draw(); });
   window.addEventListener('resize', () => { fitCanvasDPI(); draw(); });
 
-  // グリッド座標変換
+  // 座標変換
   function spacing(){ return (Math.min(canvas.width, canvas.height) - margin*2) / gridSquares; }
   function ijToXY(i,j){ const s = spacing(); return { x: margin + i*s, y: margin + j*s }; }
   function xyToIJ(x,y){
@@ -114,9 +111,14 @@
   let playing = false;
   let awaitingAnswer = false;
   let forces = null;       // {A:{i,j}, B:{i,j}, C:{i,j}}
-  let lastAnswer = null;   // プレイヤーの終点 {i,j}
+  let lastAnswer = null;   // 提出済み {i,j}
   let revealCorrect = false;
   let gameOverFlag = false;
+
+  // ★ ドラッグ入力状態
+  let dragging = false;
+  let dragPos = null;      // {x,y}（キャンバス座標）
+  const startFromCenterRadiusFactor = 0.5; // 中心からこの半径内で開始した時だけドラッグ受付
 
   const msgEl = document.getElementById('msg');
   const roundLabel = document.getElementById('roundLabel');
@@ -136,8 +138,6 @@
     }
   }
   function endpointsEqual(p,q){ return p.i===q.i && p.j===q.j; }
-
-  // ★ 修正版：中心対称（真逆）判定
   function endpointOpposite(a,b){
     const dax = a.i - centerIndex, day = a.j - centerIndex;
     const dbx = b.i - centerIndex, dby = b.j - centerIndex;
@@ -242,14 +242,13 @@
     ctx.restore();
   }
 
-  function drawHoverSnap(x, y){
-    const {i,j} = xyToIJ(x,y);
-    const {x:gx, y:gy} = ijToXY(i,j);
+  function drawHoverSnapCircle(i,j){
+    const {x,y} = ijToXY(i,j);
     ctx.save();
     ctx.strokeStyle = '#3a4761';
     ctx.lineWidth = Math.max(1, spacing()*0.04);
     ctx.beginPath();
-    ctx.arc(gx, gy, Math.max(10, spacing()*0.22), 0, Math.PI*2);
+    ctx.arc(x, y, Math.max(10, spacing()*0.22), 0, Math.PI*2);
     ctx.stroke();
     ctx.restore();
   }
@@ -259,17 +258,32 @@
     drawGrid();
     drawCenterBody();
 
+    const O = ijToXY(centerIndex, centerIndex);
+
     if(forces){
-      const O = ijToXY(centerIndex, centerIndex);
+      // 表示ベクトル
       const Axy = ijToXY(forces.A.i, forces.A.j);
       const Bxy = ijToXY(forces.B.i, forces.B.j);
       drawArrow(O, Axy, '#69b7ff');
       drawArrow(O, Bxy, '#7dffa7');
 
+      // ドラッグ中はリアルタイムの矢印（紫・破線）
+      if(dragging && dragPos){
+        drawArrow(O, dragPos, '#c59eff', [8,6]);
+        // 現在位置からスナップされる格子点を薄いリングで示す
+        const snapped = xyToIJ(dragPos.x, dragPos.y);
+        if(!(snapped.i===centerIndex && snapped.j===centerIndex)){
+          drawHoverSnapCircle(snapped.i, snapped.j);
+        }
+      }
+
+      // 提出済みの解答（破線）
       if(lastAnswer){
         const Ans = ijToXY(lastAnswer.i, lastAnswer.j);
         drawArrow(O, Ans, '#c59eff', [8,6]);
       }
+
+      // ラウンド終了時の正解表示
       if(revealCorrect){
         const Cxy = ijToXY(forces.C.i, forces.C.j);
         drawArrow(O, Cxy, '#ffd166');
@@ -302,7 +316,7 @@
     resetBtn.disabled = false;
     nextRound();
     startTimer();
-    announce('スタート！ 欠けた矢印を作図してね。');
+    announce('スタート！ 中央からドラッグして矢印を引き、指（マウス）を離すと最近傍の交点にスナップします。');
   }
   function nextRound(){
     round++;
@@ -346,31 +360,63 @@
     forces = null;
     round = 0;
     startTime = null;
+    dragging = false;
+    dragPos = null;
     timeLabel.textContent = '0.00s';
     roundLabel.textContent = '0 / 5';
     startBtn.disabled = false;
     startBtn.textContent = 'スタート';
-    announce('[操作] 中央から目的の格子点をクリック（タッチ）して “欠けた矢印” を作図してね。');
+    announce('[操作] 中央からドラッグで矢印を作図。離すと最近傍の交点へスナップします（中央は不可）。');
     draw();
   }
 
   function announce(text){ msgEl.innerHTML = text.replace(/\n/g,'<br/>'); }
 
-  // ====== 入力 ======
-  function handlePick(clientX, clientY){
-    if(!playing || !awaitingAnswer || !forces) return;
+  // ====== 入力：Pointer Events でドラッグ対応 ======
+  function getCanvasXYFromEvent(e){
     const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left) * (canvas.width / rect.width);
-    const y = (clientY - rect.top)  * (canvas.height / rect.height);
+    const px = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const py = (e.clientY - rect.top)  * (canvas.height / rect.height);
+    return {x:px, y:py};
+  }
 
-    const {i,j} = xyToIJ(x,y);
+  function pointerDown(e){
+    if(!playing || !awaitingAnswer || !forces) return;
+    const pos = getCanvasXYFromEvent(e);
+    const O = ijToXY(centerIndex, centerIndex);
+    const r = Math.max(8, spacing()*startFromCenterRadiusFactor); // 中央円 近傍からのみ開始
+    if(Math.hypot(pos.x - O.x, pos.y - O.y) <= r * 2.0){
+      dragging = true;
+      dragPos = pos;
+      canvas.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+      draw();
+    }
+  }
+
+  function pointerMove(e){
+    if(!dragging) return;
+    dragPos = getCanvasXYFromEvent(e);
+    draw();
+  }
+
+  function pointerUp(e){
+    if(!dragging) return;
+    dragging = false;
+    const pos = getCanvasXYFromEvent(e);
+    // スナップ
+    const {i,j} = xyToIJ(pos.x, pos.y);
     if(i===centerIndex && j===centerIndex){
-      announce('中央（物体位置）は終点にできません。別の交点を選んでください。');
+      announce('中央（物体位置）は終点にできません。もう一度ドラッグしてね。');
+      dragPos = null;
+      draw();
       return;
     }
     lastAnswer = {i,j};
+    dragPos = null;
     draw();
 
+    // 判定
     const correct = (i===forces.C.i && j===forces.C.j);
     if(correct){
       awaitingAnswer = false;
@@ -384,22 +430,17 @@
     }
   }
 
-  canvas.addEventListener('mousemove', (e) => {
-    draw();
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top)  * (canvas.height / rect.height);
-    drawHoverSnap(x,y);
-  });
-  canvas.addEventListener('mouseleave', draw);
-  canvas.addEventListener('click', (e) => handlePick(e.clientX, e.clientY));
-  canvas.addEventListener('touchstart', (e) => {
-    const t = e.changedTouches[0];
-    handlePick(t.clientX, t.clientY);
-    e.preventDefault();
-  }, {passive:false});
+  canvas.addEventListener('pointerdown', pointerDown, {passive:false});
+  canvas.addEventListener('pointermove',  pointerMove, {passive:false});
+  canvas.addEventListener('pointerup',    pointerUp,   {passive:false});
+  canvas.addEventListener('pointercancel', () => { dragging = false; dragPos = null; draw(); });
 
+  // スクロール抑止（タッチ中のキャンバス内）
+  canvas.addEventListener('touchstart', (e)=>e.preventDefault(), {passive:false});
+  canvas.addEventListener('touchmove',  (e)=>e.preventDefault(), {passive:false});
 })();
 </script>
+
+
 </body>
 </html>
