@@ -372,6 +372,7 @@
       // 状態
       this.score=0; this.locked=false; this.runningRoulette=false; this.t0Roulette=0;
       this.inFlight=false; this.stopped=false; this.onLanded=null;
+      this.prevCombo = null; // ★直前の {y0, xTarget} を保持
 
       // スケール系
       this.origin = {x:30, y:groundOffsetPx};
@@ -521,8 +522,16 @@
 
     /* ---------- ラウンド構成 ---------- */
     pickChallenge(){
-      this.y0 = Y0S[Math.floor(Math.random()*Y0S.length)];
-      this.xTarget = TARGETS[Math.floor(Math.random()*TARGETS.length)];
+        // ★前回と同じ {y0, xTarget} にならないまで再抽選
+        let y0, xt;
+        let safety = 32; // 念のため無限ループ防止
+        do {
+          y0 = Y0S[Math.floor(Math.random()*Y0S.length)];
+          xt = TARGETS[Math.floor(Math.random()*TARGETS.length)];
+        } while (this.prevCombo && this.prevCombo.y0 === y0 && this.prevCombo.x === xt && --safety > 0);
+        this.y0 = y0;
+        this.xTarget = xt;
+        this.prevCombo = { y0, x: xt };
       this.challengeText.textContent = `初期高さ y₀ = ${this.y0} m｜ターゲット x = ${this.xTarget} m を狙え！`;
       // 画面再レイアウト
       this.fitScales(); this.layoutSubground(); this.renderGrid(); this.layoutBuilding(); this.resizeTrail();
@@ -611,6 +620,7 @@
       this.tgt.style.left=this.toPxX(3)+'px'; this.tgt.style.bottom=this.toPxY(0)+'px';
       this.layoutBuilding();
       this.posNow.textContent=`0.00 m, ${this.y0.toFixed(2)} m`; this.tNow.textContent='0.00 s'; this.xLandV.textContent='0.00 m';
+      this.prevCombo = null; // ★新しい試合では連続チェックをリセット
     }
 
     /* ---------- 外部レイアウト変化 ---------- */
