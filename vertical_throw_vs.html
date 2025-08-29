@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>鉛直投げ上げ対戦ゲーム〜先に3つのハートをとれ！〜</title>
+<style>
+  :root{
+    --bg:#0f1220; --pane:#14182b; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1;
+    --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
+    --topbar-h: 110px; /* ハート帯の分、少し高く */
+    --a-tint: rgba(90,170,255,.12); /* A半透明青 */
+    --b-tint: rgba(255,90,120,.12); /* B半透明赤 */
+  
+  --a-fill: #6ab7ff;  /* Aが取ったハート = 青 */
+  --b-fill: #ff4a4a;  /* Bが取ったハート = 赤 */
+}
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
+    color:var(--text); font-family: ui-sans-serif, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", system-ui, sans-serif;
+    display:flex; min-height:100svh; align-items:stretch; justify-content:center;
+    overflow:hidden;
+  }
+  @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
+
+  .topbar{
+    position:fixed; top:8px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; gap:10px; align-items:center; z-index:20;
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.12);
+    padding:10px 14px; border-radius:14px; backdrop-filter: blur(6px);
+    height: var(--topbar-h);
+    width:min(1100px, 94vw);
+  }
+  .toprow{
+    display:flex; gap:16px; align-items:center; justify-content:center; width:100%;
+  }
+  .title{font-weight:800; letter-spacing:.02em}
+  .timer{font-variant-numeric: tabular-nums; font-weight:900; font-size:28px; color:#ffd36a}
+  .startBtn{
+    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf);
+    box-shadow: 0 8px 22px rgba(122,255,175,.28), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+
+  /* ▼ ハートUI */
+/* ▼ ハートUI */
+.heartsWrap{ display:flex; align-items:center; justify-content:center; width:100%; }
+.heartRow{ display:flex; align-items:center; gap:14px; }
+.midgap{ width:28px; height:1px; } /* 真ん中の小さな空き */
+.heart{ width:34px; height:34px; display:inline-block; }
+.heart svg{ width:100%; height:100%; transform-origin:50% 55%; }
+
+/* 初期は塗りなし＆点線アウトライン */
+.heart .fill{ fill: transparent; }
+.heart .outline{
+  fill: none;
+  stroke: rgba(255,255,255,.7);
+  stroke-width: 2.2;
+  stroke-dasharray: 4 3; /* 点線 */
+}
+
+/* 色が付いた状態（A=青、B=赤） */
+.heart.filledA .fill{ fill: var(--a-fill); } /* Aが取った（左側）＝青 */
+.heart.filledB .fill{ fill: var(--b-fill); } /* Bが取った（右側）＝赤 */
+.heart.filledA .outline,
+.heart.filledB .outline{
+  stroke-dasharray: none; /* 実線に変更 */
+}
+
+/* ▼ 点灯ポップアニメ（新規） */
+.heart.pop svg{
+  animation: heart-pop .28s ease-out;
+}
+@keyframes heart-pop{
+  0%   { transform: scale(0.65); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  70%  { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
+  100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+}
+
+  .arena{
+    width:min(1400px, 100%); margin:0 auto;
+    padding: calc(var(--topbar-h) + 10px) 10px 10px;
+    height: 100dvh;
+    display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+  }
+  .pane{
+    position:relative;
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; 
+    display:flex; flex-direction:column; min-height:0; overflow:hidden;
+  }
+  /* 半透明色のオーバーレイ（Aは青、Bは赤） */
+  .pane::before{
+    content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+    background: transparent;
+  }
+  #paneA::before{ background: var(--a-tint); }
+  #paneB::before{ background: var(--b-tint); }
+  /* 中身は上に */
+  .pane > *{ position:relative; z-index:1; }
+
+  .pane header{
+    display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
+    flex:0 0 auto;
+  }
+  .name{font-weight:900; letter-spacing:.02em; font-size:20px}
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:13px; background:rgba(255,255,255,.08); color:var(--yellow)}
+  .mutag{font-size:12px; color:var(--muted); margin-left:8px}
+
+  .challenge{font-weight:900; color:#ff5b5b; margin-bottom:8px; flex:0 0 auto;}
+
+  .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; flex:0 0 auto;}
+  .bar{height:18px; background:#111528; border-radius:999px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,.08)}
+  .fill{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .06s linear; box-shadow:0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3)}
+  .speed{font-variant-numeric: tabular-nums; font-weight:900; letter-spacing:.02em; min-width:9ch; text-align:right; font-size:clamp(18px, 2.6vw, 34px); color:#ff5b5b}
+  .mult{font-variant-numeric: tabular-nums; font-weight:800; font-size:14px; color:var(--muted);}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto;}
+  .btn{
+    appearance:none; border:none; border-radius:12px; padding:14px 20px; font-weight:900; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+    font-size: clamp(22px, 2.6vw, 34px);
+  }
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+
+  .gridWrap{
+    display:grid; grid-template-columns: 1fr 220px; gap:10px; align-items:stretch;
+    flex:1 1 auto; min-height:0;
+  }
+  .scene{
+    position:relative; height:100%;
+    border-radius:14px; overflow:hidden;
+    background: radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%), #0b1022;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
+  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+  .grid{position:absolute; inset:0 0 8px 0; pointer-events:none;}
+  .gridline{position:absolute; left:8px; right:8px; height:1px; background:rgba(255,255,255,.22); opacity:.7}
+  .gridlabel{position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
+  .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
+  .ball{
+    position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
+    box-shadow: 0 8px 24px rgba(106,227,255,.45);
+  }
+
+  .readouts{display:grid; grid-template-columns: 1fr; gap:8px; overflow:auto;}
+  .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px}
+  .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
+  .stat .value{font-variant-numeric: tabular-nums; font-weight:900; font-size:20px}
+
+  .result{margin-top:6px; min-height:26px}
+  .great{color:#a7ff6a; font-weight:800}
+  .good{color:var(--ok); font-weight:800}
+  .ok{color:#ffd36a; font-weight:800}
+  .bad{color:var(--ng); font-weight:800}
+
+  .winner{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:30;
+    background:rgba(0,0,0,.55); backdrop-filter: blur(3px);
+  }
+  .winnerCard{
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.18); padding:18px 22px; border-radius:16px; text-align:center;
+    box-shadow: 0 20px 40px rgba(0,0,0,.35);
+  }
+  .winnerCard h2{ margin:0 0 8px; }
+  .winnerBtns{ margin-top:10px; display:flex; gap:10px; justify-content:center; }
+  .overlayPortrait{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+    background:#0b0f20; color:#fff; text-align:center; padding:24px;
+  }
+  @media (orientation: portrait){
+    .overlayPortrait{ display:flex; }
+  }
+</style>
+</head>
+<body>
+  <div class="overlayPortrait">
+    <div>
+      <h2>横画面にしてください</h2>
+      <p>この対戦版は横向き専用です。端末を横に回転してください。</p>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="toprow">
+      <div class="title">鉛直投げ上げ対戦ゲーム〜先に3つのハートをとれ！〜</div>
+      <div class="timer" id="timer">120.0</div>
+      <button class="startBtn" id="startBtn">対戦スタート</button>
+    </div>
+
+    <!-- ▼ タイトル真下：ハート（中央揃え） -->
+    <div class="heartsWrap" id="heartsWrap">
+      <div class="heartRow" id="heartRow">
+        <!-- JSで6個（左からB×3、中央すき間、A×3）を生成 -->
+      </div>
+    </div>
+  </div>
+
+  <main class="arena">
+    <section class="pane" id="paneA">
+      <header>
+        <div class="name">プレイヤーA <span class="mutag" id="mulA">x1.0</span></div>
+        <div><span class="badge" id="roundA">Ready</span></div>
+      </header>
+      <div class="challenge" id="challengeA">—</div>
+
+      <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
+        <div class="bar"><div class="fill" id="fillA"></div></div>
+        <div>
+          <div class="speed" id="speedA">0.00 m/s</div>
+          <div class="mult">相手からの加速: <span id="debA">x1.0</span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="fireA">投射！(Aボタン)</button>
+      </div>
+
+      <div class="gridWrap">
+        <div class="scene" id="sceneA">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="gridA"></div>
+          <div class="hline" id="hlineA" style="bottom:8px"></div>
+          <div class="ball" id="ballA" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNowA">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hValA">0.00 m</div></div>
+          <div class="stat"><div class="label">時間 t</div><div class="value" id="tValA">0.00 s</div></div>
+          <div class="result" id="resultA"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" id="paneB">
+      <header>
+        <div class="name">プレイヤーB <span class="mutag" id="mulB">x1.0</span></div>
+        <div><span class="badge" id="roundB">Ready</span></div>
+      </header>
+      <div class="challenge" id="challengeB">—</div>
+
+      <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
+        <div class="bar"><div class="fill" id="fillB"></div></div>
+        <div>
+          <div class="speed" id="speedB">0.00 m/s</div>
+          <div class="mult">相手からの加速: <span id="debB">x1.0</span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="fireB">投射！(Lボタン)</button>
+      </div>
+
+      <div class="gridWrap">
+        <div class="scene" id="sceneB">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="gridB"></div>
+          <div class="hline" id="hlineB" style="bottom:8px"></div>
+          <div class="ball" id="ballB" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNowB">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hValB">0.00 m</div></div>
+          <div class="stat"><div class="label">時間 t</div><div class="value" id="tValB">0.00 s</div></div>
+          <div class="result" id="resultB"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="winner" id="winner">
+    <div class="winnerCard">
+      <h2 id="winnerTitle">結果</h2>
+      <div id="winnerDetail"></div>
+      <div class="winnerBtns">
+        <button class="startBtn" id="restartBtn">もう一度</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const g = 9.8;
+  const vMin=0, vMax=35, baseCycleSec=4.5;
+  const Xs=[4.9,19.6,44.1]; const Ts=[1,2,3,4,6];
+
+  /* =======================
+     ハートUIの生成＆更新
+  ======================= */
+  const heartRow = document.getElementById('heartRow');
+  const HEART_SVG = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path class="fill" d="M12 21s-6.7-4.35-9.33-7.33C-0.3 10.75 1.1 5.7 5.2 5.2 7.3 4.95 9 6.1 12 8.7c3-2.6 4.7-3.75 6.8-3.5 4.1.5 5.5 5.55 2.53 8.47C18.7 16.65 12 21 12 21z"/>
+      <path class="outline" d="M12 21s-6.7-4.35-9.33-7.33C-0.3 10.75 1.1 5.7 5.2 5.2 7.3 4.95 9 6.1 12 8.7c3-2.6 4.7-3.75 6.8-3.5 4.1.5 5.5 5.55 2.53 8.47C18.7 16.65 12 21 12 21z"/>
+    </svg>`;
+  const heartsB = []; // 左3（B用）
+  const heartsA = []; // 右3（A用）
+
+  function makeHeart(side){
+    const d = document.createElement('div');
+    d.className = 'heart';
+    d.dataset.side = side;
+    d.innerHTML = HEART_SVG;
+    return d;
+  }
+  // 左にB×3
+  for(let i=0;i<3;i++){ const h=makeHeart('B'); heartRow.appendChild(h); heartsB.push(h); }
+  // 中央の小空き
+  const mg = document.createElement('div'); mg.className='midgap'; heartRow.appendChild(mg);
+  // 右にA×3
+  for(let i=0;i<3;i++){ const h=makeHeart('A'); heartRow.appendChild(h); heartsA.push(h); }
+
+  // tugPos（-3〜+3）をハート表示へ反映
+// tugPos ∈ [-3, 3] をハート表示へ反映
+// 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
+// どちらも「中央寄り→外側」の順で点灯
+// ちょいユーティリティ：アニメを確実にリスタート
+function pop(el){
+  el.classList.remove('pop');
+  // reflow で一旦リセット
+  void el.offsetWidth;
+  el.classList.add('pop');
+}
+
+// tugPos ∈ [-3, 3] をハート表示へ反映
+// 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
+// いずれも「中央寄り → 外側」の順で点灯
+function renderHeartsFromPos(pos){
+  const leftCount  = Math.max(0, pos);   // Aのリード分（0〜3）
+  const rightCount = Math.max(0, -pos);  // Bのリード分（0〜3）
+
+  // 左側（heartsB）：配列 [左端(0), 中央寄り手前(1), 中央寄り(2)]
+  // 内側から = index 2,1,0 の順で点灯 → i >= 3-leftCount でON
+  heartsB.forEach((el, i) => {
+    const wasA = el.classList.contains('filledA');
+    const nowA = (i >= (3 - leftCount));
+    el.classList.toggle('filledA', nowA);
+    el.classList.remove('filledB');
+    if (nowA && !wasA) pop(el); // 新しく点いたときだけポップ
+  });
+
+  // 右側（heartsA）：配列 [中央寄り(0), 中央寄り手前(1), 右端(2)]
+  // 内側から = index 0,1,2 の順で点灯 → i < rightCount でON
+  heartsA.forEach((el, i) => {
+    const wasB = el.classList.contains('filledB');
+    const nowB = (i < rightCount);
+    el.classList.toggle('filledB', nowB);
+    el.classList.remove('filledA');
+    if (nowB && !wasB) pop(el);
+  });
+}
+
+  /* =======================
+     サウンド
+  ======================= */
+  let audioCtx=null;
+  function beep(freq=880,duration=0.15,type='sine',gain=0.08){
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const t0=audioCtx.currentTime;
+      const osc=audioCtx.createOscillator();
+      const gnode=audioCtx.createGain();
+      osc.type=type; osc.frequency.value=freq; gnode.gain.value=gain;
+      osc.connect(gnode).connect(audioCtx.destination);
+      osc.start(t0);
+      gnode.gain.setValueAtTime(gain,t0);
+      gnode.gain.exponentialRampToValueAtTime(0.0001,t0+duration);
+      osc.stop(t0+duration+0.02);
+    }catch(e){}
+  }
+  const okSound = ()=>beep(740,0.12);
+  const goodSound = ()=>{beep(880,0.12); setTimeout(()=>beep(1175,0.12),120);};
+  const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
+  const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
+
+  /* =======================
+     ゲーム本体
+  ======================= */
+  class DuelGame {
+    constructor(prefix, enemy){
+      this.prefix=prefix;
+      this.enemy = enemy; // 後でセット
+      this.inFlight = false;
+      this.stopped  = false;
+      this.onLanded = null;
+      this.fill   = document.getElementById('fill'+prefix);
+      this.speedL = document.getElementById('speed'+prefix);
+      this.fireBtn= document.getElementById('fire'+prefix);
+      this.scene  = document.getElementById('scene'+prefix);
+      this.gridEl = document.getElementById('grid'+prefix);
+      this.hLine  = document.getElementById('hline'+prefix);
+      this.ball   = document.getElementById('ball'+prefix);
+      this.yNowEl = document.getElementById('yNow'+prefix);
+      this.hValEl = document.getElementById('hVal'+prefix);
+      this.tValEl = document.getElementById('tVal'+prefix);
+      this.roundBadge = document.getElementById('round'+prefix);
+      this.challengeText = document.getElementById('challenge'+prefix);
+      this.resultEl = document.getElementById('result'+prefix);
+      this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
+      this.debTag = document.getElementById(prefix==='A'?'debA':'debB');
+
+      this.runningRoulette = false;
+      this.locked = false;
+      this.t0Roulette = 0;
+      this.challenge = null;
+      this.prevChallenge = null;
+
+      // 相手からの加速（自分のルーレット周回が速くなる）
+      this.debuffMul = 1.0;
+
+      this.groundOffsetPx=8;
+
+      // 初期描画
+      this.scale = this.scalePxPerMeterForMaxMeters(60);
+      this.ball.style.transform = 'translateX(-50%)';
+      this.ball.style.bottom = this.groundOffsetPx+'px';
+      this.hLine.style.bottom = this.groundOffsetPx+'px';
+      this.renderGrid();
+
+      this.fireBtn.addEventListener('click', ()=>{
+        if(this.locked || this.fireBtn.disabled) return;
+        this.locked = true;
+        const v = parseFloat(this.speedL.textContent.replace(' m/s',''));
+        this.fireBtn.disabled = true;
+        this.animateThrow(v);
+      });
+
+      this.pickChallenge();
+      this.roundBadge.textContent = 'Ready';
+      this.updateMulUI();
+    }
+
+    applyDebuff(factor){
+      this.debuffMul *= factor;
+      this.debuffMul = Math.min(this.debuffMul, 64);
+      this.updateMulUI();
+    }
+    clearDebuff(){
+      this.debuffMul = 1.0;
+      this.updateMulUI();
+    }
+    updateMulUI(){
+      this.mulTag.textContent = `x${this.debuffMul.toFixed(1)}`;
+      this.debTag.textContent = `x${this.debuffMul.toFixed(1)}`;
+    }
+
+    startRoulette(){
+      this.runningRoulette = true;
+      this.t0Roulette = performance.now();
+      const loop = (now)=>{
+        if(!this.runningRoulette) return;
+        const elapsed = (now - this.t0Roulette)/1000;
+        const effectiveCycle = baseCycleSec / this.debuffMul; // 速くなる
+        const v = vMin + ((elapsed % effectiveCycle)/effectiveCycle) * (vMax - vMin);
+        this.updateSpeedUI(v);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+    stopRoulette(){ this.runningRoulette = false; }
+
+    updateSpeedUI(v){
+      const c=Math.max(vMin,Math.min(vMax,v));
+      const ratio=(c-vMin)/(vMax-vMin);
+      this.fill.style.width=(ratio*100).toFixed(2)+'%';
+      this.speedL.textContent=c.toFixed(2)+' m/s';
+    }
+
+    scalePxPerMeterFor(v0){
+      const H=(v0*v0)/(2*g);
+      const maxPx=(this.scene.clientHeight - this.groundOffsetPx) - 26;
+      const base=8;
+      return Math.min(base, maxPx/Math.max(H,1e-6));
+    }
+    scalePxPerMeterForMaxMeters(maxMeters){
+      const maxPx=(this.scene.clientHeight - this.groundOffsetPx) - 26;
+      return Math.max(0.5, maxPx/Math.max(maxMeters,1e-6));
+    }
+
+    renderGrid(scale){
+      const s = (typeof scale === 'number') ? scale : this.scale;
+      this.gridEl.innerHTML='';
+      const marks=[0,10,20,30,40,50,60];
+      const hGrid = this.gridEl.clientHeight;
+      for(const m of marks){
+        const bottom = m * s;
+        if(bottom < 0 || bottom > hGrid - 2) continue;
+        const line = document.createElement('div');
+        line.className='gridline';
+        line.style.bottom = bottom + 'px';
+        const lab = document.createElement('div');
+        lab.className='gridlabel';
+        lab.style.bottom = bottom + 'px';
+        lab.textContent = m + ' m';
+        this.gridEl.appendChild(line);
+        this.gridEl.appendChild(lab);
+      }
+    }
+
+    pickChallenge(){
+      let newC;
+      do {
+        if(Math.random()<0.5){
+          const x=Xs[Math.floor(Math.random()*Xs.length)];
+          newC={type:'H',target:x,text:`最高到達高度 ${x} m を目指せ！`};
+        }else{
+          const t=Ts[Math.floor(Math.random()*Ts.length)];
+          newC={type:'T',target:t,text:`着地時間 ${t} 秒 を目指せ！`};
+        }
+      } while(this.prevChallenge && newC.type===this.prevChallenge.type && newC.target===this.prevChallenge.target);
+      this.challenge=newC; this.prevChallenge=newC;
+      this.challengeText.textContent=newC.text;
+      this.resultEl.textContent='';
+    }
+
+    animateThrow(v0){
+      this.inFlight = true;
+      const scale=this.scale;
+      this.renderGrid();
+      const T=2*v0/g; const H=(v0*v0)/(2*g);
+      const tPeak = v0/g;
+      const start=performance.now();
+
+      const step=(now)=>{
+        const t=(now-start)/1000;
+        const tC=Math.max(0,Math.min(T,t));
+        const y=Math.max(0, v0*tC - 0.5*g*tC*tC);
+        const yPx=y*scale;
+
+        this.ball.style.bottom = (this.groundOffsetPx + yPx) + 'px';
+        const hDisp = (tC <= tPeak) ? y : H;
+        this.hLine.style.bottom = (this.groundOffsetPx + hDisp*scale) + 'px';
+
+        this.yNowEl.textContent = y.toFixed(2)+' m';
+        this.hValEl.textContent  = ((tC <= tPeak) ? y : H).toFixed(2)+' m';
+        this.tValEl.textContent  = tC.toFixed(2)+' s';
+
+        if(t<T-1e-3){
+          requestAnimationFrame(step);
+        }else{
+          this.ball.style.bottom = this.groundOffsetPx + 'px';
+          this.yNowEl.textContent='0.00 m';
+          this.hValEl.textContent= H.toFixed(2)+' m';
+          this.tValEl.textContent= T.toFixed(2)+' s';
+          this.hLine.style.bottom = (this.groundOffsetPx + H*scale) + 'px';
+          this.evaluateAndContinue(H,T);
+          this.inFlight = false;
+          if (typeof this.onLanded === 'function') { this.onLanded(); }
+        }
+      };
+      requestAnimationFrame(step);
+    }
+
+    evaluateAndContinue(H,T){
+      const errPct = (this.challenge.type==='H')
+        ? Math.abs(H - this.challenge.target) / this.challenge.target
+        : Math.abs(T - this.challenge.target) / this.challenge.target;
+
+      let verdict='miss';
+      if(errPct < 0.05){ verdict='great'; }
+      else if(errPct < 0.10){ verdict='good'; }
+      else if(errPct < 0.15){ verdict='ok'; }
+
+      const pctText = (errPct*100).toFixed(1)+'%';
+      if(verdict==='great'){ this.resultEl.innerHTML=`<span class="great">great!!（誤差 ${pctText}）</span>`; greatSound(); }
+      else if(verdict==='good'){ this.resultEl.innerHTML=`<span class="good">good!（誤差 ${pctText}）</span>`; goodSound(); }
+      else if(verdict==='ok'){ this.resultEl.innerHTML=`<span class="ok">ok（誤差 ${pctText}）</span>`; okSound(); }
+      else { this.resultEl.innerHTML=`<span class="bad">miss…（誤差 ${pctText}）</span>`; wrongSound(); }
+
+      // ハート＆ルーレット加速
+      if (verdict==='great' || verdict==='good'){
+        // 綱引き1マス相当（表示はハート）
+        if(this.prefix==='A') tugMove(+1); else tugMove(-1);
+
+        // 相手のルーレットを加速（重ねがけ）
+        const factor = verdict==='great' ? 2.0 : 1.5;
+        this.enemy.applyDebuff(factor);
+      }
+      // 自分は ok 以上を出したら1倍へ戻す
+      if (verdict==='great' || verdict==='good' || verdict==='ok'){
+        this.clearDebuff();
+      }
+
+      if (this.stopped) return;
+      this.pickChallenge();
+      this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+      this.hLine.style.bottom = this.groundOffsetPx + 'px';
+      this.fireBtn.disabled = false;
+      this.locked = false;
+    }
+
+    enablePlay(on){ this.fireBtn.disabled = !on; this.roundBadge.textContent = on ? 'Go!' : 'Ready'; }
+    onStart(){ this.enablePlay(true); this.startRoulette(); }
+    onStop(){ this.enablePlay(false); this.stopRoulette(); this.locked=true; }
+    reset(){
+      this.stopped = false;
+      this.inFlight = false;
+      this.onLanded = null;
+      this.stopRoulette();
+      this.locked=false; this.fireBtn.disabled=true; this.roundBadge.textContent='Ready';
+      this.ball.style.bottom = this.groundOffsetPx+'px';
+      this.hLine.style.bottom = this.groundOffsetPx+'px';
+      this.yNowEl.textContent='0.00 m'; this.hValEl.textContent='0.00 m'; this.tValEl.textContent='0.00 s';
+      this.scale = this.scalePxPerMeterForMaxMeters(60);
+      this.renderGrid();
+      this.pickChallenge(); this.updateSpeedUI(0);
+      this.resultEl.textContent='';
+      this.clearDebuff();
+    }
+    onTimeUp(){
+      this.stopped = true;
+      this.fireBtn.disabled = true;
+      this.stopRoulette();
+    }
+  }
+
+  const timerEl = document.getElementById('timer');
+  const startBtn = document.getElementById('startBtn');
+  const winner = document.getElementById('winner');
+  const winnerTitle = document.getElementById('winnerTitle');
+  const winnerDetail = document.getElementById('winnerDetail');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const A = new DuelGame('A');
+  const B = new DuelGame('B');
+  A.enemy = B; B.enemy = A;
+
+  // 内部的な「綱位置」（-3〜+3）
+  let tugPos = 0;
+
+  function tugMove(by){
+    tugPos = Math.max(-3, Math.min(3, tugPos + by));
+    renderHeartsFromPos(tugPos);
+    if (tugPos === 3) showWinnerImmediate('A');    // 3つ取った
+    if (tugPos === -3) showWinnerImmediate('B');   // 3つ取った
+  }
+
+  // 初期ハート表示
+  renderHeartsFromPos(0);
+
+  let timeUp = false;
+  let pendingLandings = 0;
+
+  let tRemain = 120.0;   // 120秒固定
+  let ticking = false;
+  let rafId = null, lastTs = 0;
+
+  function tick(ts){
+    if(!ticking) return;
+    if(!lastTs) lastTs = ts;
+    const dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    tRemain = Math.max(0, tRemain - dt);
+    timerEl.textContent = tRemain.toFixed(1);
+    if (tRemain > 0){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      ticking = false;
+      timeUp = true;
+      A.onTimeUp(); B.onTimeUp();
+      pendingLandings = (A.inFlight ? 1 : 0) + (B.inFlight ? 1 : 0);
+      if (pendingLandings === 0) {
+        showWinnerByHearts();
+      } else {
+        const landedOnce = () => {
+          pendingLandings = Math.max(0, pendingLandings - 1);
+          if (pendingLandings === 0) {
+            showWinnerByHearts();
+            A.onLanded = null; B.onLanded = null;
+          }
+        };
+        A.onLanded = landedOnce; B.onLanded = landedOnce;
+      }
+    }
+  }
+
+  function showWinnerByHearts(){
+    if (tugPos > 0){ showWinnerImmediate('A', true); }
+    else if (tugPos < 0){ showWinnerImmediate('B', true); }
+    else { showDraw(true); }
+  }
+
+  function showWinnerImmediate(who, timed=false){
+    winnerTitle.textContent = `勝者：プレイヤー${who}`;
+    const reason = timed ? '（120秒終了時点）' : '（3つのハートを先取）';
+    const aCnt = Math.max(0, tugPos);
+    const bCnt = Math.max(0, -tugPos);
+    winnerDetail.textContent = `A：${aCnt}  /  B：${bCnt}  ${reason}`;
+    winner.style.display='flex';
+  }
+  function showDraw(timed=false){
+    winnerTitle.textContent = '引き分け';
+    const aCnt = Math.max(0, tugPos);
+    const bCnt = Math.max(0, -tugPos);
+    const reason = timed ? '（120秒終了時点）' : '';
+    winnerDetail.textContent = `A：${aCnt}  /  B：${bCnt}  ${reason}`;
+    winner.style.display='flex';
+  }
+
+  function hideWinner(){ winner.style.display='none'; }
+
+  function startMatch(){
+    hideWinner();
+    timeUp = false;
+
+    tRemain = 120.0;
+    timerEl.textContent = tRemain.toFixed(1);
+
+    lastTs = 0; 
+    ticking = true;
+
+    tugPos = 0; renderHeartsFromPos(0);
+    A.reset(); B.reset();
+    A.onStart(); B.onStart();
+
+    requestAnimationFrame(tick);
+  }
+  function prepareNext(){
+    hideWinner();
+    ticking = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    lastTs = 0;
+
+    tRemain = 120.0;
+    timerEl.textContent = tRemain.toFixed(1);
+
+    tugPos = 0; renderHeartsFromPos(0);
+
+    A.reset(); B.reset();
+    A.enablePlay(false); B.enablePlay(false);
+  }
+
+  startBtn.addEventListener('click', startMatch);
+  restartBtn.addEventListener('click', prepareNext);
+
+  // キーボード：A/Lで投射（時間切れ無効）
+  window.addEventListener('keydown', (e)=>{
+    if (e.repeat) return;
+    if (timeUp) return;
+    const key = e.key.toLowerCase();
+    if (key === 'a' && !A.fireBtn.disabled && !A.locked) A.fireBtn.click();
+    else if (key === 'l' && !B.fireBtn.disabled && !B.locked) B.fireBtn.click();
+  });
+
+  // レイアウト微調整
+  function fitScenes(){
+    A.scale = A.scalePxPerMeterForMaxMeters(60);
+    B.scale = B.scalePxPerMeterForMaxMeters(60);
+    A.renderGrid(); B.renderGrid();
+    A.hLine.style.bottom = A.groundOffsetPx + 'px';
+    B.hLine.style.bottom = B.groundOffsetPx + 'px';
+  }
+  window.addEventListener('resize', fitScenes);
+  window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
+  window.addEventListener('DOMContentLoaded', ()=>setTimeout(fitScenes, 50));
+})();
+</script>
+</body>
+</html>
