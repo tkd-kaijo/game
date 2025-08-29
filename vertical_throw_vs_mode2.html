@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>鉛直投げ上げゲーム 2人対戦</title>
+<style>
+  :root{
+    --bg:#0f1220; --pane:#14182b; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1;
+    --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
+    --topbar-h: 92px; /* タイトル下に綱引き帯を入れるので少し高く */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
+    color:var(--text); font-family: ui-sans-serif, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", system-ui, sans-serif;
+    display:flex; min-height:100svh; align-items:stretch; justify-content:center;
+    overflow:hidden;
+  }
+  @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
+
+  .topbar{
+    position:fixed; top:8px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; gap:8px; align-items:center; z-index:20;
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.12);
+    padding:10px 14px; border-radius:14px; backdrop-filter: blur(6px);
+    height: var(--topbar-h);
+    width:min(1000px, 92vw);
+  }
+  .toprow{
+    display:flex; gap:16px; align-items:center; justify-content:center; width:100%;
+  }
+  .topbar .title{font-weight:800; letter-spacing:.02em}
+  .timer{font-variant-numeric: tabular-nums; font-weight:900; font-size:28px; color:#ffd36a}
+  .startBtn{
+    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf);
+    box-shadow: 0 8px 22px rgba(122,255,175,.28), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+
+  /* 綱引き帯 */
+  .tugwrap{ width:100%; display:flex; flex-direction:column; gap:6px; align-items:stretch;}
+  .tugbar{
+    position:relative; height:22px; border-radius:999px; overflow:hidden;
+    background:linear-gradient(90deg, #2a2f4d, #202544);
+    border:1px solid rgba(255,255,255,.14);
+  }
+  .tugtrack{
+    position:absolute; inset:0; display:grid; grid-template-columns: repeat(7, 1fr);
+  }
+  .tugcells div{border-right:1px dashed rgba(255,255,255,.12)}
+  .tugcells div:last-child{border-right:none}
+  .centerline{
+    position:absolute; left:50%; top:0; bottom:0; width:2px; transform:translateX(-50%);
+    background:rgba(255,255,255,.35); box-shadow:0 0 8px rgba(255,255,255,.25);
+  }
+  .rope{
+    position:absolute; top:2px; bottom:2px; width:calc(100%/7);
+    left:calc(50% - (100%/14)); /* 0マス */
+    transition:left .25s cubic-bezier(.25,.9,.2,1);
+    display:flex; align-items:center; justify-content:center;
+    background:repeating-linear-gradient(90deg,#caa86a 0 10px,#b58c45 10px 20px);
+    border-radius:10px; border:1px solid rgba(0,0,0,.35);
+    box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 0 10px rgba(0,0,0,.25);
+    color:#201408; font-weight:900;
+  }
+  .tuglabels{display:flex; justify-content:space-between; font-weight:800; font-size:12px; color:var(--muted); padding:0 6px;}
+  .leadA{color:#8fe3ff; font-weight:900}
+  .leadB{color:#ff9aa8; font-weight:900}
+
+  .arena{
+    width:min(1400px, 100%); margin:0 auto;
+    padding: calc(var(--topbar-h) + 10px) 10px 10px;
+    height: 100dvh;
+    display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+  }
+  .pane{
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; position:relative;
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .pane header{
+    display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
+    flex:0 0 auto;
+  }
+  .name{font-weight:900; letter-spacing:.02em; font-size:20px}
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:13px; background:rgba(255,255,255,.08); color:var(--yellow)}
+  .mutag{font-size:12px; color:var(--muted); margin-left:8px}
+
+  .challenge{font-weight:900; color:#ff5b5b; margin-bottom:8px; flex:0 0 auto;}
+
+  .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; flex:0 0 auto;}
+  .bar{height:18px; background:#111528; border-radius:999px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,.08)}
+  .fill{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .06s linear; box-shadow:0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3)}
+  .speed{font-variant-numeric: tabular-nums; font-weight:900; letter-spacing:.02em; min-width:9ch; text-align:right; font-size:clamp(18px, 2.6vw, 34px); color:#ff5b5b}
+  .mult{font-variant-numeric: tabular-nums; font-weight:800; font-size:14px; color:var(--muted);}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto;}
+  .btn{
+    appearance:none; border:none; border-radius:12px; padding:14px 20px; font-weight:900; cursor:pointer;
+    color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+    font-size: clamp(22px, 2.6vw, 34px);
+  }
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+
+  .gridWrap{
+    display:grid; grid-template-columns: 1fr 220px; gap:10px; align-items:stretch;
+    flex:1 1 auto; min-height:0;
+  }
+  .scene{
+    position:relative; height:100%;
+    border-radius:14px; overflow:hidden;
+    background: radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%), #0b1022;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
+    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
+  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+  .grid{position:absolute; inset:0 0 8px 0; pointer-events:none;}
+  .gridline{position:absolute; left:8px; right:8px; height:1px; background:rgba(255,255,255,.22); opacity:.7}
+  .gridlabel{position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
+  .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
+  .ball{
+    position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
+    box-shadow: 0 8px 24px rgba(106,227,255,.45);
+  }
+
+  .readouts{display:grid; grid-template-columns: 1fr; gap:8px; overflow:auto;}
+  .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px}
+  .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
+  .stat .value{font-variant-numeric: tabular-nums; font-weight:900; font-size:20px}
+
+  .result{margin-top:6px; min-height:26px}
+  .great{color:#a7ff6a; font-weight:800}
+  .good{color:var(--ok); font-weight:800}
+  .ok{color:#ffd36a; font-weight:800}
+  .bad{color:var(--ng); font-weight:800}
+
+  .winner{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:30;
+    background:rgba(0,0,0,.55); backdrop-filter: blur(3px);
+  }
+  .winnerCard{
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.18); padding:18px 22px; border-radius:16px; text-align:center;
+    box-shadow: 0 20px 40px rgba(0,0,0,.35);
+  }
+  .winnerCard h2{ margin:0 0 8px; }
+  .winnerBtns{ margin-top:10px; display:flex; gap:10px; justify-content:center; }
+  .overlayPortrait{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+    background:#0b0f20; color:#fff; text-align:center; padding:24px;
+  }
+  @media (orientation: portrait){
+    .overlayPortrait{ display:flex; }
+  }
+</style>
+</head>
+<body>
+  <div class="overlayPortrait">
+    <div>
+      <h2>横画面にしてください</h2>
+      <p>この対戦版は横向き専用です。端末を横に回転してください。</p>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="toprow">
+      <div class="title">鉛直投げ上げゲーム 2人対戦</div>
+      <div class="timer" id="timer">120.0</div>
+      <button class="startBtn" id="startBtn">対戦スタート</button>
+    </div>
+
+    <!-- ▼ タイトル真下：綱引き帯（7マス：-3,-2,-1,0,1,2,3） -->
+    <div class="tugwrap">
+      <div class="tugbar" id="tugbar">
+        <div class="tugtrack">
+          <div class="tugcells" style="display:grid; grid-template-columns:repeat(7,1fr); height:100%;">
+            <div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+          </div>
+        </div>
+        <div class="centerline"></div>
+        <div class="rope" id="rope">綱</div>
+      </div>
+      <div class="tuglabels">
+        <div>← プレイヤーBが引く（-3でB勝利）</div>
+        <div>プレイヤーAが引く（+3でA勝利） →</div>
+      </div>
+    </div>
+  </div>
+
+  <main class="arena">
+    <section class="pane" id="paneA">
+      <header>
+        <div class="name">プレイヤーA <span class="mutag" id="mulA">x1.0</span></div>
+        <div><span class="badge" id="roundA">Ready</span></div>
+      </header>
+      <div class="challenge" id="challengeA">—</div>
+
+      <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
+        <div class="bar"><div class="fill" id="fillA"></div></div>
+        <div>
+          <div class="speed" id="speedA">0.00 m/s</div>
+          <div class="mult">相手からの加速: <span id="debA">x1.0</span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="fireA">投射！(Aボタン)</button>
+      </div>
+
+      <div class="gridWrap">
+        <div class="scene" id="sceneA">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="gridA"></div>
+          <div class="hline" id="hlineA" style="bottom:8px"></div>
+          <div class="ball" id="ballA" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNowA">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hValA">0.00 m</div></div>
+          <div class="stat"><div class="label">時間 t</div><div class="value" id="tValA">0.00 s</div></div>
+          <div class="result" id="resultA"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" id="paneB">
+      <header>
+        <div class="name">プレイヤーB <span class="mutag" id="mulB">x1.0</span></div>
+        <div><span class="badge" id="roundB">Ready</span></div>
+      </header>
+      <div class="challenge" id="challengeB">—</div>
+
+      <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
+        <div class="bar"><div class="fill" id="fillB"></div></div>
+        <div>
+          <div class="speed" id="speedB">0.00 m/s</div>
+          <div class="mult">相手からの加速: <span id="debB">x1.0</span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="fireB">投射！(Lボタン)</button>
+      </div>
+
+      <div class="gridWrap">
+        <div class="scene" id="sceneB">
+          <div class="meter">g = 9.8 m/s²</div>
+          <div class="grid" id="gridB"></div>
+          <div class="hline" id="hlineB" style="bottom:8px"></div>
+          <div class="ball" id="ballB" style="bottom:8px"></div>
+          <div class="ground"></div>
+        </div>
+        <div class="readouts">
+          <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNowB">0.00 m</div></div>
+          <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hValB">0.00 m</div></div>
+          <div class="stat"><div class="label">時間 t</div><div class="value" id="tValB">0.00 s</div></div>
+          <div class="result" id="resultB"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="winner" id="winner">
+    <div class="winnerCard">
+      <h2 id="winnerTitle">結果</h2>
+      <div id="winnerDetail"></div>
+      <div class="winnerBtns">
+        <button class="startBtn" id="restartBtn">もう一度</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const g = 9.8;
+  const vMin=0, vMax=35, baseCycleSec=4.5;
+  const Xs=[4.9,19.6,44.1]; const Ts=[1,2,3,4,6];
+
+  // 綱引き（-3 … 0 … +3）
+  let tugPos = 0; // +側はAが有利、-側はBが有利
+  const ropeEl = document.getElementById('rope');
+  function renderTug(){
+    // -3 -> 0%セル, 0 -> センター, +3 -> 最右
+    // left = ((pos+3)/7) * 100%  - (セル半分)
+    const cellW = 100/7;
+    const left = ((tugPos+3) * cellW) + (cellW/2 * -1);
+    ropeEl.style.left = `calc(${left}% - ${cellW/2}% )`;
+    ropeEl.textContent = tugPos>0? `＋${tugPos}` : tugPos<0? `${tugPos}` : '綱';
+  }
+  function tugMove(by){
+    tugPos = Math.max(-3, Math.min(3, tugPos + by));
+    renderTug();
+    if (tugPos === 3) showWinnerImmediate('A');
+    if (tugPos === -3) showWinnerImmediate('B');
+  }
+  renderTug();
+
+  // 共有サウンド
+  let audioCtx=null;
+  function beep(freq=880,duration=0.15,type='sine',gain=0.08){
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const t0=audioCtx.currentTime;
+      const osc=audioCtx.createOscillator();
+      const gnode=audioCtx.createGain();
+      osc.type=type; osc.frequency.value=freq; gnode.gain.value=gain;
+      osc.connect(gnode).connect(audioCtx.destination);
+      osc.start(t0);
+      gnode.gain.setValueAtTime(gain,t0);
+      gnode.gain.exponentialRampToValueAtTime(0.0001,t0+duration);
+      osc.stop(t0+duration+0.02);
+    }catch(e){}
+  }
+  const okSound = ()=>beep(740,0.12);
+  const goodSound = ()=>{beep(880,0.12); setTimeout(()=>beep(1175,0.12),120);};
+  const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
+  const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
+
+  class DuelGame {
+    constructor(prefix, enemy){
+      // 要素
+      this.prefix=prefix;
+      this.enemy = enemy; // 後でセット
+      this.inFlight = false;
+      this.stopped  = false;
+      this.onLanded = null;
+      this.fill   = document.getElementById('fill'+prefix);
+      this.speedL = document.getElementById('speed'+prefix);
+      this.fireBtn= document.getElementById('fire'+prefix);
+      this.scene  = document.getElementById('scene'+prefix);
+      this.gridEl = document.getElementById('grid'+prefix);
+      this.hLine  = document.getElementById('hline'+prefix);
+      this.ball   = document.getElementById('ball'+prefix);
+      this.yNowEl = document.getElementById('yNow'+prefix);
+      this.hValEl = document.getElementById('hVal'+prefix);
+      this.tValEl = document.getElementById('tVal'+prefix);
+      this.roundBadge = document.getElementById('round'+prefix);
+      this.challengeText = document.getElementById('challenge'+prefix);
+      this.resultEl = document.getElementById('result'+prefix);
+      this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
+      this.debTag = document.getElementById(prefix==='A'?'debA':'debB');
+
+      // 状態
+      this.runningRoulette = false;
+      this.locked = false;
+      this.t0Roulette = 0;
+      this.challenge = null;
+      this.prevChallenge = null;
+
+      // 相手から受けている加速（=自分のルーレットを速くする倍率）
+      this.debuffMul = 1.0;
+
+      // 定数
+      this.groundOffsetPx=8;
+
+      // 初期描画
+      this.scale = this.scalePxPerMeterForMaxMeters(60);
+      this.ball.style.transform = 'translateX(-50%)';
+      this.ball.style.bottom = this.groundOffsetPx+'px';
+      this.hLine.style.bottom = this.groundOffsetPx+'px';
+      this.renderGrid();
+
+      // イベント
+      this.fireBtn.addEventListener('click', ()=>{
+        if(this.locked || this.fireBtn.disabled) return;
+        this.locked = true;
+        const v = parseFloat(this.speedL.textContent.replace(' m/s',''));
+        this.fireBtn.disabled = true;
+        this.animateThrow(v);
+      });
+
+      // 課題
+      this.pickChallenge();
+      this.roundBadge.textContent = 'Ready';
+      this.updateMulUI();
+    }
+
+    // 相手からのデバフを掛ける
+    applyDebuff(factor){
+      this.debuffMul *= factor;
+      // 過剰暴走防止（任意上限）
+      this.debuffMul = Math.min(this.debuffMul, 64);
+      this.updateMulUI();
+    }
+    // 自分のデバフ解除（ok以上を出した瞬間）
+    clearDebuff(){
+      this.debuffMul = 1.0;
+      this.updateMulUI();
+    }
+    updateMulUI(){
+      this.mulTag.textContent = `x${this.debuffMul.toFixed(1)}`;
+      this.debTag.textContent = `x${this.debuffMul.toFixed(1)}`;
+    }
+
+    startRoulette(){
+      this.runningRoulette = true;
+      this.t0Roulette = performance.now();
+      const loop = (now)=>{
+        if(!this.runningRoulette) return;
+        const elapsed = (now - this.t0Roulette)/1000;
+        const effectiveCycle = baseCycleSec / this.debuffMul; // 速くなる
+        const v = vMin + ((elapsed % effectiveCycle)/effectiveCycle) * (vMax - vMin);
+        this.updateSpeedUI(v);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+    stopRoulette(){ this.runningRoulette = false; }
+
+    updateSpeedUI(v){
+      const c=Math.max(vMin,Math.min(vMax,v));
+      const ratio=(c-vMin)/(vMax-vMin);
+      this.fill.style.width=(ratio*100).toFixed(2)+'%';
+      this.speedL.textContent=c.toFixed(2)+' m/s';
+    }
+
+    scalePxPerMeterFor(v0){
+      const H=(v0*v0)/(2*g);
+      const maxPx=(this.scene.clientHeight - this.groundOffsetPx) - 26;
+      const base=8;
+      return Math.min(base, maxPx/Math.max(H,1e-6));
+    }
+    scalePxPerMeterForMaxMeters(maxMeters){
+      const maxPx=(this.scene.clientHeight - this.groundOffsetPx) - 26;
+      return Math.max(0.5, maxPx/Math.max(maxMeters,1e-6));
+    }
+
+    renderGrid(scale){
+      const s = (typeof scale === 'number') ? scale : this.scale;
+      this.gridEl.innerHTML='';
+      const marks=[0,10,20,30,40,50,60];
+      const hGrid = this.gridEl.clientHeight;
+      for(const m of marks){
+        const bottom = m * s;
+        if(bottom < 0 || bottom > hGrid - 2) continue;
+        const line = document.createElement('div');
+        line.className='gridline';
+        line.style.bottom = bottom + 'px';
+        const lab = document.createElement('div');
+        lab.className='gridlabel';
+        lab.style.bottom = bottom + 'px';
+        lab.textContent = m + ' m';
+        this.gridEl.appendChild(line);
+        this.gridEl.appendChild(lab);
+      }
+    }
+
+    pickChallenge(){
+      let newC;
+      do {
+        if(Math.random()<0.5){
+          const x=Xs[Math.floor(Math.random()*Xs.length)];
+          newC={type:'H',target:x,text:`最高到達高度 ${x} m を目指せ！`};
+        }else{
+          const t=Ts[Math.floor(Math.random()*Ts.length)];
+          newC={type:'T',target:t,text:`着地時間 ${t} 秒 を目指せ！`};
+        }
+      } while(this.prevChallenge && newC.type===this.prevChallenge.type && newC.target===this.prevChallenge.target);
+      this.challenge=newC; this.prevChallenge=newC;
+      this.challengeText.textContent=newC.text;
+      this.resultEl.textContent='';
+    }
+
+    animateThrow(v0){
+      this.inFlight = true;
+      const scale=this.scale;
+      this.renderGrid();
+      const T=2*v0/g; const H=(v0*v0)/(2*g);
+      const tPeak = v0/g;
+      const start=performance.now();
+
+      const step=(now)=>{
+        const t=(now-start)/1000;
+        const tC=Math.max(0,Math.min(T,t));
+        const y=Math.max(0, v0*tC - 0.5*g*tC*tC);
+        const yPx=y*scale;
+
+        // 球＆赤線
+        this.ball.style.bottom = (this.groundOffsetPx + yPx) + 'px';
+        const hDisp = (tC <= tPeak) ? y : H;
+        this.hLine.style.bottom = (this.groundOffsetPx + hDisp*scale) + 'px';
+
+        // 表示
+        this.yNowEl.textContent = y.toFixed(2)+' m';
+        this.hValEl.textContent  = ((tC <= tPeak) ? y : H).toFixed(2)+' m';
+        this.tValEl.textContent  = tC.toFixed(2)+' s';
+
+        if(t<T-1e-3){
+          requestAnimationFrame(step);
+        }else{
+          // 着地
+          this.ball.style.bottom = this.groundOffsetPx + 'px';
+          this.yNowEl.textContent='0.00 m';
+          this.hValEl.textContent= H.toFixed(2)+' m';
+          this.tValEl.textContent= T.toFixed(2)+' s';
+          this.hLine.style.bottom = (this.groundOffsetPx + H*scale) + 'px';
+          this.evaluateAndContinue(H,T);
+          this.inFlight = false;
+          if (typeof this.onLanded === 'function') { this.onLanded(); }
+        }
+      };
+      requestAnimationFrame(step);
+    }
+
+    evaluateAndContinue(H,T){
+      const errPct = (this.challenge.type==='H')
+        ? Math.abs(H - this.challenge.target) / this.challenge.target
+        : Math.abs(T - this.challenge.target) / this.challenge.target;
+
+      // 新しい判定閾値
+      // great: <5%, good: [5,10), ok: [10,15)
+      let verdict='miss';
+      if(errPct < 0.05){ verdict='great'; }
+      else if(errPct < 0.10){ verdict='good'; }
+      else if(errPct < 0.15){ verdict='ok'; }
+
+      // メッセージ＆サウンド
+      const pctText = (errPct*100).toFixed(1)+'%';
+      if(verdict==='great'){ this.resultEl.innerHTML=`<span class="great">great!!（誤差 ${pctText}）</span>`; greatSound(); }
+      else if(verdict==='good'){ this.resultEl.innerHTML=`<span class="good">good!（誤差 ${pctText}）</span>`; goodSound(); }
+      else if(verdict==='ok'){ this.resultEl.innerHTML=`<span class="ok">ok（誤差 ${pctText}）</span>`; okSound(); }
+      else { this.resultEl.innerHTML=`<span class="bad">miss…（誤差 ${pctText}）</span>`; wrongSound(); }
+
+      // 綱引き＆ルーレット加速ロジック
+      if (verdict==='great' || verdict==='good'){
+        // 綱を1マス自分側へ
+        if(this.prefix==='A') tugMove(+1); else tugMove(-1);
+
+        // 相手のルーレットを加速（重ねがけ）
+        const factor = verdict==='great' ? 2.0 : 1.5;
+        this.enemy.applyDebuff(factor);
+      }
+      // 自分は ok 以上を出したらデバフ解除（=1倍へ）
+      if (verdict==='great' || verdict==='good' || verdict==='ok'){
+        this.clearDebuff();
+      }
+
+      // 続行/停止
+      if (this.stopped) {
+        return;
+      } else {
+        this.pickChallenge();
+        this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
+        this.hLine.style.bottom = this.groundOffsetPx + 'px';
+        this.fireBtn.disabled = false;
+        this.locked = false;
+      }
+    }
+
+    // 対戦開始/停止フック
+    enablePlay(on){ this.fireBtn.disabled = !on; this.roundBadge.textContent = on ? 'Go!' : 'Ready'; }
+    onStart(){ this.enablePlay(true); this.startRoulette(); }
+    onStop(){ this.enablePlay(false); this.stopRoulette(); this.locked=true; }
+    reset(){
+      this.stopped = false;
+      this.inFlight = false;
+      this.onLanded = null;
+      this.stopRoulette();
+      this.locked=false; this.fireBtn.disabled=true; this.roundBadge.textContent='Ready';
+      this.ball.style.bottom = this.groundOffsetPx+'px';
+      this.hLine.style.bottom = this.groundOffsetPx+'px';
+      this.yNowEl.textContent='0.00 m'; this.hValEl.textContent='0.00 m'; this.tValEl.textContent='0.00 s';
+      this.scale = this.scalePxPerMeterForMaxMeters(60);
+      this.renderGrid();
+      this.pickChallenge(); this.updateSpeedUI(0);
+      this.resultEl.textContent='';
+      this.clearDebuff();
+    }
+    onTimeUp(){
+      this.stopped = true;
+      this.fireBtn.disabled = true;
+      this.stopRoulette();
+    }
+  }
+
+  const timerEl = document.getElementById('timer');
+  const startBtn = document.getElementById('startBtn');
+  const winner = document.getElementById('winner');
+  const winnerTitle = document.getElementById('winnerTitle');
+  const winnerDetail = document.getElementById('winnerDetail');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const A = new DuelGame('A');
+  const B = new DuelGame('B');
+  // 互いを紐付け
+  A.enemy = B; B.enemy = A;
+
+  let timeUp = false;
+  let pendingLandings = 0;
+
+  let tRemain = 120.0;   // ★ 120秒固定
+  let ticking = false;
+  let rafId = null, lastTs = 0;
+
+  function tick(ts){
+    if(!ticking) return;
+    if(!lastTs) lastTs = ts;
+    const dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    tRemain = Math.max(0, tRemain - dt);
+    timerEl.textContent = tRemain.toFixed(1);
+    if (tRemain > 0){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      ticking = false;
+      timeUp = true;
+      A.onTimeUp();
+      B.onTimeUp();
+      pendingLandings = (A.inFlight ? 1 : 0) + (B.inFlight ? 1 : 0);
+      if (pendingLandings === 0) {
+        showWinnerByTug();
+      } else {
+        const landedOnce = () => {
+          pendingLandings = Math.max(0, pendingLandings - 1);
+          if (pendingLandings === 0) {
+            showWinnerByTug();
+            A.onLanded = null; B.onLanded = null;
+          }
+        };
+        A.onLanded = landedOnce; B.onLanded = landedOnce;
+      }
+    }
+  }
+
+  function showWinnerByTug(){
+    if (tugPos > 0){ showWinnerImmediate('A', true); }
+    else if (tugPos < 0){ showWinnerImmediate('B', true); }
+    else { showDraw(true); }
+  }
+
+  function showWinnerImmediate(who, timed=false){
+    winnerTitle.textContent = `勝者：プレイヤー${who}`;
+    const reason = timed ? '（120秒終了時点）' : '（3マス先取）';
+    winnerDetail.textContent = `綱位置：${tugPos>0? '+'+tugPos : tugPos} ${reason}`;
+    winner.style.display='flex';
+    stopAndBackToReady();
+  }
+  function showDraw(timed=false){
+    winnerTitle.textContent = '引き分け';
+    const reason = timed ? '（120秒終了時点）' : '';
+    winnerDetail.textContent = `綱位置：${tugPos}`;
+    winner.style.display='flex';
+    stopAndBackToReady();
+  }
+
+  function stopAndBackToReady(){
+    // 入力系は待機モードに戻す
+    // 次戦開始まではそのまま
+  }
+
+  function hideWinner(){ winner.style.display='none'; }
+
+  function startMatch(){
+    hideWinner();
+    timeUp = false;
+
+    // 表示
+    tRemain = 120.0; // 固定
+    timerEl.textContent = tRemain.toFixed(1);
+
+    lastTs = 0; 
+    ticking = true;
+
+    // リセット
+    tugPos = 0; renderTug();
+    A.reset(); B.reset();
+    A.onStart(); B.onStart();
+
+    requestAnimationFrame(tick);
+  }
+  function prepareNext(){
+    hideWinner();
+    ticking = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    lastTs = 0;
+
+    // 内部の表示整える
+    tRemain = 120.0;
+    timerEl.textContent = tRemain.toFixed(1);
+
+    // 綱も中央へ
+    tugPos = 0; renderTug();
+
+    // Ready 状態へ
+    A.reset(); B.reset();
+    A.enablePlay(false); B.enablePlay(false);
+  }
+
+  startBtn.addEventListener('click', startMatch);
+  restartBtn.addEventListener('click', prepareNext);
+
+  // キーボード操作：A/Lで投射（時間切れは無効）
+  window.addEventListener('keydown', (e)=>{
+    if (e.repeat) return;
+    if (timeUp) return;
+    const key = e.key.toLowerCase();
+    if (key === 'a' && !A.fireBtn.disabled && !A.locked) A.fireBtn.click();
+    else if (key === 'l' && !B.fireBtn.disabled && !B.locked) B.fireBtn.click();
+  });
+
+  // レイアウト微調整
+  function fitScenes(){
+    A.scale = A.scalePxPerMeterForMaxMeters(60);
+    B.scale = B.scalePxPerMeterForMaxMeters(60);
+    A.renderGrid(); B.renderGrid();
+    A.hLine.style.bottom = A.groundOffsetPx + 'px';
+    B.hLine.style.bottom = B.groundOffsetPx + 'px';
+  }
+  window.addEventListener('resize', fitScenes);
+  window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
+  window.addEventListener('DOMContentLoaded', ()=>setTimeout(fitScenes, 50));
+})();
+</script>
+</body>
+</html>
