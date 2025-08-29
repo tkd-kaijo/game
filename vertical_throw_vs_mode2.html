@@ -307,19 +307,29 @@
   for(let i=0;i<3;i++){ const h=makeHeart('A'); heartRow.appendChild(h); heartsA.push(h); }
 
   // tugPos（-3〜+3）をハート表示へ反映
-  function renderHeartsFromPos(pos){
-    const aCount = Math.max(0, pos);
-    const bCount = Math.max(0, -pos);
+// tugPos ∈ [-3, 3] をハート表示へ反映
+// 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
+// どちらも「中央寄り→外側」の順で点灯
+function renderHeartsFromPos(pos){
+  const leftCount  = Math.max(0, pos);   // Aのリード分（0〜3）
+  const rightCount = Math.max(0, -pos);  // Bのリード分（0〜3）
 
-    heartsA.forEach((el,i)=>{
-      el.classList.toggle('filledA', i < aCount);
-      el.classList.remove('filledB'); // 混在防止
-    });
-    heartsB.forEach((el,i)=>{
-      el.classList.toggle('filledB', i < bCount);
-      el.classList.remove('filledA');
-    });
-  }
+  // 左側（heartsB）：配列は [左端, 中央寄り手前, 中央寄り] の順で並んでいる想定
+  // 「内側（中央寄り）」＝配列の末尾側から点灯
+  heartsB.forEach((el, i) => {
+    const shouldFill = i >= (3 - leftCount); // 例: leftCount=1 → i>=2(一番内側)
+    el.classList.toggle('filledA', shouldFill); // 青で塗る
+    el.classList.remove('filledB');
+  });
+
+  // 右側（heartsA）：配列は [中央寄り, 中央寄り手前, 右端]
+  // 「内側（中央寄り）」＝配列の先頭側から点灯
+  heartsA.forEach((el, i) => {
+    const shouldFill = i < rightCount;   // 例: rightCount=1 → i=0(一番内側)
+    el.classList.toggle('filledB', shouldFill); // 赤で塗る
+    el.classList.remove('filledA');
+  });
+}
 
   /* =======================
      サウンド
