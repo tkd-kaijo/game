@@ -47,26 +47,39 @@
   }
 
   /* ▼ ハートUI */
-  .heartsWrap{ display:flex; align-items:center; justify-content:center; width:100%; }
-  .heartRow{ display:flex; align-items:center; gap:14px; }
-  .midgap{ width:28px; height:1px; } /* 真ん中の小さな空き */
-  .heart{
-    width:34px; height:34px; display:inline-block;
-  }
-  .heart svg{
-    width:100%; height:100%;
-  }
-  .heart .outline{
-    fill: none;
-    stroke: rgba(255,255,255,.7);
-    stroke-width: 2.2;
-    stroke-dasharray: 4 3; /* 点線 */
-  }
-  .heart.filledA .outline,
-  .heart.filledB .outline{ stroke-dasharray: none; } /* 実線へ */
-  .heart.filledA .fill{ fill: var(--a-fill); }
-  .heart.filledB .fill{ fill: var(--b-fill); }
-  .heart .fill{ fill: transparent; }
+/* ▼ ハートUI */
+.heartsWrap{ display:flex; align-items:center; justify-content:center; width:100%; }
+.heartRow{ display:flex; align-items:center; gap:14px; }
+.midgap{ width:28px; height:1px; } /* 真ん中の小さな空き */
+.heart{ width:34px; height:34px; display:inline-block; }
+.heart svg{ width:100%; height:100%; transform-origin:50% 55%; }
+
+/* 初期は塗りなし＆点線アウトライン */
+.heart .fill{ fill: transparent; }
+.heart .outline{
+  fill: none;
+  stroke: rgba(255,255,255,.7);
+  stroke-width: 2.2;
+  stroke-dasharray: 4 3; /* 点線 */
+}
+
+/* 色が付いた状態（A=青、B=赤） */
+.heart.filledA .fill{ fill: var(--a-fill); } /* Aが取った（左側）＝青 */
+.heart.filledB .fill{ fill: var(--b-fill); } /* Bが取った（右側）＝赤 */
+.heart.filledA .outline,
+.heart.filledB .outline{
+  stroke-dasharray: none; /* 実線に変更 */
+}
+
+/* ▼ 点灯ポップアニメ（新規） */
+.heart.pop svg{
+  animation: heart-pop .28s ease-out;
+}
+@keyframes heart-pop{
+  0%   { transform: scale(0.65); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  70%  { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
+  100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+}
 
   .arena{
     width:min(1400px, 100%); margin:0 auto;
@@ -310,24 +323,39 @@
 // tugPos ∈ [-3, 3] をハート表示へ反映
 // 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
 // どちらも「中央寄り→外側」の順で点灯
+// ちょいユーティリティ：アニメを確実にリスタート
+function pop(el){
+  el.classList.remove('pop');
+  // reflow で一旦リセット
+  void el.offsetWidth;
+  el.classList.add('pop');
+}
+
+// tugPos ∈ [-3, 3] をハート表示へ反映
+// 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
+// いずれも「中央寄り → 外側」の順で点灯
 function renderHeartsFromPos(pos){
   const leftCount  = Math.max(0, pos);   // Aのリード分（0〜3）
   const rightCount = Math.max(0, -pos);  // Bのリード分（0〜3）
 
-  // 左側（heartsB）：配列は [左端, 中央寄り手前, 中央寄り] の順で並んでいる想定
-  // 「内側（中央寄り）」＝配列の末尾側から点灯
+  // 左側（heartsB）：配列 [左端(0), 中央寄り手前(1), 中央寄り(2)]
+  // 内側から = index 2,1,0 の順で点灯 → i >= 3-leftCount でON
   heartsB.forEach((el, i) => {
-    const shouldFill = i >= (3 - leftCount); // 例: leftCount=1 → i>=2(一番内側)
-    el.classList.toggle('filledA', shouldFill); // 青で塗る
+    const wasA = el.classList.contains('filledA');
+    const nowA = (i >= (3 - leftCount));
+    el.classList.toggle('filledA', nowA);
     el.classList.remove('filledB');
+    if (nowA && !wasA) pop(el); // 新しく点いたときだけポップ
   });
 
-  // 右側（heartsA）：配列は [中央寄り, 中央寄り手前, 右端]
-  // 「内側（中央寄り）」＝配列の先頭側から点灯
+  // 右側（heartsA）：配列 [中央寄り(0), 中央寄り手前(1), 右端(2)]
+  // 内側から = index 0,1,2 の順で点灯 → i < rightCount でON
   heartsA.forEach((el, i) => {
-    const shouldFill = i < rightCount;   // 例: rightCount=1 → i=0(一番内側)
-    el.classList.toggle('filledB', shouldFill); // 赤で塗る
+    const wasB = el.classList.contains('filledB');
+    const nowB = (i < rightCount);
+    el.classList.toggle('filledB', nowB);
     el.classList.remove('filledA');
+    if (nowB && !wasB) pop(el);
   });
 }
 
