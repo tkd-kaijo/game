@@ -572,14 +572,16 @@ this.verdictEl = document.getElementById('verdict'+prefix);               // ←
       this.challenge=newC; this.prevChallenge=newC;
      this.challengeLabel.textContent = newC.text;
 this.resultEl.textContent='';
-if (this.verdictEl){
-  this.verdictEl.className = 'verdict'; // 色・show・pop を全部外す
-  this.verdictEl.textContent = '';      // 文言クリア
-}
+
     }
 
     animateThrow(v0){
       this.inFlight = true;
+      // 次の投射を始めたら、前回の大きい判定を消す
+if (this.verdictEl){
+  this.verdictEl.className = 'verdict';
+  this.verdictEl.textContent = '';
+}
       const scale=this.scale;
       this.renderGrid();
       const T=2*v0/g; const H=(v0*v0)/(2*g);
