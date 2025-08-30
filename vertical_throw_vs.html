@@ -5,215 +5,184 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>鉛直投げ上げ対戦ゲーム〜先に3つのハートをとれ！〜</title>
 <style>
-  :root{
-    --bg:#0f1220; --pane:#14182b; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1;
-    --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
-    --topbar-h: 110px; /* ハート帯の分、少し高く */
-    --a-tint: rgba(90,170,255,.12); /* A半透明青 */
-    --b-tint: rgba(255,90,120,.12); /* B半透明赤 */
-  
-  --a-fill: #6ab7ff;  /* Aが取ったハート = 青 */
-  --b-fill: #ff4a4a;  /* Bが取ったハート = 赤 */
+:root{
+  --bg:#0f1220; --pane:#14182b; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1;
+  --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
+  --topbar-h: 110px; /* 参考値。実寸は JS で --topbar-real に入れる */
+  --a-tint: rgba(90,170,255,.12); /* A半透明青 */
+  --b-tint: rgba(255,90,120,.12); /* B半透明赤 */
+
+  --a-fill: #6ab7ff;  /* Aリード（左側が点灯）= 青 */
+  --b-fill: #ff4a4a;  /* Bリード（右側が点灯）= 赤 */
+
+  /* JSが書き込む可視高さ/トップバー実寸（フォールバック） */
+  --appH: 100vh;
+  --topbar-real: 110px;
 }
-  }
-  
-  
-  
 
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
+  color:var(--text); font-family: ui-sans-serif, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", system-ui, sans-serif;
+  display:flex; min-height:100svh; align-items:stretch; justify-content:center;
+  overflow:hidden;
+}
+@supports (min-height: 100dvh){ body{ min-height:100dvh; } }
 
+.topbar{
+  position:fixed; top:8px; left:50%; transform:translateX(-50%);
+  display:flex; flex-direction:column; gap:10px; align-items:center; z-index:20;
+  background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.12);
+  padding:10px 14px; border-radius:14px; backdrop-filter: blur(6px);
+  height: var(--topbar-h);
+  width:min(1100px, 94vw);
+}
+.toprow{
+  display:flex; gap:16px; align-items:center; justify-content:center; width:100%;
+}
+.title{font-weight:800; letter-spacing:.02em}
+.timer{font-variant-numeric: tabular-nums; font-weight:900; font-size:28px; color:#ffd36a}
+.startBtn{
+  appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
+  color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf);
+  box-shadow: 0 8px 22px rgba(122,255,175,.28), inset 0 1px 0 rgba(255,255,255,.6);
+}
 
-
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; background:radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
-    color:var(--text); font-family: ui-sans-serif, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", system-ui, sans-serif;
-    display:flex; min-height:100svh; align-items:stretch; justify-content:center;
-    overflow:hidden;
-  }
-  @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
-
-  .topbar{
-    position:fixed; top:8px; left:50%; transform:translateX(-50%);
-    display:flex; flex-direction:column; gap:10px; align-items:center; z-index:20;
-    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.12);
-    padding:10px 14px; border-radius:14px; backdrop-filter: blur(6px);
-    height: var(--topbar-h);
-    width:min(1100px, 94vw);
-  }
-  .toprow{
-    display:flex; gap:16px; align-items:center; justify-content:center; width:100%;
-  }
-  .title{font-weight:800; letter-spacing:.02em}
-  .timer{font-variant-numeric: tabular-nums; font-weight:900; font-size:28px; color:#ffd36a}
-  .startBtn{
-    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
-    color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf);
-    box-shadow: 0 8px 22px rgba(122,255,175,.28), inset 0 1px 0 rgba(255,255,255,.6);
-  }
-
-  /* ▼ ハートUI */
 /* ▼ ハートUI */
 .heartsWrap{ display:flex; align-items:center; justify-content:center; width:100%; }
 .heartRow{ display:flex; align-items:center; gap:14px; }
 .midgap{ width:28px; height:1px; } /* 真ん中の小さな空き */
 .heart{ width:34px; height:34px; display:inline-block; }
 .heart svg{ width:100%; height:100%; transform-origin:50% 55%; }
-
 /* 初期は塗りなし＆点線アウトライン */
 .heart .fill{ fill: transparent; }
 .heart .outline{
-  fill: none;
-  stroke: rgba(255,255,255,.7);
-  stroke-width: 2.2;
-  stroke-dasharray: 4 3; /* 点線 */
+  fill:none; stroke:rgba(255,255,255,.7); stroke-width:2.2; stroke-dasharray:4 3;
 }
-
 /* 色が付いた状態（A=青、B=赤） */
-.heart.filledA .fill{ fill: var(--a-fill); } /* Aが取った（左側）＝青 */
-.heart.filledB .fill{ fill: var(--b-fill); } /* Bが取った（右側）＝赤 */
+.heart.filledA .fill{ fill: var(--a-fill, #6ab7ff); }
+.heart.filledB .fill{ fill: var(--b-fill, #ff4a4a); }
 .heart.filledA .outline,
-.heart.filledB .outline{
-  stroke-dasharray: none; /* 実線に変更 */
-}
-
-/* ▼ 点灯ポップアニメ（新規） */
-.heart.pop svg{
-  animation: heart-pop .28s ease-out;
-}
+.heart.filledB .outline{ stroke-dasharray: none; }
+/* 点灯ポップ */
+.heart.pop svg{ animation: heart-pop .28s ease-out; }
 @keyframes heart-pop{
   0%   { transform: scale(0.65); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
   70%  { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
   100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
 }
 
-
-
-  :root{
-  /* JSが入れてくれる “可視高さ(px)” と “topbar実寸(px)” の受け皿 */
-  --appH: 100vh;        /* フォールバック */
-  --topbar-real: 110px; /* フォールバック（だいたいの高さ） */
-}
-
-/* 上パディングはtopbar実寸を使う。下はホームバー安全域を足す */
-.arena{
-  padding: calc(var(--topbar-real) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
-  /* 総高さ = 可視高さ。中身の高さ = 総高さ − 上下padding */
-  height: calc(
-    var(--appH) 
-    - (var(--topbar-real) + 20px + env(safe-area-inset-bottom))
-  );
-}
-
-
-
-
+/* ▼ 唯一の .arena（JSの実寸を使う） */
 .arena{
   width:min(1400px, 100%);
   margin:0 auto;
 
-  /* 上：トップバーぶんの余白 + 少し、下：下部安全域も考慮 */
-  padding: calc(var(--topbar-h) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
+  /* 上=topbar実寸、下=ホームバー安全域 */
+  padding: calc(var(--topbar-real) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
 
-  /* ★高さは「画面高 − 上下padding」の“中身”の高さにする */
-  /* これで padding を足した“総高さ”が 100dvh ちょうどになります */
-  height: calc(100dvh - (var(--topbar-h) + 24px + env(safe-area-inset-bottom)));
+  /* 総高さ=可視高さ。中身=総高さ - 上下padding */
+  height: calc(
+    var(--appH)
+    - (var(--topbar-real) + 20px + env(safe-area-inset-bottom))
+  );
 
   display:grid; grid-template-columns: 1fr 1fr; gap:10px;
 }
-  .pane{
-    position:relative;
-    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
-    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; 
-    display:flex; flex-direction:column; min-height:0; overflow:hidden;
-  }
-  /* 半透明色のオーバーレイ（Aは青、Bは赤） */
-  .pane::before{
-    content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
-    background: transparent;
-  }
-  #paneA::before{ background: var(--a-tint); }
-  #paneB::before{ background: var(--b-tint); }
-  /* 中身は上に */
-  .pane > *{ position:relative; z-index:1; }
 
-  .pane header{
-    display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
-    flex:0 0 auto;
-  }
-  .name{font-weight:900; letter-spacing:.02em; font-size:20px}
-  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:13px; background:rgba(255,255,255,.08); color:var(--yellow)}
-  .mutag{font-size:12px; color:var(--muted); margin-left:8px}
+.pane{
+  position:relative;
+  background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
+  border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; 
+  display:flex; flex-direction:column; min-height:0; overflow:hidden;
+}
+/* 半透明色のオーバーレイ（Aは青、Bは赤） */
+.pane::before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background: transparent;
+}
+#paneA::before{ background: var(--a-tint); }
+#paneB::before{ background: var(--b-tint); }
+/* 中身は上に */
+.pane > *{ position:relative; z-index:1; }
 
-  .challenge{font-weight:900; color:#ff5b5b; margin-bottom:8px; flex:0 0 auto;}
+.pane header{
+  display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
+  flex:0 0 auto;
+}
+.name{font-weight:900; letter-spacing:.02em; font-size:20px}
+.badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:13px; background:rgba(255,255,255,.08); color:var(--yellow)}
+.mutag{font-size:12px; color:var(--muted); margin-left:8px}
 
-  .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; flex:0 0 auto;}
-  .bar{height:18px; background:#111528; border-radius:999px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,.08)}
-  .fill{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .06s linear; box-shadow:0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3)}
-  .speed{font-variant-numeric: tabular-nums; font-weight:900; letter-spacing:.02em; min-width:9ch; text-align:right; font-size:clamp(18px, 2.6vw, 34px); color:#ff5b5b}
-  .mult{font-variant-numeric: tabular-nums; font-weight:800; font-size:14px; color:var(--muted);}
+.challenge{font-weight:900; color:#ff5b5b; margin-bottom:8px; flex:0 0 auto;}
 
-  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto;}
-  .btn{
-    appearance:none; border:none; border-radius:12px; padding:14px 20px; font-weight:900; cursor:pointer;
-    color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
-    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
-    font-size: clamp(22px, 2.6vw, 34px);
-  }
-  .btn:disabled{opacity:.5; cursor:not-allowed}
+.roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; flex:0 0 auto;}
+.bar{height:18px; background:#111528; border-radius:999px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,.08)}
+.fill{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .06s linear; box-shadow:0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3)}
+.speed{font-variant-numeric: tabular-nums; font-weight:900; letter-spacing:.02em; min-width:9ch; text-align:right; font-size:clamp(18px, 2.6vw, 34px); color:#ff5b5b}
+.mult{font-variant-numeric: tabular-nums; font-weight:800; font-size:14px; color:var(--muted);}
 
-  .gridWrap{
-    display:grid; grid-template-columns: 1fr 220px; gap:10px; align-items:stretch;
-    flex:1 1 auto; min-height:0;
-  }
-  .scene{
-    position:relative; height:100%;
-    border-radius:14px; overflow:hidden;
-    background: radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%), #0b1022;
-    border:1px solid rgba(255,255,255,.08);
-  }
-  .meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
-    background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
-  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
-  .grid{position:absolute; inset:0 0 8px 0; pointer-events:none;}
-  .gridline{position:absolute; left:8px; right:8px; height:1px; background:rgba(255,255,255,.22); opacity:.7}
-  .gridlabel{position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
-  .hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
-  .ball{
-    position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
-    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
-    box-shadow: 0 8px 24px rgba(106,227,255,.45);
-  }
+.actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto;}
+.btn{
+  appearance:none; border:none; border-radius:12px; padding:14px 20px; font-weight:900; cursor:pointer;
+  color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+  box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+  font-size: clamp(22px, 2.6vw, 34px);
+}
+.btn:disabled{opacity:.5; cursor:not-allowed}
 
-  .readouts{display:grid; grid-template-columns: 1fr; gap:8px; overflow:auto;}
-  .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px}
-  .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
-  .stat .value{font-variant-numeric: tabular-nums; font-weight:900; font-size:20px}
+.gridWrap{
+  display:grid; grid-template-columns: 1fr 220px; gap:10px; align-items:stretch;
+  flex:1 1 auto; min-height:0;
+}
+.scene{
+  position:relative; height:100%;
+  border-radius:14px; overflow:hidden;
+  background: radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%), #0b1022;
+  border:1px solid rgba(255,255,255,.08);
+}
+.meter{position:absolute; right:10px; top:10px; font-size:12px; color:var(--muted);
+  background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); padding:6px 8px; border-radius:8px; z-index:1}
+.ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+.grid{position:absolute; inset:0 0 8px 0; pointer-events:none;}
+.gridline{position:absolute; left:8px; right:8px; height:1px; background:rgba(255,255,255,.22); opacity:.7}
+.gridlabel{position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12)}
+.hline{position:absolute; left:8px; right:8px; height:2px; background:#ff5b5b; box-shadow:0 0 8px rgba(255,91,91,.6);}
+.ball{
+  position:absolute; left:50%; transform:translateX(-50%); width:18px; aspect-ratio:1; border-radius:50%;
+  background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
+  box-shadow: 0 8px 24px rgba(106,227,255,.45);
+}
 
-  .result{margin-top:6px; min-height:26px}
-  .great{color:#a7ff6a; font-weight:800}
-  .good{color:var(--ok); font-weight:800}
-  .ok{color:#ffd36a; font-weight:800}
-  .bad{color:var(--ng); font-weight:800}
+.readouts{display:grid; grid-template-columns: 1fr; gap:8px; overflow:auto;}
+.stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 10px}
+.stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
+.stat .value{font-variant-numeric: tabular-nums; font-weight:900; font-size:20px}
 
-  .winner{
-    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:30;
-    background:rgba(0,0,0,.55); backdrop-filter: blur(3px);
-  }
-  .winnerCard{
-    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
-    border:1px solid rgba(255,255,255,.18); padding:18px 22px; border-radius:16px; text-align:center;
-    box-shadow: 0 20px 40px rgba(0,0,0,.35);
-  }
-  .winnerCard h2{ margin:0 0 8px; }
-  .winnerBtns{ margin-top:10px; display:flex; gap:10px; justify-content:center; }
-  .overlayPortrait{
-    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
-    background:#0b0f20; color:#fff; text-align:center; padding:24px;
-  }
-  @media (orientation: portrait){
-    .overlayPortrait{ display:flex; }
-  }
+.result{margin-top:6px; min-height:26px}
+.great{color:#a7ff6a; font-weight:800}
+.good{color:var(--ok); font-weight:800}
+.ok{color:#ffd36a; font-weight:800}
+.bad{color:var(--ng); font-weight:800}
+
+.winner{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:30;
+  background:rgba(0,0,0,.55); backdrop-filter: blur(3px);
+}
+.winnerCard{
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.18); padding:18px 22px; border-radius:16px; text-align:center;
+  box-shadow: 0 20px 40px rgba(0,0,0,.35);
+}
+.winnerCard h2{ margin:0 0 8px; }
+.winnerBtns{ margin-top:10px; display:flex; gap:10px; justify-content:center; }
+.overlayPortrait{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+  background:#0b0f20; color:#fff; text-align:center; padding:24px;
+}
+@media (orientation: portrait){
+  .overlayPortrait{ display:flex; }
+}
 </style>
 </head>
 <body>
@@ -323,6 +292,16 @@
 
 <script>
 (() => {
+  /* ===== 可視高さ/トップバー実寸 → CSS変数へ ===== */
+  function updateAppHeight(){
+    const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    const topbar = document.querySelector('.topbar');
+    const topbarH = topbar ? Math.ceil(topbar.offsetHeight) : 110;
+    const root = document.documentElement;
+    root.style.setProperty('--appH', vh + 'px');
+    root.style.setProperty('--topbar-real', topbarH + 'px');
+  }
+
   const g = 9.8;
   const vMin=0, vMax=35, baseCycleSec=4.5;
   const Xs=[4.9,19.6,44.1]; const Ts=[1,2,3,4,6];
@@ -336,8 +315,8 @@
       <path class="fill" d="M12 21s-6.7-4.35-9.33-7.33C-0.3 10.75 1.1 5.7 5.2 5.2 7.3 4.95 9 6.1 12 8.7c3-2.6 4.7-3.75 6.8-3.5 4.1.5 5.5 5.55 2.53 8.47C18.7 16.65 12 21 12 21z"/>
       <path class="outline" d="M12 21s-6.7-4.35-9.33-7.33C-0.3 10.75 1.1 5.7 5.2 5.2 7.3 4.95 9 6.1 12 8.7c3-2.6 4.7-3.75 6.8-3.5 4.1.5 5.5 5.55 2.53 8.47C18.7 16.65 12 21 12 21z"/>
     </svg>`;
-  const heartsB = []; // 左3（B用）
-  const heartsA = []; // 右3（A用）
+  const heartsB = []; // 左3（Bの枠：Aがリードすると青で埋まる）
+  const heartsA = []; // 右3（Aの枠：Bがリードすると赤で埋まる）
 
   function makeHeart(side){
     const d = document.createElement('div');
@@ -353,45 +332,32 @@
   // 右にA×3
   for(let i=0;i<3;i++){ const h=makeHeart('A'); heartRow.appendChild(h); heartsA.push(h); }
 
-  // tugPos（-3〜+3）をハート表示へ反映
-// tugPos ∈ [-3, 3] をハート表示へ反映
-// 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
-// どちらも「中央寄り→外側」の順で点灯
-// ちょいユーティリティ：アニメを確実にリスタート
-function pop(el){
-  el.classList.remove('pop');
-  // reflow で一旦リセット
-  void el.offsetWidth;
-  el.classList.add('pop');
-}
+  // ポップ演出
+  function pop(el){
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  }
+  // 綱位置（-3〜+3）をハート表示へ反映
+  function renderHeartsFromPos(pos){
+    const leftCount  = Math.max(0, pos);   // Aのリード分（0〜3）：左を青で
+    const rightCount = Math.max(0, -pos);  // Bのリード分（0〜3）：右を赤で
 
-// tugPos ∈ [-3, 3] をハート表示へ反映
-// 左3つ＝Aの進捗（青）、右3つ＝Bの進捗（赤）
-// いずれも「中央寄り → 外側」の順で点灯
-function renderHeartsFromPos(pos){
-  const leftCount  = Math.max(0, pos);   // Aのリード分（0〜3）
-  const rightCount = Math.max(0, -pos);  // Bのリード分（0〜3）
-
-  // 左側（heartsB）：配列 [左端(0), 中央寄り手前(1), 中央寄り(2)]
-  // 内側から = index 2,1,0 の順で点灯 → i >= 3-leftCount でON
-  heartsB.forEach((el, i) => {
-    const wasA = el.classList.contains('filledA');
-    const nowA = (i >= (3 - leftCount));
-    el.classList.toggle('filledA', nowA);
-    el.classList.remove('filledB');
-    if (nowA && !wasA) pop(el); // 新しく点いたときだけポップ
-  });
-
-  // 右側（heartsA）：配列 [中央寄り(0), 中央寄り手前(1), 右端(2)]
-  // 内側から = index 0,1,2 の順で点灯 → i < rightCount でON
-  heartsA.forEach((el, i) => {
-    const wasB = el.classList.contains('filledB');
-    const nowB = (i < rightCount);
-    el.classList.toggle('filledB', nowB);
-    el.classList.remove('filledA');
-    if (nowB && !wasB) pop(el);
-  });
-}
+    // 左：配列 [左端(0), 内側手前(1), 内側(2)] → 内側から点灯（i >= 3-leftCount）
+    heartsB.forEach((el, i) => {
+      const wasA = el.classList.contains('filledA');
+      const nowA = (i >= (3 - leftCount));
+      el.classList.toggle('filledA', nowA);
+      el.classList.remove('filledB');
+      if (nowA && !wasA) pop(el);
+    });
+    // 右：配列 [内側(0), 内側手前(1), 右端(2)] → 内側から点灯（i < rightCount）
+    heartsA.forEach((el, i) => {
+      const wasB = el.classList.contains('filledB');
+      const nowB = (i < rightCount);
+      el.classList.toggle('filledB', nowB);
+      el.classList.remove('filledA');
+      if (nowB && !wasB) pop(el);
+    });
+  }
 
   /* =======================
      サウンド
@@ -568,9 +534,8 @@ function renderHeartsFromPos(pos){
         const t=(now-start)/1000;
         const tC=Math.max(0,Math.min(T,t));
         const y=Math.max(0, v0*tC - 0.5*g*tC*tC);
-        const yPx=y*scale;
 
-        this.ball.style.bottom = (this.groundOffsetPx + yPx) + 'px';
+        this.ball.style.bottom = (this.groundOffsetPx + y*scale) + 'px';
         const hDisp = (tC <= tPeak) ? y : H;
         this.hLine.style.bottom = (this.groundOffsetPx + hDisp*scale) + 'px';
 
@@ -785,7 +750,7 @@ function renderHeartsFromPos(pos){
     else if (key === 'l' && !B.fireBtn.disabled && !B.locked) B.fireBtn.click();
   });
 
-  // レイアウト微調整
+  // レイアウト微調整（グリッド再描画）
   function fitScenes(){
     A.scale = A.scalePxPerMeterForMaxMeters(60);
     B.scale = B.scalePxPerMeterForMaxMeters(60);
@@ -796,17 +761,14 @@ function renderHeartsFromPos(pos){
   window.addEventListener('resize', fitScenes);
   window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
   window.addEventListener('DOMContentLoaded', ()=>setTimeout(fitScenes, 50));
-  
-  
-  // ★高さ調整の呼び出し
-window.addEventListener('DOMContentLoaded', ()=>{ updateAppHeight(); setTimeout(updateAppHeight, 50); });
-window.addEventListener('resize', updateAppHeight);
-window.addEventListener('orientationchange', ()=>setTimeout(updateAppHeight, 150));
-if (window.visualViewport){
-  window.visualViewport.addEventListener('resize', updateAppHeight);
-}
-  
-  
+
+  /* ★高さ調整の呼び出し（iPadで下が切れないように） */
+  window.addEventListener('DOMContentLoaded', ()=>{ updateAppHeight(); setTimeout(updateAppHeight, 50); });
+  window.addEventListener('resize', updateAppHeight);
+  window.addEventListener('orientationchange', ()=>setTimeout(updateAppHeight, 150));
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', updateAppHeight);
+  }
 })();
 </script>
 </body>
