@@ -80,12 +80,19 @@
   100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
 }
 
-  .arena{
-    width:min(1400px, 100%); margin:0 auto;
-    padding: calc(var(--topbar-h) + 10px) 10px 10px;
-    height: 100dvh;
-    display:grid; grid-template-columns: 1fr 1fr; gap:10px;
-  }
+.arena{
+  width:min(1400px, 100%);
+  margin:0 auto;
+
+  /* 上：トップバーぶんの余白 + 少し、下：下部安全域も考慮 */
+  padding: calc(var(--topbar-h) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
+
+  /* ★高さは「画面高 − 上下padding」の“中身”の高さにする */
+  /* これで padding を足した“総高さ”が 100dvh ちょうどになります */
+  height: calc(100dvh - (var(--topbar-h) + 20px + env(safe-area-inset-bottom)));
+
+  display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+}
   .pane{
     position:relative;
     background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
