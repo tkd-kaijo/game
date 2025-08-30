@@ -227,6 +227,8 @@ body{
   100%{ transform: translateY(0) scale(1); opacity:1; }
 }
 .verdict.pop{ animation: verdict-pop .22s ease-out; }
+/* Go!/Ready バッジは使わないので隠す */
+.badge{ display:none !important; }
 </style>
 </head>
 <body>
@@ -465,6 +467,7 @@ this.verdictEl = document.getElementById('verdict'+prefix);               // ←
       this.t0Roulette = 0;
       this.challenge = null;
       this.prevChallenge = null;
+      this.verdictTimer = null; // ← 判定の自動消去用
 
       // 相手からの加速（自分のルーレット周回が速くなる）
       this.debuffMul = 1.0;
@@ -578,6 +581,7 @@ this.resultEl.textContent='';
     animateThrow(v0){
       this.inFlight = true;
       // 次の投射を始めたら、前回の大きい判定を消す
+if (this.verdictTimer) clearTimeout(this.verdictTimer);
 if (this.verdictEl){
   this.verdictEl.className = 'verdict';
   this.verdictEl.textContent = '';
@@ -645,6 +649,14 @@ if (this.verdictEl){
   this.verdictEl.textContent = vText;
 
   // 表示＆ポップ演出
+// 3秒後に自動で判定を消す（直前のタイマーはクリア）
+if (this.verdictTimer) clearTimeout(this.verdictTimer);
+this.verdictTimer = setTimeout(()=>{
+  if (this.verdictEl){
+    this.verdictEl.className = 'verdict';
+    this.verdictEl.textContent = '';
+  }
+}, 3000);
   void this.verdictEl.offsetWidth;          // reflowでアニメ再始動
   this.verdictEl.classList.add('show','pop');
   setTimeout(()=>this.verdictEl && this.verdictEl.classList.remove('pop'), 260);
@@ -672,7 +684,7 @@ if (this.verdictEl){
       this.locked = false;
     }
 
-    enablePlay(on){ this.fireBtn.disabled = !on; this.roundBadge.textContent = on ? 'Go!' : 'Ready'; }
+    enablePlay(on){ this.fireBtn.disabled = !on; }
     onStart(){ this.enablePlay(true); this.startRoulette(); }
     onStop(){ this.enablePlay(false); this.stopRoulette(); this.locked=true; }
     reset(){
