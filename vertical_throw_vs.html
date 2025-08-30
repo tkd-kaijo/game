@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>鉛直投げ上げ対戦ゲーム〜先に3つのハートをとれ！〜</title>
 <style>
   :root{
@@ -16,6 +16,13 @@
   --b-fill: #ff4a4a;  /* Bが取ったハート = 赤 */
 }
   }
+  
+  
+  
+
+
+
+
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
@@ -79,6 +86,27 @@
   70%  { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
   100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
 }
+
+
+
+  :root{
+  /* JSが入れてくれる “可視高さ(px)” と “topbar実寸(px)” の受け皿 */
+  --appH: 100vh;        /* フォールバック */
+  --topbar-real: 110px; /* フォールバック（だいたいの高さ） */
+}
+
+/* 上パディングはtopbar実寸を使う。下はホームバー安全域を足す */
+.arena{
+  padding: calc(var(--topbar-real) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
+  /* 総高さ = 可視高さ。中身の高さ = 総高さ − 上下padding */
+  height: calc(
+    var(--appH) 
+    - (var(--topbar-real) + 20px + env(safe-area-inset-bottom))
+  );
+}
+
+
+
 
 .arena{
   width:min(1400px, 100%);
@@ -768,6 +796,17 @@ function renderHeartsFromPos(pos){
   window.addEventListener('resize', fitScenes);
   window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
   window.addEventListener('DOMContentLoaded', ()=>setTimeout(fitScenes, 50));
+  
+  
+  // ★高さ調整の呼び出し
+window.addEventListener('DOMContentLoaded', ()=>{ updateAppHeight(); setTimeout(updateAppHeight, 50); });
+window.addEventListener('resize', updateAppHeight);
+window.addEventListener('orientationchange', ()=>setTimeout(updateAppHeight, 150));
+if (window.visualViewport){
+  window.visualViewport.addEventListener('resize', updateAppHeight);
+}
+  
+  
 })();
 </script>
 </body>
