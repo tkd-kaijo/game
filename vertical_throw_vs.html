@@ -12,12 +12,15 @@
   --a-tint: rgba(90,170,255,.12); /* A半透明青 */
   --b-tint: rgba(255,90,120,.12); /* B半透明赤 */
 
-  --a-fill: #6ab7ff;  /* Aリード（左側が点灯）= 青 */
-  --b-fill: #ff4a4a;  /* Bリード（右側が点灯）= 赤 */
+  --a-fill: #6ab7ff;  /* Aリード表示（左側）= 青 */
+  --b-fill: #ff4a4a;  /* Bリード表示（右側）= 赤 */
 
   /* JSが書き込む可視高さ/トップバー実寸（フォールバック） */
   --appH: 100vh;
   --topbar-real: 110px;
+
+  /* 判定欄の固定幅（ズレ防止） */
+  --verdict-w: 10ch;
 }
 
 *{box-sizing:border-box}
@@ -52,41 +55,27 @@ body{
 /* ▼ ハートUI */
 .heartsWrap{ display:flex; align-items:center; justify-content:center; width:100%; }
 .heartRow{ display:flex; align-items:center; gap:14px; }
-.midgap{ width:28px; height:1px; } /* 真ん中の小さな空き */
+.midgap{ width:28px; height:1px; }
 .heart{ width:34px; height:34px; display:inline-block; }
 .heart svg{ width:100%; height:100%; transform-origin:50% 55%; }
-/* 初期は塗りなし＆点線アウトライン */
 .heart .fill{ fill: transparent; }
-.heart .outline{
-  fill:none; stroke:rgba(255,255,255,.7); stroke-width:2.2; stroke-dasharray:4 3;
-}
-/* 色が付いた状態（A=青、B=赤） */
-.heart.filledA .fill{ fill: var(--a-fill, #6ab7ff); }
-.heart.filledB .fill{ fill: var(--b-fill, #ff4a4a); }
-.heart.filledA .outline,
-.heart.filledB .outline{ stroke-dasharray: none; }
-/* 点灯ポップ */
+.heart .outline{ fill:none; stroke:rgba(255,255,255,.7); stroke-width:2.2; stroke-dasharray:4 3; }
+.heart.filledA .fill{ fill: var(--a-fill); }
+.heart.filledB .fill{ fill: var(--b-fill); }
+.heart.filledA .outline, .heart.filledB .outline{ stroke-dasharray:none; }
 .heart.pop svg{ animation: heart-pop .28s ease-out; }
 @keyframes heart-pop{
-  0%   { transform: scale(0.65); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
-  70%  { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
-  100% { transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  0%{ transform: scale(0.65); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  70%{ transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
+  100%{ transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
 }
 
-/* ▼ 唯一の .arena（JSの実寸を使う） */
+/* ▼ アリーナ（iPadの下切れ対策。JSで --appH / --topbar-real を更新） */
 .arena{
   width:min(1400px, 100%);
   margin:0 auto;
-
-  /* 上=topbar実寸、下=ホームバー安全域 */
   padding: calc(var(--topbar-real) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
-
-  /* 総高さ=可視高さ。中身=総高さ - 上下padding */
-  height: calc(
-    var(--appH)
-    - (var(--topbar-real) + 20px + env(safe-area-inset-bottom))
-  );
-
+  height: calc(var(--appH) - (var(--topbar-real) + 20px + env(safe-area-inset-bottom)));
   display:grid; grid-template-columns: 1fr 1fr; gap:10px;
 }
 
@@ -96,14 +85,9 @@ body{
   border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; 
   display:flex; flex-direction:column; min-height:0; overflow:hidden;
 }
-/* 半透明色のオーバーレイ（Aは青、Bは赤） */
-.pane::before{
-  content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
-  background: transparent;
-}
+.pane::before{ content:""; position:absolute; inset:0; pointer-events:none; z-index:0; background:transparent; }
 #paneA::before{ background: var(--a-tint); }
 #paneB::before{ background: var(--b-tint); }
-/* 中身は上に */
 .pane > *{ position:relative; z-index:1; }
 
 .pane header{
@@ -111,10 +95,34 @@ body{
   flex:0 0 auto;
 }
 .name{font-weight:900; letter-spacing:.02em; font-size:20px}
-.badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:13px; background:rgba(255,255,255,.08); color:var(--yellow)}
+/* Go!/Ready バッジは使わないので隠す */
+.badge{ display:none !important; }
 .mutag{font-size:12px; color:var(--muted); margin-left:8px}
 
-.challenge{font-weight:900; color:#ff5b5b; margin-bottom:8px; flex:0 0 auto;}
+/* チャレンジ行：左=課題、右=判定（固定幅でズレ防止） */
+.challenge{
+  display:grid; grid-template-columns: 1fr var(--verdict-w);
+  align-items:center; gap:12px;
+  margin-bottom:8px; font-weight:900; color:#ff5b5b;
+}
+.verdict{
+  width:100%; text-align:right; white-space:nowrap;
+  font-variant-numeric: tabular-nums; font-weight:900;
+  font-size: clamp(18px, 2.6vw, 34px); line-height:1;
+  visibility:hidden; opacity:0; transform: translateY(-4px) scale(.95);
+  transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+}
+.verdict.show{ visibility:visible; opacity:1; transform: translateY(0) scale(1); transition-delay:0s; }
+.verdict.great{ color:#a7ff6a; }
+.verdict.good { color:var(--ok); }
+.verdict.ok   { color:#ffd36a; }
+.verdict.bad  { color:var(--ng); }
+@keyframes verdict-pop{
+  0%{ transform: translateY(-6px) scale(.85); opacity:.0; }
+  70%{ transform: translateY(0) scale(1.07); opacity:1; }
+  100%{ transform: translateY(0) scale(1); opacity:1; }
+}
+.verdict.pop{ animation: verdict-pop .22s ease-out; }
 
 .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; flex:0 0 auto;}
 .bar{height:18px; background:#111528; border-radius:999px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,.08)}
@@ -183,52 +191,6 @@ body{
 @media (orientation: portrait){
   .overlayPortrait{ display:flex; }
 }
-/* チャレンジ行：左=課題、右=判定（大きく） */
-.challenge{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom:8px;
-  font-weight:900;
-  color:#ff5b5b; /* 左側の課題テキストの色は従来どおり */
-}
-
-/* 右側に出す判定バッジ。速度表示くらいのサイズに */
-.verdict{
-  min-width: 7ch;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-weight: 900;
-  font-size: clamp(18px, 2.6vw, 34px); /* ← .speed に合わせたサイズ感 */
-  line-height: 1;
-  color: #e8edf2;
-  opacity: 0;
-  transform: translateY(-4px) scale(.95);
-  transition: opacity .18s ease, transform .18s ease;
-}
-
-/* 表示トグル用 */
-.verdict.show{
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-/* 色付けは既存の great/good/ok/bad を流用 */
-.verdict.great{ color:#a7ff6a; }
-.verdict.good { color:var(--ok); }
-.verdict.ok   { color:#ffd36a; }
-.verdict.bad  { color:var(--ng); }
-
-/* ちょいポップ演出 */
-@keyframes verdict-pop{
-  0%{ transform: translateY(-6px) scale(.85); opacity:.0; }
-  70%{ transform: translateY(0) scale(1.07); opacity:1; }
-  100%{ transform: translateY(0) scale(1); opacity:1; }
-}
-.verdict.pop{ animation: verdict-pop .22s ease-out; }
-/* Go!/Ready バッジは使わないので隠す */
-.badge{ display:none !important; }
 </style>
 </head>
 <body>
@@ -246,11 +208,9 @@ body{
       <button class="startBtn" id="startBtn">対戦スタート</button>
     </div>
 
-    <!-- ▼ タイトル真下：ハート（中央揃え） -->
+    <!-- タイトル真下：ハート -->
     <div class="heartsWrap" id="heartsWrap">
-      <div class="heartRow" id="heartRow">
-        <!-- JSで6個（左からB×3、中央すき間、A×3）を生成 -->
-      </div>
+      <div class="heartRow" id="heartRow"></div>
     </div>
   </div>
 
@@ -260,10 +220,11 @@ body{
         <div class="name">プレイヤーA <span class="mutag" id="mulA">x1.0</span></div>
         <div><span class="badge" id="roundA">Ready</span></div>
       </header>
-   <div class="challenge" id="challengeA">
-  <span id="challengeAText">—</span>
-  <span class="verdict" id="verdictA"></span>
-</div>
+
+      <div class="challenge" id="challengeA">
+        <span id="challengeAText">—</span>
+        <span class="verdict" id="verdictA"></span>
+      </div>
 
       <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
         <div class="bar"><div class="fill" id="fillA"></div></div>
@@ -272,6 +233,7 @@ body{
           <div class="mult">相手からの加速: <span id="debA">x1.0</span></div>
         </div>
       </div>
+
       <div class="actions">
         <button class="btn" id="fireA">投射！(Aボタン)</button>
       </div>
@@ -298,10 +260,11 @@ body{
         <div class="name">プレイヤーB <span class="mutag" id="mulB">x1.0</span></div>
         <div><span class="badge" id="roundB">Ready</span></div>
       </header>
+
       <div class="challenge" id="challengeB">
-  <span id="challengeBText">—</span>
-  <span class="verdict" id="verdictB"></span>
-</div>
+        <span id="challengeBText">—</span>
+        <span class="verdict" id="verdictB"></span>
+      </div>
 
       <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
         <div class="bar"><div class="fill" id="fillB"></div></div>
@@ -310,6 +273,7 @@ body{
           <div class="mult">相手からの加速: <span id="debB">x1.0</span></div>
         </div>
       </div>
+
       <div class="actions">
         <button class="btn" id="fireB">投射！(Lボタン)</button>
       </div>
@@ -344,7 +308,7 @@ body{
 
 <script>
 (() => {
-  /* ===== 可視高さ/トップバー実寸 → CSS変数へ ===== */
+  /* ===== 可視高さ/トップバー実寸 → CSS変数へ（iPad下切れ防止） ===== */
   function updateAppHeight(){
     const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
     const topbar = document.querySelector('.topbar');
@@ -367,8 +331,8 @@ body{
       <path class="fill" d="M12 21s-6.7-4.35-9.33-7.33C-0.3 10.75 1.1 5.7 5.2 5.2 7.3 4.95 9 6.1 12 8.7c3-2.6 4.7-3.75 6.8-3.5 4.1.5 5.5 5.55 2.53 8.47C18.7 16.65 12 21 12 21z"/>
       <path class="outline" d="M12 21s-6.7-4.35-9.33-7.33C-0.3 10.75 1.1 5.7 5.2 5.2 7.3 4.95 9 6.1 12 8.7c3-2.6 4.7-3.75 6.8-3.5 4.1.5 5.5 5.55 2.53 8.47C18.7 16.65 12 21 12 21z"/>
     </svg>`;
-  const heartsB = []; // 左3（Bの枠：Aがリードすると青で埋まる）
-  const heartsA = []; // 右3（Aの枠：Bがリードすると赤で埋まる）
+  const heartsB = []; // 左3（Aがリード時に青で点灯）
+  const heartsA = []; // 右3（Bがリード時に赤で点灯）
 
   function makeHeart(side){
     const d = document.createElement('div');
@@ -377,23 +341,20 @@ body{
     d.innerHTML = HEART_SVG;
     return d;
   }
-  // 左にB×3
+  // 左にB×3（インデックス 0 左端 ← 2 内側）
   for(let i=0;i<3;i++){ const h=makeHeart('B'); heartRow.appendChild(h); heartsB.push(h); }
-  // 中央の小空き
+  // 真ん中の小空き
   const mg = document.createElement('div'); mg.className='midgap'; heartRow.appendChild(mg);
-  // 右にA×3
+  // 右にA×3（インデックス 0 内側 → 2 右端）
   for(let i=0;i<3;i++){ const h=makeHeart('A'); heartRow.appendChild(h); heartsA.push(h); }
 
-  // ポップ演出
-  function pop(el){
-    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
-  }
-  // 綱位置（-3〜+3）をハート表示へ反映
+  function pop(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+
   function renderHeartsFromPos(pos){
     const leftCount  = Math.max(0, pos);   // Aのリード分（0〜3）：左を青で
     const rightCount = Math.max(0, -pos);  // Bのリード分（0〜3）：右を赤で
 
-    // 左：配列 [左端(0), 内側手前(1), 内側(2)] → 内側から点灯（i >= 3-leftCount）
+    // 左：内側(2)→外へ（i >= 3-leftCount）
     heartsB.forEach((el, i) => {
       const wasA = el.classList.contains('filledA');
       const nowA = (i >= (3 - leftCount));
@@ -401,7 +362,7 @@ body{
       el.classList.remove('filledB');
       if (nowA && !wasA) pop(el);
     });
-    // 右：配列 [内側(0), 内側手前(1), 右端(2)] → 内側から点灯（i < rightCount）
+    // 右：内側(0)→外へ（i < rightCount）
     heartsA.forEach((el, i) => {
       const wasB = el.classList.contains('filledB');
       const nowB = (i < rightCount);
@@ -444,6 +405,8 @@ body{
       this.inFlight = false;
       this.stopped  = false;
       this.onLanded = null;
+
+      // 要素取得
       this.fill   = document.getElementById('fill'+prefix);
       this.speedL = document.getElementById('speed'+prefix);
       this.fireBtn= document.getElementById('fire'+prefix);
@@ -455,19 +418,20 @@ body{
       this.hValEl = document.getElementById('hVal'+prefix);
       this.tValEl = document.getElementById('tVal'+prefix);
       this.roundBadge = document.getElementById('round'+prefix);
-  this.challengeText = document.getElementById('challenge'+prefix);
-this.challengeLabel = document.getElementById('challenge'+prefix+'Text'); // ← 追加
-this.verdictEl = document.getElementById('verdict'+prefix);               // ← 追加
+      this.challengeText = document.getElementById('challenge'+prefix);
+      this.challengeLabel = document.getElementById('challenge'+prefix+'Text');
+      this.verdictEl = document.getElementById('verdict'+prefix);
       this.resultEl = document.getElementById('result'+prefix);
       this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
       this.debTag = document.getElementById(prefix==='A'?'debA':'debB');
 
+      // 状態
       this.runningRoulette = false;
       this.locked = false;
       this.t0Roulette = 0;
       this.challenge = null;
       this.prevChallenge = null;
-      this.verdictTimer = null; // ← 判定の自動消去用
+      this.verdictTimer = null; // 判定の自動消去用
 
       // 相手からの加速（自分のルーレット周回が速くなる）
       this.debuffMul = 1.0;
@@ -481,6 +445,10 @@ this.verdictEl = document.getElementById('verdict'+prefix);               // ←
       this.hLine.style.bottom = this.groundOffsetPx+'px';
       this.renderGrid();
 
+      // 判定欄は NBSP で幅保持（visibility 切替でズレ防止）
+      if (this.verdictEl) this.verdictEl.textContent = '\u00A0';
+
+      // 操作
       this.fireBtn.addEventListener('click', ()=>{
         if(this.locked || this.fireBtn.disabled) return;
         this.locked = true;
@@ -490,7 +458,6 @@ this.verdictEl = document.getElementById('verdict'+prefix);               // ←
       });
 
       this.pickChallenge();
-      this.roundBadge.textContent = 'Ready';
       this.updateMulUI();
     }
 
@@ -573,19 +540,21 @@ this.verdictEl = document.getElementById('verdict'+prefix);               // ←
         }
       } while(this.prevChallenge && newC.type===this.prevChallenge.type && newC.target===this.prevChallenge.target);
       this.challenge=newC; this.prevChallenge=newC;
-     this.challengeLabel.textContent = newC.text;
-this.resultEl.textContent='';
-
+      this.challengeLabel.textContent = newC.text;
+      this.resultEl.textContent='';
+      // 判定は課題更新では消さない（3秒経過 or 次投射で消える）
     }
 
     animateThrow(v0){
       this.inFlight = true;
-      // 次の投射を始めたら、前回の大きい判定を消す
-if (this.verdictTimer) clearTimeout(this.verdictTimer);
-if (this.verdictEl){
-  this.verdictEl.className = 'verdict';
-  this.verdictEl.textContent = '';
-}
+
+      // 次の投射で即非表示（レイアウトは保持）
+      if (this.verdictTimer) clearTimeout(this.verdictTimer);
+      if (this.verdictEl){
+        this.verdictEl.classList.remove('show','pop','great','good','ok','bad');
+        this.verdictEl.textContent = '\u00A0';
+      }
+
       const scale=this.scale;
       this.renderGrid();
       const T=2*v0/g; const H=(v0*v0)/(2*g);
@@ -636,38 +605,32 @@ if (this.verdictEl){
       else if(verdict==='good'){ this.resultEl.innerHTML=`<span class="good">good!（誤差 ${pctText}）</span>`; goodSound(); }
       else if(verdict==='ok'){ this.resultEl.innerHTML=`<span class="ok">ok（誤差 ${pctText}）</span>`; okSound(); }
       else { this.resultEl.innerHTML=`<span class="bad">miss…（誤差 ${pctText}）</span>`; wrongSound(); }
-      // 右側の大きい判定表示（名前/課題の右）
-if (this.verdictEl){
-  // いったん状態リセット
-  this.verdictEl.className = 'verdict';
-  // 種別に応じてクラス・文言・色付け
-  let vText = '';
-  if (verdict==='great'){ vText='great!!'; this.verdictEl.classList.add('great'); }
-  else if (verdict==='good'){ vText='good!'; this.verdictEl.classList.add('good'); }
-  else if (verdict==='ok'){ vText='ok'; this.verdictEl.classList.add('ok'); }
-  else { vText='miss…'; this.verdictEl.classList.add('bad'); }
-  this.verdictEl.textContent = vText;
 
-  // 表示＆ポップ演出
-// 3秒後に自動で判定を消す（直前のタイマーはクリア）
-if (this.verdictTimer) clearTimeout(this.verdictTimer);
-this.verdictTimer = setTimeout(()=>{
-  if (this.verdictEl){
-    this.verdictEl.className = 'verdict';
-    this.verdictEl.textContent = '';
-  }
-}, 3000);
-  void this.verdictEl.offsetWidth;          // reflowでアニメ再始動
-  this.verdictEl.classList.add('show','pop');
-  setTimeout(()=>this.verdictEl && this.verdictEl.classList.remove('pop'), 260);
-}
+      /* 右側の大きい判定表示（課題の右） */
+      if (this.verdictEl){
+        const el = this.verdictEl;
+        el.classList.remove('great','good','ok','bad','pop','show');
+        let vText = 'miss…', vClass = 'bad';
+        if (verdict==='great'){ vText='great!!'; vClass='great'; }
+        else if (verdict==='good'){ vText='good!'; vClass='good'; }
+        else if (verdict==='ok'){ vText='ok'; vClass='ok'; }
+        el.textContent = vText;
+        el.classList.add(vClass);
+        void el.offsetWidth;
+        el.classList.add('show','pop');
+        setTimeout(()=> el.classList.remove('pop'), 260);
 
-      // ハート＆ルーレット加速
+        // 3秒後に自動で非表示（レイアウトは保持）
+        if (this.verdictTimer) clearTimeout(this.verdictTimer);
+        this.verdictTimer = setTimeout(()=>{
+          el.classList.remove('show','pop','great','good','ok','bad');
+          el.textContent = '\u00A0';
+        }, 3000);
+      }
+
+      // ハート＆ルーレット加速（good以上で1マス、greatは2倍重ね/ goodは1.5倍重ね）
       if (verdict==='great' || verdict==='good'){
-        // 綱引き1マス相当（表示はハート）
         if(this.prefix==='A') tugMove(+1); else tugMove(-1);
-
-        // 相手のルーレットを加速（重ねがけ）
         const factor = verdict==='great' ? 2.0 : 1.5;
         this.enemy.applyDebuff(factor);
       }
@@ -684,6 +647,7 @@ this.verdictTimer = setTimeout(()=>{
       this.locked = false;
     }
 
+    // バッジ表記は使わないので、ボタンの有効/無効だけ制御
     enablePlay(on){ this.fireBtn.disabled = !on; }
     onStart(){ this.enablePlay(true); this.startRoulette(); }
     onStop(){ this.enablePlay(false); this.stopRoulette(); this.locked=true; }
@@ -692,7 +656,7 @@ this.verdictTimer = setTimeout(()=>{
       this.inFlight = false;
       this.onLanded = null;
       this.stopRoulette();
-      this.locked=false; this.fireBtn.disabled=true; this.roundBadge.textContent='Ready';
+      this.locked=false; this.fireBtn.disabled=true;
       this.ball.style.bottom = this.groundOffsetPx+'px';
       this.hLine.style.bottom = this.groundOffsetPx+'px';
       this.yNowEl.textContent='0.00 m'; this.hValEl.textContent='0.00 m'; this.tValEl.textContent='0.00 s';
@@ -700,6 +664,12 @@ this.verdictTimer = setTimeout(()=>{
       this.renderGrid();
       this.pickChallenge(); this.updateSpeedUI(0);
       this.resultEl.textContent='';
+      // 判定欄クリア（幅は保持）
+      if (this.verdictTimer) clearTimeout(this.verdictTimer);
+      if (this.verdictEl){
+        this.verdictEl.classList.remove('show','pop','great','good','ok','bad');
+        this.verdictEl.textContent = '\u00A0';
+      }
       this.clearDebuff();
     }
     onTimeUp(){
@@ -720,22 +690,21 @@ this.verdictTimer = setTimeout(()=>{
   const B = new DuelGame('B');
   A.enemy = B; B.enemy = A;
 
-  // 内部的な「綱位置」（-3〜+3）
+  // 綱位置（-3〜+3）を一本で管理
   let tugPos = 0;
 
   function tugMove(by){
     tugPos = Math.max(-3, Math.min(3, tugPos + by));
     renderHeartsFromPos(tugPos);
-    if (tugPos === 3) showWinnerImmediate('A');    // 3つ取った
-    if (tugPos === -3) showWinnerImmediate('B');   // 3つ取った
+    if (tugPos === 3) showWinnerImmediate('A');
+    if (tugPos === -3) showWinnerImmediate('B');
   }
 
   // 初期ハート表示
   renderHeartsFromPos(0);
 
-  let timeUp = false;
-  let pendingLandings = 0;
-
+  // タイマー
+  let timeUp = false, pendingLandings = 0;
   let tRemain = 120.0;   // 120秒固定
   let ticking = false;
   let rafId = null, lastTs = 0;
@@ -750,8 +719,7 @@ this.verdictTimer = setTimeout(()=>{
     if (tRemain > 0){
       rafId = requestAnimationFrame(tick);
     } else {
-      ticking = false;
-      timeUp = true;
+      ticking = false; timeUp = true;
       A.onTimeUp(); B.onTimeUp();
       pendingLandings = (A.inFlight ? 1 : 0) + (B.inFlight ? 1 : 0);
       if (pendingLandings === 0) {
@@ -849,7 +817,7 @@ this.verdictTimer = setTimeout(()=>{
   window.addEventListener('orientationchange', ()=>setTimeout(fitScenes, 150));
   window.addEventListener('DOMContentLoaded', ()=>setTimeout(fitScenes, 50));
 
-  /* ★高さ調整の呼び出し（iPadで下が切れないように） */
+  /* ★高さ調整（iPadで下が切れないように） */
   window.addEventListener('DOMContentLoaded', ()=>{ updateAppHeight(); setTimeout(updateAppHeight, 50); });
   window.addEventListener('resize', updateAppHeight);
   window.addEventListener('orientationchange', ()=>setTimeout(updateAppHeight, 150));
