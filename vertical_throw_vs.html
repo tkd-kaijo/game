@@ -183,6 +183,50 @@ body{
 @media (orientation: portrait){
   .overlayPortrait{ display:flex; }
 }
+/* チャレンジ行：左=課題、右=判定（大きく） */
+.challenge{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+  font-weight:900;
+  color:#ff5b5b; /* 左側の課題テキストの色は従来どおり */
+}
+
+/* 右側に出す判定バッジ。速度表示くらいのサイズに */
+.verdict{
+  min-width: 7ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  font-size: clamp(18px, 2.6vw, 34px); /* ← .speed に合わせたサイズ感 */
+  line-height: 1;
+  color: #e8edf2;
+  opacity: 0;
+  transform: translateY(-4px) scale(.95);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+/* 表示トグル用 */
+.verdict.show{
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* 色付けは既存の great/good/ok/bad を流用 */
+.verdict.great{ color:#a7ff6a; }
+.verdict.good { color:var(--ok); }
+.verdict.ok   { color:#ffd36a; }
+.verdict.bad  { color:var(--ng); }
+
+/* ちょいポップ演出 */
+@keyframes verdict-pop{
+  0%{ transform: translateY(-6px) scale(.85); opacity:.0; }
+  70%{ transform: translateY(0) scale(1.07); opacity:1; }
+  100%{ transform: translateY(0) scale(1); opacity:1; }
+}
+.verdict.pop{ animation: verdict-pop .22s ease-out; }
 </style>
 </head>
 <body>
@@ -214,7 +258,10 @@ body{
         <div class="name">プレイヤーA <span class="mutag" id="mulA">x1.0</span></div>
         <div><span class="badge" id="roundA">Ready</span></div>
       </header>
-      <div class="challenge" id="challengeA">—</div>
+   <div class="challenge" id="challengeA">
+  <span id="challengeAText">—</span>
+  <span class="verdict" id="verdictA"></span>
+</div>
 
       <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
         <div class="bar"><div class="fill" id="fillA"></div></div>
@@ -249,7 +296,10 @@ body{
         <div class="name">プレイヤーB <span class="mutag" id="mulB">x1.0</span></div>
         <div><span class="badge" id="roundB">Ready</span></div>
       </header>
-      <div class="challenge" id="challengeB">—</div>
+      <div class="challenge" id="challengeB">
+  <span id="challengeBText">—</span>
+  <span class="verdict" id="verdictB"></span>
+</div>
 
       <div class="roulette" aria-label="初速ルーレット（0〜35 m/s を4.5秒基準で周回）">
         <div class="bar"><div class="fill" id="fillB"></div></div>
@@ -403,7 +453,9 @@ body{
       this.hValEl = document.getElementById('hVal'+prefix);
       this.tValEl = document.getElementById('tVal'+prefix);
       this.roundBadge = document.getElementById('round'+prefix);
-      this.challengeText = document.getElementById('challenge'+prefix);
+  this.challengeText = document.getElementById('challenge'+prefix);
+this.challengeLabel = document.getElementById('challenge'+prefix+'Text'); // ← 追加
+this.verdictEl = document.getElementById('verdict'+prefix);               // ← 追加
       this.resultEl = document.getElementById('result'+prefix);
       this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
       this.debTag = document.getElementById(prefix==='A'?'debA':'debB');
@@ -518,8 +570,12 @@ body{
         }
       } while(this.prevChallenge && newC.type===this.prevChallenge.type && newC.target===this.prevChallenge.target);
       this.challenge=newC; this.prevChallenge=newC;
-      this.challengeText.textContent=newC.text;
-      this.resultEl.textContent='';
+     this.challengeLabel.textContent = newC.text;
+this.resultEl.textContent='';
+if (this.verdictEl){
+  this.verdictEl.className = 'verdict'; // 色・show・pop を全部外す
+  this.verdictEl.textContent = '';      // 文言クリア
+}
     }
 
     animateThrow(v0){
@@ -574,6 +630,23 @@ body{
       else if(verdict==='good'){ this.resultEl.innerHTML=`<span class="good">good!（誤差 ${pctText}）</span>`; goodSound(); }
       else if(verdict==='ok'){ this.resultEl.innerHTML=`<span class="ok">ok（誤差 ${pctText}）</span>`; okSound(); }
       else { this.resultEl.innerHTML=`<span class="bad">miss…（誤差 ${pctText}）</span>`; wrongSound(); }
+      // 右側の大きい判定表示（名前/課題の右）
+if (this.verdictEl){
+  // いったん状態リセット
+  this.verdictEl.className = 'verdict';
+  // 種別に応じてクラス・文言・色付け
+  let vText = '';
+  if (verdict==='great'){ vText='great!!'; this.verdictEl.classList.add('great'); }
+  else if (verdict==='good'){ vText='good!'; this.verdictEl.classList.add('good'); }
+  else if (verdict==='ok'){ vText='ok'; this.verdictEl.classList.add('ok'); }
+  else { vText='miss…'; this.verdictEl.classList.add('bad'); }
+  this.verdictEl.textContent = vText;
+
+  // 表示＆ポップ演出
+  void this.verdictEl.offsetWidth;          // reflowでアニメ再始動
+  this.verdictEl.classList.add('show','pop');
+  setTimeout(()=>this.verdictEl && this.verdictEl.classList.remove('pop'), 260);
+}
 
       // ハート＆ルーレット加速
       if (verdict==='great' || verdict==='good'){
