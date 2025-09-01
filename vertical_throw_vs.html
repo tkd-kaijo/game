@@ -652,7 +652,10 @@ body{
       }
 
       if (this.stopped) return;
-      this.pickChallenge();
+      // miss 以外のときだけ新しい課題を出す
+if (verdict !== 'miss') {
+  this.pickChallenge();
+}
       this.renderGrid(this.scalePxPerMeterForMaxMeters(60));
       this.hLine.style.bottom = this.groundOffsetPx + 'px';
       this.fireBtn.disabled = false;
