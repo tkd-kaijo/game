@@ -71,18 +71,14 @@ body{
 }
 
 /* ▼ アリーナ */
-.arena{
-  width:min(1400px, 100%);
-  margin:0 auto;
-
-  /* 上=topbar実寸、下=0（余白なし） */
-  padding: calc(var(--topbar-real) + 10px) 10px 0;
-
-  /* 総高さ = 可視高さ（--appH） */
-  /* 中身の高さ = 総高さ − 上パディング */
-  height: calc(var(--appH) - (var(--topbar-real) + 10px));
-
-  display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+.arena {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  padding: calc(var(--topbar-real) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
+  height: 100dvh; /* ← 修正 */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .pane{
