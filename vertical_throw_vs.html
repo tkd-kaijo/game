@@ -99,7 +99,11 @@ body{
 .name{font-weight:900; letter-spacing:.02em; font-size:20px}
 /* Go!/Ready バッジは使わないので隠す */
 .badge{ display:none !important; }
-.mutag{font-size:12px; color:var(--muted); margin-left:8px}
+.mutag{
+  font-size:20px;   /* プレイヤー名と同じサイズ */
+  color:var(--muted);
+  margin-left:8px;
+}
 
 /* チャレンジ行：左=課題、右=判定（固定幅でズレ防止） */
 .challenge{
@@ -229,7 +233,7 @@ body{
   <main class="arena">
     <section class="pane" id="paneA">
       <header>
-        <div class="name">プレイヤーA <span class="mutag" id="mulA">x1.0</span></div>
+        <div class="name">プレイヤーA <span class="mutag" id="mulA">ルーレット速度 ×1.0</span></div>
         <div><span class="badge" id="roundA">Ready</span></div>
       </header>
 
@@ -269,7 +273,7 @@ body{
 
     <section class="pane" id="paneB">
       <header>
-        <div class="name">プレイヤーB <span class="mutag" id="mulB">x1.0</span></div>
+        <div class="name">プレイヤーB <span class="mutag" id="mulB">ルーレット速度 ×1.0</span></div>
         <div><span class="badge" id="roundB">Ready</span></div>
       </header>
 
@@ -434,8 +438,7 @@ body{
       this.challengeLabel = document.getElementById('challenge'+prefix+'Text');
       this.verdictEl = document.getElementById('verdict'+prefix);
       this.resultEl = document.getElementById('result'+prefix);
-      this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
-      this.debTag = document.getElementById(prefix==='A'?'debA':'debB');
+this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
 
       // 状態
       this.runningRoulette = false;
@@ -483,9 +486,8 @@ body{
       this.updateMulUI();
     }
     updateMulUI(){
-      this.mulTag.textContent = `x${this.debuffMul.toFixed(1)}`;
-      this.debTag.textContent = `x${this.debuffMul.toFixed(1)}`;
-    }
+  this.mulTag.textContent = `ルーレット速度 ×${this.debuffMul.toFixed(1)}`;
+}
 
     startRoulette(){
       this.runningRoulette = true;
