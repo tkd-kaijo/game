@@ -70,12 +70,18 @@ body{
   100%{ transform: scale(1.00); filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
 }
 
-/* ▼ アリーナ（iPadの下切れ対策。JSで --appH / --topbar-real を更新） */
+/* ▼ アリーナ */
 .arena{
   width:min(1400px, 100%);
   margin:0 auto;
-  padding: calc(var(--topbar-real) + 10px) 10px calc(10px + env(safe-area-inset-bottom));
-  height: calc(var(--appH) - (var(--topbar-real) + 20px + env(safe-area-inset-bottom)));
+
+  /* 上=topbar実寸、下=0（余白なし） */
+  padding: calc(var(--topbar-real) + 10px) 10px 0;
+
+  /* 総高さ = 可視高さ（--appH） */
+  /* 中身の高さ = 総高さ − 上パディング */
+  height: calc(var(--appH) - (var(--topbar-real) + 10px));
+
   display:grid; grid-template-columns: 1fr 1fr; gap:10px;
 }
 
@@ -129,6 +135,11 @@ body{
 .fill{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .06s linear; box-shadow:0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3)}
 .speed{font-variant-numeric: tabular-nums; font-weight:900; letter-spacing:.02em; min-width:9ch; text-align:right; font-size:clamp(18px, 2.6vw, 34px); color:#ff5b5b}
 .mult{font-variant-numeric: tabular-nums; font-weight:800; font-size:14px; color:var(--muted);}
+  .challenge #challengeAText,
+.challenge #challengeBText{
+  font-size: clamp(18px, 2.6vw, 34px);
+  line-height: 1.05;
+}
 
 .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; flex:0 0 auto;}
 .btn{
