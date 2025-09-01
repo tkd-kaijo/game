@@ -198,9 +198,14 @@ body{
 @media (orientation: portrait){
   .overlayPortrait{ display:flex; }
 }
+    body.prestart .challenge{ display:none; }
+  body.prestart .btn{
+    pointer-events: none;
+    opacity: .6;
+  }
 </style>
 </head>
-<body>
+<body class="prestart">
   <div class="overlayPortrait">
     <div>
       <h2>横画面にしてください</h2>
@@ -242,7 +247,7 @@ body{
       </div>
 
       <div class="actions">
-        <button class="btn" id="fireA">投射！(Aボタン)</button>
+        <button class="btn" id="fireA" disabled>投射！(Aボタン)</button>
       </div>
 
       <div class="gridWrap">
@@ -282,7 +287,7 @@ body{
       </div>
 
       <div class="actions">
-        <button class="btn" id="fireB">投射！(Lボタン)</button>
+        <button class="btn" id="fireB" disabled>投射！(Lボタン)</button>
       </div>
 
       <div class="gridWrap">
@@ -769,36 +774,40 @@ body{
 
   function hideWinner(){ winner.style.display='none'; }
 
-  function startMatch(){
-    hideWinner();
-    timeUp = false;
+ function startMatch(){
+  hideWinner();
+  document.body.classList.remove('prestart'); // ← 課題表示ON＆ボタン解放へ
 
-    tRemain = 120.0;
-    timerEl.textContent = tRemain.toFixed(1);
+  timeUp = false;
+  tRemain = 120.0;
+  timerEl.textContent = tRemain.toFixed(1);
 
-    lastTs = 0; 
-    ticking = true;
+  lastTs = 0; 
+  ticking = true;
 
-    tugPos = 0; renderHeartsFromPos(0);
-    A.reset(); B.reset();
-    A.onStart(); B.onStart();
+  tugPos = 0; renderHeartsFromPos(0);
+  A.reset(); B.reset();
+  A.onStart(); B.onStart();   // ← DuelGame.enablePlay(true) でボタン有効化
 
-    requestAnimationFrame(tick);
-  }
-  function prepareNext(){
-    hideWinner();
-    ticking = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    lastTs = 0;
+  requestAnimationFrame(tick);
+}
 
-    tRemain = 120.0;
-    timerEl.textContent = tRemain.toFixed(1);
+function prepareNext(){
+  hideWinner();
+  ticking = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  lastTs = 0;
 
-    tugPos = 0; renderHeartsFromPos(0);
+  tRemain = 120.0;
+  timerEl.textContent = tRemain.toFixed(1);
 
-    A.reset(); B.reset();
-    A.enablePlay(false); B.enablePlay(false);
-  }
+  tugPos = 0; renderHeartsFromPos(0);
+
+  A.reset(); B.reset();
+  A.enablePlay(false); B.enablePlay(false);
+
+  document.body.classList.add('prestart'); // ← 課題非表示＆ボタン無効に戻す
+}
 
   startBtn.addEventListener('click', startMatch);
   restartBtn.addEventListener('click', prepareNext);
