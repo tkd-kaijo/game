@@ -30,7 +30,7 @@
     svg { display:block; width:100%; height:auto; }
     /* v–tグラフを縦いっぱいに */
     #vt-container { height: 280px; }
-#vt-container > svg { width:100% !important; height:100% !important; display:block; }
+#vt-container > svg { height: 100% !important; width: auto !important; display:block; }
   </style>
 </head>
 <body>
@@ -78,7 +78,7 @@
       <div class="card">
         <div class="card-h"><div class="card-t">v–t グラフ（速度–時間）</div></div>
         <div class="card-c" id="vt-container">
-          <svg id="vt-svg" viewBox="0 0 760 280" preserveAspectRatio="none">
+          <svg id="vt-svg" viewBox="0 0 760 280">
             <g id="vt-grid"></g>
             <g id="vt-axes"></g>
             <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="6" />
@@ -353,22 +353,20 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
   const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
 
   CH_H = available;
-
-  // 入れ物の高さ
   cont.style.height = available + 'px';
 
-  // SVG の高さを「属性」と「スタイル」の両方で指定
-  svg.setAttribute('height', String(available));
+  // 縦だけいっぱいに（横は自動＝歪み無し）
   svg.style.height = available + 'px';
+  svg.style.width  = 'auto';
 
-  // viewBox も更新（歪ませずに内部座標を広げる）
+  // 内部座標も高さ分だけ拡張（要：アスペクト保持）
   vtSvg.setAttribute('viewBox', `0 0 760 ${CH_H}`);
 
-  // マージン（上下を最小限に）
+  // 余白（切れ防止しつつ最小化）
   CH_M = {
     top: 6,
     bottom: FS + 6,
-    left: Math.max(92, Math.floor(FS * 2.8)),
+    left:  Math.max(92, Math.floor(FS * 2.8)),
     right: 16
   };
 
