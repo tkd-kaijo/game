@@ -27,6 +27,35 @@
     .choices .btn.sel { outline: 2px solid var(--primary); }
     .label { font-size: 20px; font-weight: 700; white-space:nowrap; }
     .muted { color: var(--muted); }
+
+/* 追加：左右可変スプリット */
+.split{
+  --left: 65%;                 /* 初期の左幅（好みで調整） */
+  --gutter: 10px;              /* ハンドルの幅 */
+  display:grid;
+  grid-template-columns: var(--left) var(--gutter) 1fr;
+  gap:0;
+  align-items: stretch;
+}
+
+/* 既存 .grid2 は不要（残っていても影響なし） */
+
+.pane{ min-width: 160px; }     /* 左右の最小幅の下限 */
+.resizer{
+  cursor: col-resize;
+  background: #eceff3;
+  position: relative;
+}
+.resizer::before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    linear-gradient(90deg, transparent 45%, #cbd5e1 45%, #cbd5e1 55%, transparent 55%) center/6px 50% no-repeat;
+}
+
+
+
+    
     svg { display:block; width:100%; height:auto; }
     /* v–tグラフを縦いっぱいに */
     #vt-container { height: 280px; }
@@ -62,32 +91,45 @@
 
     <!-- アニメーション & グラフ -->
     <div class="grid2">
-      <div class="card">
-        <div class="card-h"><div class="card-t">位置と速度</div></div>
-        <div class="card-c">
-          <!-- 横を広げ、x範囲 -3〜18 を表示 -->
-          <svg id="sim-svg" viewBox="0 0 1200 240">
-            <g id="x-axis"></g>
-            <g id="ticks"></g>
-            <g id="ball"></g>
-            <g id="vel"></g>
-          </svg>
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="card-h"><div class="card-t">v–t グラフ（速度–時間）</div></div>
-        <div class="card-c" id="vt-container">
-          <svg id="vt-svg" viewBox="0 0 760 280">
-            <g id="vt-grid"></g>
-            <g id="vt-axes"></g>
-            <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="6" />
-          </svg>
-          <div class="muted" style="margin-top:8px;">縦線: 1 s ごと / 横線: 1 m/s ごと（v=0 は太線）</div>
-        </div>
+
+<!-- 置き換え：.grid2 内全体 -->
+<div class="split">  <!-- ← 新しいラッパ -->
+  <div class="pane pane-left">
+    <div class="card">
+      <div class="card-h"><div class="card-t">位置と速度</div></div>
+      <div class="card-c">
+        <svg id="sim-svg" viewBox="0 0 1200 240">
+          <g id="x-axis"></g>
+          <g id="ticks"></g>
+          <g id="ball"></g>
+          <g id="vel"></g>
+        </svg>
       </div>
     </div>
   </div>
+
+  <!-- ドラッグ用ハンドル -->
+  <div class="resizer" id="col-resizer" aria-label="resize panels" title="ドラッグで幅を変更"></div>
+
+  <div class="pane pane-right">
+    <div class="card">
+      <div class="card-h"><div class="card-t">v–t グラフ（速度–時間）</div></div>
+      <div class="card-c" id="vt-container">
+        <svg id="vt-svg" viewBox="0 0 760 280">
+          <g id="vt-grid"></g>
+          <g id="vt-axes"></g>
+          <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="6" />
+        </svg>
+        <div class="muted" style="margin-top:8px;">縦線: 1 s ごと / 横線: 1 m/s ごと（v=0 は太線）</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+      
+    </div>
 
   <script>
     // ---- パラメータ／スケール ----
@@ -468,6 +510,68 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
     }
 
     init();
+
+// ---- 横幅リサイズ（左右パネル） ----
+(function setupColumnResizer(){
+  const split = document.querySelector('.split');
+  const resizer = document.getElementById('col-resizer');
+  if (!split || !resizer) return;
+
+  // 前回値があれば復元（% 保存）
+  const saved = localStorage.getItem('split-left-percent');
+  if (saved){
+    split.style.setProperty('--left', saved);
+  }
+
+  let dragging = false;
+  let startX = 0;
+  let startLeftPx = 0;
+
+  function onDown(e){
+    dragging = true;
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    const rect = split.getBoundingClientRect();
+    // 現在の左カラムのピクセル幅を算出
+    const leftPx = rect.width * parseFloat(getComputedStyle(split).getPropertyValue('--left')) / 100 || rect.width * 0.65;
+    startLeftPx = leftPx;
+    document.body.style.userSelect = 'none';
+  }
+  function onMove(e){
+    if (!dragging) return;
+    const x = (e.touches ? e.touches[0].clientX : e.clientX);
+    const dx = x - startX;
+
+    const rect = split.getBoundingClientRect();
+    const gutter = parseFloat(getComputedStyle(split).getPropertyValue('--gutter')) || 10;
+    // 左右の最小幅
+    const minLeft = 200;
+    const minRight = 280;
+    let newLeftPx = Math.min(rect.width - gutter - minRight, Math.max(minLeft, startLeftPx + dx));
+    const pct = Math.round((newLeftPx / rect.width) * 1000) / 10; // 0.1%刻み
+    split.style.setProperty('--left', pct + '%');
+  }
+  function onUp(){
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+    // 保存
+    const left = getComputedStyle(split).getPropertyValue('--left').trim();
+    localStorage.setItem('split-left-percent', left);
+    // グラフの再レイアウト（必要なら）
+    requestAnimationFrame(() => {
+      resizeVT();    // ← 既存の高さ最適化関数を呼ぶ
+      renderVT();
+    });
+  }
+
+  resizer.addEventListener('mousedown', onDown);
+  resizer.addEventListener('touchstart', onDown, {passive:true});
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchmove', onMove, {passive:false});
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('touchend', onUp);
+})();
+    
   </script>
 </body>
 </html>
