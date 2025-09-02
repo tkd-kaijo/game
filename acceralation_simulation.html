@@ -58,8 +58,13 @@
     
     svg { display:block; width:100%; height:auto; }
     /* v–tグラフを縦いっぱいに */
-    #vt-container { height: 280px; }
-#vt-container > svg { height: 100% !important; width: 100% !important; display:block; }
+    /* SVGは常にコンテナにフィット */
+#vt-container { height: 280px; }
+#vt-container > svg {
+  display:block;
+  width: 100% !important;
+  height: 100% !important;
+}
   </style>
 </head>
 <body>
@@ -391,21 +396,20 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
   const svg  = document.getElementById('vt-svg');
   if (!cont || !svg) return;
 
-    const rect = cont.getBoundingClientRect();
-  const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
+  // コンテナの実測サイズ
+  const rect = cont.getBoundingClientRect();
+  const w = Math.max(300, Math.floor(rect.width));                  // ← 横幅を実測で
+  const h = Math.max(320, Math.floor(window.innerHeight - rect.top - 24)); // 下端まで
 
+  CH_W = w;
+  CH_H = h;
 
-  CH_H = available;
-  cont.style.height = available + 'px';
-
-  // 縦だけいっぱいに（横は自動＝歪み無し）
-  svg.style.height = '100%';
+  // CSS は常に 100% フィット
   svg.style.width  = '100%';
+  svg.style.height = '100%';
 
-  // 内部座標も高さ分だけ拡張（要：アスペクト保持）
-  // ここがポイント：幅はコンテナのピクセル幅に合わせる
-  CH_W = Math.max(300, Math.floor(cont.clientWidth));
-  vtSvg.setAttribute('viewBox', `0 0 ${CH_W} ${CH_H}`);
+  // 内部座標を実測に一致させる（比率ズレ＝レターボックスを消す）
+  svg.setAttribute('viewBox', `0 0 ${CH_W} ${CH_H}`);
 
   // 余白（切れ防止しつつ最小化）
   CH_M = {
