@@ -29,8 +29,8 @@
     .muted { color: var(--muted); }
     svg { display:block; width:100%; height:auto; }
     /* v–tグラフを縦いっぱいに */
-    #vt-container { height: 280px; }            /* JSで後から上書き */
-    #vt-container svg { width: 100%; height: 100%; }
+    #vt-container { height: 280px; }
+#vt-container > svg { width:100% !important; height:100% !important; display:block; }
   </style>
 </head>
 <body>
@@ -78,7 +78,7 @@
       <div class="card">
         <div class="card-h"><div class="card-t">v–t グラフ（速度–時間）</div></div>
         <div class="card-c" id="vt-container">
-          <svg id="vt-svg" viewBox="0 0 760 280">
+          <svg id="vt-svg" viewBox="0 0 760 280" preserveAspectRatio="none">
             <g id="vt-grid"></g>
             <g id="vt-axes"></g>
             <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="6" />
@@ -345,28 +345,36 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
 
     // ---- ループ制御ユーティリティ ----
     function resizeVT(){
-      const cont = document.getElementById('vt-container');
-      const svg = document.getElementById('vt-svg');
-      if (!cont || !svg) return;
+  const cont = document.getElementById('vt-container');
+  const svg  = document.getElementById('vt-svg');
+  if (!cont || !svg) return;
 
-      const rect = cont.getBoundingClientRect();
-      // 画面下端までの余白をなるべく使う（下マージン 24px）
-      const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
-      CH_H = available;
-      cont.style.height = available + 'px';
-      svg.style.height = '100%';
+  const rect = cont.getBoundingClientRect();
+  const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
 
-      // フォントサイズに合わせてマージンを動的調整（切れ防止しつつ空白最小化）
-      CH_M = {
-        top:   6,          // 上
-        bottom:FS + 6,         // 下：軸ラベル＋t数値
-        left:  Math.max(92, Math.floor(FS * 2.8)), // 左：縦軸ラベル＋数値幅
-        right: 16
-      };
+  CH_H = available;
 
-      buildVTAxes();
-      renderVT();
-    }
+  // 入れ物の高さ
+  cont.style.height = available + 'px';
+
+  // SVG の高さを「属性」と「スタイル」の両方で指定
+  svg.setAttribute('height', String(available));
+  svg.style.height = available + 'px';
+
+  // viewBox も更新（歪ませずに内部座標を広げる）
+  vtSvg.setAttribute('viewBox', `0 0 760 ${CH_H}`);
+
+  // マージン（上下を最小限に）
+  CH_M = {
+    top: 6,
+    bottom: FS + 6,
+    left: Math.max(92, Math.floor(FS * 2.8)),
+    right: 16
+  };
+
+  buildVTAxes();
+  renderVT();
+}
     function stopLoop(){
       if (state.raf){
         cancelAnimationFrame(state.raf);
