@@ -72,7 +72,7 @@
 
       <div class="card">
         <div class="card-h"><div class="card-t">v–t グラフ（速度–時間）</div></div>
-        <div class="card-c" style="height:280px;">
+        <div class="card-c" id="vt-container">
           <svg id="vt-svg" viewBox="0 0 760 280">
             <g id="vt-grid"></g>
             <g id="vt-axes"></g>
@@ -93,13 +93,13 @@
     const X_MAX = 8;   // -3〜8 m
     const T_MAX = 5;
     const V_MIN = -3;
-    const V_MAX = 5;
+    const V_MAX = 6;
 
     const SIM_W = 760, SIM_H = 240;
     const AXIS_Y = 170; // 位置と速度SVGのx軸Y座標
 
-    const CH_W = 760, CH_H = 280; // v-t グラフ
-    const CH_M = { top: 10, right: 20, bottom: 40, left: 60 };
+    const CH_W = 760; let CH_H = 280; // v-t グラフ（高さは動的に変更）
+    const CH_M = { top: 10, right: 20, bottom: 72, left: 72 }; // 36pxラベルに余裕
 
     // スケール関数
     const xPxPerM = (SIM_W - 50 - 50) / (X_MAX - X_MIN);
@@ -149,6 +149,7 @@
     const vtGridG = document.getElementById('vt-grid');
     const vtAxesG = document.getElementById('vt-axes');
     const vtPath  = document.getElementById('vt-path');
+    const vtSvg   = document.getElementById('vt-svg');
 
     function button(label, selected){
       const b = document.createElement('button');
@@ -213,8 +214,11 @@
       ticksG.appendChild(origin);
     }
 
-    // ---- v-t グラフの静的要素（グリッド・軸。すべて1.5倍=18px） ----
+    // ---- v-t グラフの静的要素（グリッド・軸。すべて36px） ----
     function buildVTAxes(){
+      // viewBox の高さを最新 CH_H に合わせる（要素が無ければ何もしない）
+      if (!vtSvg) return;
+      vtSvg.setAttribute('viewBox', `0 0 760 ${CH_H}`);
       vtGridG.innerHTML = '';
       vtAxesG.innerHTML = '';
       // 縦線（t: 0..5）
@@ -228,9 +232,9 @@
         vtGridG.appendChild(vline);
         const tlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         tlab.setAttribute('x', x);
-        tlab.setAttribute('y', CH_H - 10);
+        tlab.setAttribute('y', CH_H - 12);
         tlab.setAttribute('text-anchor', 'middle');
-        tlab.setAttribute('font-size', '18');
+        tlab.setAttribute('font-size', '36');
         tlab.setAttribute('fill', '#333');
         tlab.textContent = String(tt);
         vtAxesG.appendChild(tlab);
@@ -246,9 +250,9 @@
         vtGridG.appendChild(hline);
         const vlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         vlab.setAttribute('x', CH_M.left - 10);
-        vlab.setAttribute('y', y + 5);
+        vlab.setAttribute('y', y + 10);
         vlab.setAttribute('text-anchor', 'end');
-        vlab.setAttribute('font-size', '18');
+        vlab.setAttribute('font-size', '36');
         vlab.setAttribute('fill', '#333');
         vlab.textContent = String(vv);
         vtAxesG.appendChild(vlab);
@@ -258,14 +262,14 @@
       tl.setAttribute('x', (CH_M.left + (CH_W - CH_M.right)) / 2);
       tl.setAttribute('y', CH_H - 4);
       tl.setAttribute('text-anchor', 'middle');
-      tl.setAttribute('font-size', '18');
+      tl.setAttribute('font-size', '36');
       tl.textContent = 't [s]';
       vtAxesG.appendChild(tl);
 
       const vl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       vl.setAttribute('transform', `translate(16 ${ (CH_M.top + (CH_H - CH_M.bottom)) / 2 }) rotate(-90)`);
       vl.setAttribute('text-anchor', 'middle');
-      vl.setAttribute('font-size', '18');
+      vl.setAttribute('font-size', '36');
       vl.textContent = 'v [m/s]';
       vtAxesG.appendChild(vl);
     }
@@ -327,6 +331,26 @@
       vtPath.setAttribute('d', d || '');
     }
 
+    // ---- ループ制御ユーティリティ ----
+    function resizeVT(){
+      const cont = document.getElementById('vt-container');
+      const svg = document.getElementById('vt-svg');
+      if (!cont || !svg) return;
+      const rect = cont.getBoundingClientRect();
+      // 画面下端までの余白をなるべく使う（下マージン 24px）
+      const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
+      CH_H = available;
+      cont.style.height = available + 'px';
+      buildVTAxes();
+      renderVT();
+    }
+    function stopLoop(){
+      if (state.raf){
+        cancelAnimationFrame(state.raf);
+        state.raf = null;
+      }
+    }
+
     // ---- シミュレータ制御（ドリフト対策：絶対時間ベース） ----
     function pushSeriesIfNeeded(curT){
       const addEvery = 0.05;
@@ -352,14 +376,20 @@
         curT = Math.min(T_MAX, state.playBaseT + elapsed);
         if (curT >= T_MAX - 1e-9){ state.playing = false; }
       } else {
-        // 非再生・非ステップ
+        stopLoop();
         return;
       }
 
       state.t = curT;
       pushSeriesIfNeeded(curT);
       renderSim(); renderVT();
-      if (state.playing || state.stepping) state.raf = requestAnimationFrame(loop);
+
+      if (state.playing || state.stepping) {
+        state.raf = requestAnimationFrame(loop);
+      } else {
+        // どちらでもない → 次フレームを止め、再生再開を可能に
+        stopLoop();
+      }
     }
 
     function startPlay(){
@@ -367,10 +397,14 @@
       state.playing = true;
       state.playBaseT = state.t;
       state.playStartTS = performance.now();
-      if (!state.raf) state.raf = requestAnimationFrame(loop);
+      stopLoop();
+      state.raf = requestAnimationFrame(loop);
       renderSim();
     }
-    function pausePlay(){ state.playing = false; }
+    function pausePlay(){
+      state.playing = false;
+      stopLoop();
+    }
 
     function stepOneSecond(){
       state.playing = false;
@@ -378,7 +412,8 @@
       state.stepTarget = Math.min(T_MAX, state.t + 1);
       state.stepStartTS = performance.now();
       state.stepping = true;
-      if (!state.raf) state.raf = requestAnimationFrame(loop);
+      stopLoop();
+      state.raf = requestAnimationFrame(loop);
     }
 
     function resetSim(nextV0, nextA){
@@ -386,6 +421,7 @@
       state.t = 0; state.v0 = nextV0; state.a = nextA;
       state.vt = [{ t:0, v: vel(state.v0, state.a, 0) }];
       state.lastAddedT = 0; state.playStartTS = null; state.stepStartTS = null;
+      stopLoop();
       renderSim(); renderVT(); rebuildChoiceButtons();
     }
 
@@ -393,11 +429,17 @@
     function init(){
       rebuildChoiceButtons();
       buildSimAxis();
-      buildVTAxes();
+      // 初回リサイズで可能な限り縦に拡大
+      resizeVT();
       resetSim(0.0, 0.0);
       btnPlay.onclick = () => { state.playing ? pausePlay() : startPlay(); };
       btnStep.onclick = () => { stepOneSecond(); };
       btnReset.onclick= () => { resetSim(state.v0, state.a); };
+      // ウィンドウサイズ変更時も追随
+      window.addEventListener('resize', () => {
+        // レイアウトが落ち着いてから反映
+        requestAnimationFrame(resizeVT);
+      });
     }
 
     init();
