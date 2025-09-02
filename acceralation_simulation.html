@@ -8,7 +8,7 @@
     :root { --bg:#fff; --fg:#111; --muted:#666; --primary:#2563eb; --danger:#ef4444; }
     html, body { height: 100%; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif; background:var(--bg); color:var(--fg); }
-    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .container { max-width: 1300px; margin: 24px auto; padding: 0 16px; }
     h1 { font-size: 24px; font-weight: 700; margin: 0 0 16px; }
     .card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
     .card + .card { margin-top: 16px; }
@@ -16,7 +16,8 @@
     .card-t { font-size: 18px; font-weight: 600; }
     .card-c { padding: 16px 20px; }
     .grid2 { display:grid; grid-template-columns: 1fr; gap:16px; }
-    @media (min-width: 980px){ .grid2 { grid-template-columns: 1fr 1fr; } }
+    /* 左（位置と速度）を広く 2:1 に */
+    @media (min-width: 980px){ .grid2 { grid-template-columns: 2fr 1fr; } }
     .row { display:flex; flex-wrap: nowrap; align-items: center; gap:12px; }
     .btn { border:1px solid #d1d5db; background:#f8fafc; color:#111; padding:10px 14px; border-radius:14px; font-size: clamp(12px, 1.6vw, 16px); cursor:pointer; white-space:nowrap; }
     .btn.primary { background: var(--primary); color:#fff; border-color: transparent; }
@@ -27,12 +28,16 @@
     .label { font-size: 20px; font-weight: 700; white-space:nowrap; }
     .muted { color: var(--muted); }
     svg { display:block; width:100%; height:auto; }
+    /* v–tグラフを縦いっぱいに */
+    #vt-container { height: 280px; }            /* JSで後から上書き */
+    #vt-container svg { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>等加速度直線運動シミュレーション</h1>
 
+    <!-- 10ボタン（1行に収まるよう縮小・グリッド） -->
     <div class="card">
       <div class="card-h"><div class="card-t">初速 v₀ / 加速度 a を選択</div></div>
       <div class="card-c">
@@ -45,6 +50,7 @@
       </div>
     </div>
 
+    <!-- 再生/ステップ/リセット -->
     <div class="card">
       <div class="card-c row" style="flex-wrap:wrap; gap:12px;">
         <button class="btn primary" id="btn-play">再生</button>
@@ -54,11 +60,13 @@
       </div>
     </div>
 
+    <!-- アニメーション & グラフ -->
     <div class="grid2">
       <div class="card">
         <div class="card-h"><div class="card-t">位置と速度</div></div>
         <div class="card-c">
-          <svg id="sim-svg" viewBox="0 0 760 240">
+          <!-- 横を広げ、x範囲 -3〜18 を表示 -->
+          <svg id="sim-svg" viewBox="0 0 1200 240">
             <g id="x-axis"></g>
             <g id="ticks"></g>
             <g id="ball"></g>
@@ -75,8 +83,7 @@
             <g id="vt-axes"></g>
             <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="3" />
           </svg>
-          <!-- ★ キャプションに id を付与（高さを差し引くため） -->
-          <div class="muted" id="vt-caption" style="margin-top:8px;">縦線: 1 s ごと / 横線: 1 m/s ごと（v=0 は太線）</div>
+          <div class="muted" style="margin-top:8px;">縦線: 1 s ごと / 横線: 1 m/s ごと（v=0 は太線）</div>
         </div>
       </div>
     </div>
@@ -88,17 +95,17 @@
     const A_OPTIONS  = [-1.0, -0.5, 0.0, 0.5, 1.0];
 
     const X_MIN = -3;
-    const X_MAX = 8;   // -3〜8 m
+    const X_MAX = 18;  // -3〜18 m
     const T_MAX = 5;
     const V_MIN = -3;
-    const V_MAX = 6;
+    const V_MAX = 6;   // 縦軸 -3〜6 m/s
 
-    const SIM_W = 760, SIM_H = 240;
-    const AXIS_Y = 170;
+    const SIM_W = 1200, SIM_H = 240;
+    const AXIS_Y = 170; // 位置と速度SVGのx軸Y座標
 
-    const CH_W = 760; let CH_H = 280; // v-t グラフ（高さは動的）
-    // ★ 36px ラベルに合わせて余白拡大（上も増やして「6」が切れないように）
-    const CH_M = { top: 32, right: 20, bottom: 84, left: 90 };
+    const CH_W = 760; let CH_H = 280;     // v-t グラフ（高さは動的）
+    const FS = 36;                         // 軸数値・ラベルのフォントサイズ
+    let CH_M = { top: 24, right: 20, bottom: 72, left: 84 }; // 初期値（後で動的に更新）
 
     // スケール関数
     const xPxPerM = (SIM_W - 50 - 50) / (X_MAX - X_MIN);
@@ -113,10 +120,19 @@
 
     // ---- 状態 ----
     const state = {
-      v0: 0.0, a: 0.0, t: 0.0,
-      playing: false, playBaseT: 0.0, playStartTS: null,
-      stepping: false, stepTarget: null, stepStartT: 0.0, stepStartTS: null,
-      vt: [{ t: 0, v: 0 }], lastAddedT: 0, raf: null,
+      v0: 0.0,
+      a: 0.0,
+      t: 0.0,
+      playing: false,
+      playBaseT: 0.0,
+      playStartTS: null,
+      stepping: false,
+      stepTarget: null,
+      stepStartT: 0.0,
+      stepStartTS: null,
+      vt: [{ t: 0, v: 0 }],
+      lastAddedT: 0,
+      raf: null,
     };
 
     // ---- 物理関数 ----
@@ -186,9 +202,9 @@
         tick.setAttribute('stroke-width', '1.5');
         const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         label.setAttribute('x', xToPx(xm));
-        label.setAttribute('y', AXIS_Y + 22);
+        label.setAttribute('y', AXIS_Y + 28);           // x軸数値を少し下げて重なり回避
         label.setAttribute('text-anchor', 'middle');
-        label.setAttribute('font-size', '24');
+        label.setAttribute('font-size', '32');          // 見やすく拡大
         label.setAttribute('fill', '#333');
         label.textContent = String(xm);
         gx.appendChild(tick); gx.appendChild(label);
@@ -198,7 +214,7 @@
       origin.setAttribute('x', xToPx(0));
       origin.setAttribute('y', AXIS_Y - 14);
       origin.setAttribute('text-anchor', 'middle');
-      origin.setAttribute('font-size', '24');
+      origin.setAttribute('font-size', '32');
       origin.setAttribute('fill', '#333');
       origin.textContent = 'x=0';
       ticksG.appendChild(origin);
@@ -211,26 +227,27 @@
       vtGridG.innerHTML = '';
       vtAxesG.innerHTML = '';
 
-      // t: 0..5 の縦グリッド & 目盛り
+      // 縦線（t: 0..5）
       for(let tt=0; tt<=T_MAX; tt++){
         const x = tToPx(tt);
         const vline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         vline.setAttribute('x1', x); vline.setAttribute('x2', x);
         vline.setAttribute('y1', CH_M.top); vline.setAttribute('y2', CH_H - CH_M.bottom);
-        vline.setAttribute('stroke', '#e5e7eb'); vline.setAttribute('stroke-width', '1');
+        vline.setAttribute('stroke', '#e5e7eb');
+        vline.setAttribute('stroke-width', '1');
         vtGridG.appendChild(vline);
 
         const tlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         tlab.setAttribute('x', x);
-        tlab.setAttribute('y', CH_H - 8);                 // 少し上げて切れ防止
+        tlab.setAttribute('y', CH_H - 12);
         tlab.setAttribute('text-anchor', 'middle');
-        tlab.setAttribute('font-size', '36');
+        tlab.setAttribute('font-size', String(FS));
         tlab.setAttribute('fill', '#333');
         tlab.textContent = String(tt);
         vtAxesG.appendChild(tlab);
       }
 
-      // v: -3..6 の横グリッド & 目盛り
+      // 横線（v: -3..6）
       for(let vv=V_MIN; vv<=V_MAX; vv++){
         const y = vToPy(vv);
         const hline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -241,29 +258,30 @@
         vtGridG.appendChild(hline);
 
         const vlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        vlab.setAttribute('x', CH_M.left - 12);           // 左余白拡大
-        vlab.setAttribute('y', y + 14);                   // ベースライン下げ
+        vlab.setAttribute('x', CH_M.left - 10);
+        vlab.setAttribute('y', y + 12);
         vlab.setAttribute('text-anchor', 'end');
-        vlab.setAttribute('font-size', '36');
+        vlab.setAttribute('font-size', String(FS));
         vlab.setAttribute('fill', '#333');
         vlab.textContent = String(vv);
         vtAxesG.appendChild(vlab);
       }
 
-      // 軸ラベル
+      // 軸ラベル（36px）
       const tl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       tl.setAttribute('x', (CH_M.left + (CH_W - CH_M.right)) / 2);
-      tl.setAttribute('y', CH_H - 8);
+      tl.setAttribute('y', CH_H - 4);
       tl.setAttribute('text-anchor', 'middle');
-      tl.setAttribute('font-size', '36');
+      tl.setAttribute('font-size', String(FS));
       tl.textContent = 't [s]';
       vtAxesG.appendChild(tl);
 
       const vl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      // 左にもう少しオフセット（24px）して、切れを防ぐ
-      vl.setAttribute('transform', `translate(24 ${ (CH_M.top + (CH_H - CH_M.bottom)) / 2 }) rotate(-90)`);
+      const vCenter = (CH_M.top + (CH_H - CH_M.bottom)) / 2;
+      // 左余白に合わせて内側へ
+      vl.setAttribute('transform', `translate(${Math.max(28, CH_M.left - 56)} ${vCenter}) rotate(-90)`);
       vl.setAttribute('text-anchor', 'middle');
-      vl.setAttribute('font-size', '36');
+      vl.setAttribute('font-size', String(FS));
       vl.textContent = 'v [m/s]';
       vtAxesG.appendChild(vl);
     }
@@ -275,24 +293,26 @@
       const x = pos(state.v0, state.a, state.t);
       const v = vel(state.v0, state.a, state.t);
       const cx = Math.max(50, Math.min(xToPx(x), SIM_W - 50));
-
+      // 球
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('cx', cx); circle.setAttribute('cy', AXIS_Y);
-      circle.setAttribute('r', 12);  circle.setAttribute('fill', '#3b82f6');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', AXIS_Y);
+      circle.setAttribute('r', 12);
+      circle.setAttribute('fill', '#3b82f6');
       ballG.appendChild(circle);
-
+      // 速度ベクトル（赤）
       const ay = AXIS_Y - 40;
       const arrowLenPerMs = 56.25; // 0.75倍（75 * 0.75）
       const len = Math.max(0, Math.min(Math.abs(v) * arrowLenPerMs, 200));
       const dir = Math.sign(v) || 1;
       const x2 = cx + dir * len;
-
       const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       shaft.setAttribute('x1', cx); shaft.setAttribute('y1', ay);
       shaft.setAttribute('x2', x2); shaft.setAttribute('y2', ay);
-      shaft.setAttribute('stroke', '#ef4444'); shaft.setAttribute('stroke-width', '3.5');
+      shaft.setAttribute('stroke', '#ef4444');
+      shaft.setAttribute('stroke-width', '3.5');
       velG.appendChild(shaft);
-
+      // '>' 形の先端（赤）
       const tip = 6, spread = 4;
       const leftx = x2 - dir * tip;
       const up = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -304,13 +324,16 @@
       down.setAttribute('x2', leftx); down.setAttribute('y2', ay + spread);
       down.setAttribute('stroke', '#ef4444'); down.setAttribute('stroke-width', '3.5');
       velG.appendChild(up); velG.appendChild(down);
-
+      // 速度の数値（1.5倍 → 42px）
       const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', (cx + x2) / 2); label.setAttribute('y', ay - 10);
-      label.setAttribute('text-anchor', 'middle'); label.setAttribute('font-size', '28');
-      label.setAttribute('fill', '#ef4444'); label.textContent = `${v.toFixed(2)} m/s`;
+      label.setAttribute('x', (cx + x2) / 2);
+      label.setAttribute('y', ay - 10);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '42');
+      label.setAttribute('fill', '#ef4444');
+      label.textContent = `${v.toFixed(2)} m/s`;
       velG.appendChild(label);
-
+      // ステータス
       status.innerHTML = `時刻 t = <b>${state.t.toFixed(2)} s</b>, 速度 v = <b>${v.toFixed(2)} m/s</b>`;
       btnPlay.textContent = state.playing ? '一時停止' : '再生';
     }
@@ -324,31 +347,34 @@
     function resizeVT(){
       const cont = document.getElementById('vt-container');
       const svg = document.getElementById('vt-svg');
-      const caption = document.getElementById('vt-caption');
       if (!cont || !svg) return;
 
       const rect = cont.getBoundingClientRect();
-      const styles = getComputedStyle(cont);
-      const padV = parseInt(styles.paddingTop||'0') + parseInt(styles.paddingBottom||'0');
-      const captionH = caption ? caption.getBoundingClientRect().height : 0;
+      // 画面下端までの余白をなるべく使う（下マージン 24px）
+      const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
+      CH_H = available;
+      cont.style.height = available + 'px';
+      svg.style.height = '100%';
 
-      // 画面下端までの余白をなるべく使う（下マージン 16px）
-      const available = Math.max(360, Math.floor(window.innerHeight - rect.top - 16));
-      const svgH = Math.max(260, available - captionH - padV);
-
-      CH_H = svgH;
-      // ★ コンテナ高は触らず、SVG 自体の高さを直接指定するのがポイント
-      svg.style.height = svgH + 'px';
+      // フォントサイズに合わせてマージンを動的調整（切れ防止しつつ空白最小化）
+      CH_M = {
+        top:   FS + 8,          // 上：目盛り線＋ラベル分
+        bottom:FS + 28,         // 下：軸ラベル＋t数値
+        left:  Math.max(84, Math.floor(FS * 2.6)), // 左：縦軸ラベル＋数値幅
+        right: 24
+      };
 
       buildVTAxes();
       renderVT();
     }
-
     function stopLoop(){
-      if (state.raf){ cancelAnimationFrame(state.raf); state.raf = null; }
+      if (state.raf){
+        cancelAnimationFrame(state.raf);
+        state.raf = null;
+      }
     }
 
-    // ---- シミュレータ制御（絶対時間ベース） ----
+    // ---- シミュレータ制御（ドリフト対策：絶対時間ベース） ----
     function pushSeriesIfNeeded(curT){
       const addEvery = 0.05;
       if (curT - state.lastAddedT >= addEvery || curT >= T_MAX){
@@ -364,28 +390,43 @@
         const dur = Math.min(1, state.stepTarget - state.stepStartT);
         curT = state.stepStartT + Math.min(dur, elapsed);
         if (curT >= state.stepTarget - 1e-9){
-          curT = state.stepTarget; state.stepping = false; state.stepTarget = null;
+          curT = state.stepTarget;
+          state.stepping = false;
+          state.stepTarget = null;
         }
       } else if (state.playing){
         const elapsed = (ts - state.playStartTS) / 1000;
         curT = Math.min(T_MAX, state.playBaseT + elapsed);
         if (curT >= T_MAX - 1e-9){ state.playing = false; }
-      } else { stopLoop(); return; }
+      } else {
+        stopLoop();
+        return;
+      }
 
       state.t = curT;
       pushSeriesIfNeeded(curT);
       renderSim(); renderVT();
 
-      if (state.playing || state.stepping) state.raf = requestAnimationFrame(loop);
-      else stopLoop();
+      if (state.playing || state.stepping) {
+        state.raf = requestAnimationFrame(loop);
+      } else {
+        stopLoop();
+      }
     }
 
     function startPlay(){
       if (state.t >= T_MAX){ resetSim(state.v0, state.a); }
-      state.playing = true; state.playBaseT = state.t; state.playStartTS = performance.now();
-      stopLoop(); state.raf = requestAnimationFrame(loop); renderSim();
+      state.playing = true;
+      state.playBaseT = state.t;
+      state.playStartTS = performance.now();
+      stopLoop();
+      state.raf = requestAnimationFrame(loop);
+      renderSim();
     }
-    function pausePlay(){ state.playing = false; stopLoop(); }
+    function pausePlay(){
+      state.playing = false;
+      stopLoop();
+    }
 
     function stepOneSecond(){
       state.playing = false;
@@ -393,7 +434,8 @@
       state.stepTarget = Math.min(T_MAX, state.t + 1);
       state.stepStartTS = performance.now();
       state.stepping = true;
-      stopLoop(); state.raf = requestAnimationFrame(loop);
+      stopLoop();
+      state.raf = requestAnimationFrame(loop);
     }
 
     function resetSim(nextV0, nextA){
@@ -401,20 +443,24 @@
       state.t = 0; state.v0 = nextV0; state.a = nextA;
       state.vt = [{ t:0, v: vel(state.v0, state.a, 0) }];
       state.lastAddedT = 0; state.playStartTS = null; state.stepStartTS = null;
-      stopLoop(); renderSim(); renderVT(); rebuildChoiceButtons();
+      stopLoop();
+      renderSim(); renderVT(); rebuildChoiceButtons();
     }
 
     // ---- 初期化 ----
     function init(){
       rebuildChoiceButtons();
       buildSimAxis();
-      resizeVT();             // まず高さ合わせ
+      resizeVT();                 // まず画面いっぱいに
       resetSim(0.0, 0.0);
       btnPlay.onclick = () => { state.playing ? pausePlay() : startPlay(); };
       btnStep.onclick = () => { stepOneSecond(); };
       btnReset.onclick= () => { resetSim(state.v0, state.a); };
-      window.addEventListener('resize', () => requestAnimationFrame(resizeVT));
+      window.addEventListener('resize', () => {
+        requestAnimationFrame(resizeVT);
+      });
     }
+
     init();
   </script>
 </body>
