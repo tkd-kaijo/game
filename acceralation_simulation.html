@@ -270,7 +270,7 @@
     // ---- v-t グラフの静的要素（グリッド・軸。すべて36px） ----
     function buildVTAxes(){
       if (!vtSvg) return;
-      vtSvg.setAttribute('viewBox', `0 0 760 ${CH_H}`);
+      vtSvg.setAttribute('viewBox', `0 0 ${CH_W} ${CH_H}`); // ← 幅は可変 CH_W を使う
       vtGridG.innerHTML = '';
       vtAxesG.innerHTML = '';
 
