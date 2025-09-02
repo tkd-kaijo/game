@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>等加速度直線運動シミュレーション（純JS版・GitHub Pages対応）</title>
+  <title>等加速度直線運動シミュレーション</title>
   <style>
     :root { --bg:#fff; --fg:#111; --muted:#666; --primary:#2563eb; --danger:#ef4444; }
     html, body { height: 100%; }
@@ -59,7 +59,7 @@
     svg { display:block; width:100%; height:auto; }
     /* v–tグラフを縦いっぱいに */
     #vt-container { height: 280px; }
-#vt-container > svg { height: 100% !important; width: auto !important; display:block; }
+#vt-container > svg { height: 100% !important; width: 100% !important; display:block; }
   </style>
 </head>
 <body>
@@ -145,7 +145,7 @@
     const SIM_W = 1200, SIM_H = 240;
     const AXIS_Y = 170; // 位置と速度SVGのx軸Y座標
 
-    const CH_W = 760; let CH_H = 280;     // v-t グラフ（高さは動的）
+    let CH_W = 760;  let CH_H = 280;   // CH_W を可変にする
     const FS = 36;                         // 軸数値・ラベルのフォントサイズ
     let CH_M = { top: 24, right: 20, bottom: 72, left: 84 }; // 初期値（後で動的に更新）
 
@@ -391,18 +391,21 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
   const svg  = document.getElementById('vt-svg');
   if (!cont || !svg) return;
 
-  const rect = cont.getBoundingClientRect();
+    const rect = cont.getBoundingClientRect();
   const available = Math.max(320, Math.floor(window.innerHeight - rect.top - 24));
+
 
   CH_H = available;
   cont.style.height = available + 'px';
 
   // 縦だけいっぱいに（横は自動＝歪み無し）
-  svg.style.height = available + 'px';
-  svg.style.width  = 'auto';
+  svg.style.height = '100%';
+  svg.style.width  = '100%';
 
   // 内部座標も高さ分だけ拡張（要：アスペクト保持）
-  vtSvg.setAttribute('viewBox', `0 0 760 ${CH_H}`);
+  // ここがポイント：幅はコンテナのピクセル幅に合わせる
+  CH_W = Math.max(300, Math.floor(cont.clientWidth));
+  vtSvg.setAttribute('viewBox', `0 0 ${CH_W} ${CH_H}`);
 
   // 余白（切れ防止しつつ最小化）
   CH_M = {
@@ -507,6 +510,14 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
       window.addEventListener('resize', () => {
         requestAnimationFrame(resizeVT);
       });
+
+ // ← ここから追加：#vt-container の幅変化を監視して自動で再レイアウト
+ const vtCont = document.getElementById('vt-container');
+ if (window.ResizeObserver && vtCont) {
+   const ro = new ResizeObserver(() => requestAnimationFrame(resizeVT));
+   ro.observe(vtCont);
+ }
+      
     }
 
     init();
@@ -549,6 +560,8 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
     let newLeftPx = Math.min(rect.width - gutter - minRight, Math.max(minLeft, startLeftPx + dx));
     const pct = Math.round((newLeftPx / rect.width) * 1000) / 10; // 0.1%刻み
     split.style.setProperty('--left', pct + '%');
+        // ライブで追従させる
+    requestAnimationFrame(resizeVT);
   }
   function onUp(){
     if (!dragging) return;
