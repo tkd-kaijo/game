@@ -15,9 +15,11 @@
     .card-h { padding: 16px 20px; border-bottom:1px solid #eef1f4; }
     .card-t { font-size: 18px; font-weight: 600; }
     .card-c { padding: 16px 20px; }
-    .grid2 { display:grid; grid-template-columns: 1fr; gap:16px; }
-    /* 左（位置と速度）を広く 2:1 に */
-    @media (min-width: 980px){ .grid2 { grid-template-columns: 2fr 1fr; } }
+    /* .grid2 はもう2列にしない。split がレイアウトを担当 */
+.grid2 { display: block; }                /* これで横幅いっぱいに */
+@media (min-width: 980px){
+  .grid2 { display: block; }              /* 上書きで2fr/1frを無効化 */
+}
     .row { display:flex; flex-wrap: nowrap; align-items: center; gap:12px; }
     .btn { border:1px solid #d1d5db; background:#f8fafc; color:#111; padding:10px 14px; border-radius:14px; font-size: clamp(12px, 1.6vw, 16px); cursor:pointer; white-space:nowrap; }
     .btn.primary { background: var(--primary); color:#fff; border-color: transparent; }
