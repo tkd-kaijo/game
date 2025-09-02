@@ -81,7 +81,7 @@
           <svg id="vt-svg" viewBox="0 0 760 280">
             <g id="vt-grid"></g>
             <g id="vt-axes"></g>
-            <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="3" />
+            <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="6" />
           </svg>
           <div class="muted" style="margin-top:8px;">縦線: 1 s ごと / 横線: 1 m/s ごと（v=0 は太線）</div>
         </div>
@@ -239,7 +239,7 @@
 
         const tlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         tlab.setAttribute('x', x);
-        tlab.setAttribute('y', CH_H - 12);
+        tlab.setAttribute('y', CH_H - 8);
         tlab.setAttribute('text-anchor', 'middle');
         tlab.setAttribute('font-size', String(FS));
         tlab.setAttribute('fill', '#333');
@@ -277,9 +277,9 @@
       vtAxesG.appendChild(tl);
 
       const vl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      const vCenter = (CH_M.top + (CH_H - CH_M.bottom)) / 2;
-      // 左余白に合わせて内側へ
-      vl.setAttribute('transform', `translate(${Math.max(28, CH_M.left - 56)} ${vCenter}) rotate(-90)`);
+      // 縦軸ラベル v[m/s]
+const vCenter = (CH_M.top + (CH_H - CH_M.bottom)) / 2;
+vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vCenter}) rotate(-90)`);
       vl.setAttribute('text-anchor', 'middle');
       vl.setAttribute('font-size', String(FS));
       vl.textContent = 'v [m/s]';
@@ -358,10 +358,10 @@
 
       // フォントサイズに合わせてマージンを動的調整（切れ防止しつつ空白最小化）
       CH_M = {
-        top:   FS + 8,          // 上：目盛り線＋ラベル分
-        bottom:FS + 28,         // 下：軸ラベル＋t数値
-        left:  Math.max(84, Math.floor(FS * 2.6)), // 左：縦軸ラベル＋数値幅
-        right: 24
+        top:   6,          // 上
+        bottom:FS + 6,         // 下：軸ラベル＋t数値
+        left:  Math.max(92, Math.floor(FS * 2.8)), // 左：縦軸ラベル＋数値幅
+        right: 16
       };
 
       buildVTAxes();
