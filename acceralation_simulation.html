@@ -128,7 +128,7 @@
           <g id="vt-axes"></g>
           <path id="vt-path" fill="none" stroke="#2563eb" stroke-width="6" />
         </svg>
-        <div class="muted" style="margin-top:8px;">縦線: 1 s ごと / 横線: 1 m/s ごと（v=0 は太線）</div>
+        
       </div>
     </div>
   </div>
@@ -288,7 +288,7 @@
 
         const tlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         tlab.setAttribute('x', x);
-        tlab.setAttribute('y', CH_H - 8);
+        tlab.setAttribute('y', CH_H - CH_M.bottom + FS);  // ← 余白の上端＋フォント分ちょい下
         tlab.setAttribute('text-anchor', 'middle');
         tlab.setAttribute('font-size', String(FS));
         tlab.setAttribute('fill', '#333');
@@ -319,7 +319,8 @@
       // 軸ラベル（36px）
       const tl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       tl.setAttribute('x', (CH_M.left + (CH_W - CH_M.right)) / 2);
-      tl.setAttribute('y', CH_H - 4);
+      // 軸ラベル "t [s]"
+tl.setAttribute('y', CH_H - Math.max(8, (CH_M.bottom - FS) / 2)); // ← 下余白の中央付近
       tl.setAttribute('text-anchor', 'middle');
       tl.setAttribute('font-size', String(FS));
       tl.textContent = 't [s]';
@@ -415,11 +416,11 @@ vl.setAttribute('transform', `translate(${Math.max(32, CH_M.left - FS - 8)} ${vC
 
   // 余白（切れ防止しつつ最小化）
   CH_M = {
-    top: 6,
-    bottom: FS + 6,
-    left:  Math.max(92, Math.floor(FS * 2.8)),
-    right: 16
-  };
+  top:    Math.max(28, Math.floor(FS * 1.0)),   // ← 上余白をFS程度確保（6→36前後）
+  bottom: Math.max(64, Math.floor(FS * 2.0)),   // ← 下余白を十分に（数値＋「t[s]」用）
+  left:   Math.max(92, Math.floor(FS * 2.8)),
+  right:  20
+};
 
   buildVTAxes();
   renderVT();
