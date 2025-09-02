@@ -1,0 +1,277 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ReferenceLine } from "recharts";
+
+const V0_OPTIONS = [-1.0, -0.5, 0.0, 0.5, 1.0];
+const A_OPTIONS = [-1.0, -0.5, 0.0, 0.5, 1.0];
+
+const X_MIN = -3;
+const X_MAX = 8; // 拡大
+const T_MAX = 5;
+const V_MIN = -3;
+const V_MAX = 5;
+
+const SVG_W = 600;
+const SVG_H = 200;
+const MARGIN_L = 50;
+const MARGIN_R = 50;
+const AXIS_Y = 140;
+
+export default function App() {
+  const [v0, setV0] = useState<number>(0.0);
+  const [a, setA] = useState<number>(0.0);
+  const [t, setT] = useState<number>(0.0);
+  const [playing, setPlaying] = useState<boolean>(false);
+  const [stepping, setStepping] = useState<boolean>(false);
+  const [stepStart, setStepStart] = useState<number>(0);
+
+  type DV = { t: number; v: number };
+  const [vSeries, setVSeries] = useState<DV[]>([{ t: 0, v: 0 }]);
+
+  const rafRef = useRef<number | null>(null);
+  const lastTsRef = useRef<number | null>(null);
+  const lastAddedTRef = useRef<number>(0);
+
+  const x = useMemo(() => v0 * t + 0.5 * a * t * t, [v0, a, t]);
+  const v = useMemo(() => v0 + a * t, [v0, a, t]);
+
+  const pxPerMeter = (SVG_W - MARGIN_L - MARGIN_R) / (X_MAX - X_MIN);
+  const xToPx = useCallback(
+    (xm: number) => MARGIN_L + (xm - X_MIN) * pxPerMeter,
+    [pxPerMeter]
+  );
+
+  const resetSim = useCallback(
+    (nextV0: number, nextA: number) => {
+      setPlaying(false);
+      setStepping(false);
+      setT(0);
+      setVSeries([{ t: 0, v: nextV0 }]);
+      lastAddedTRef.current = 0;
+      lastTsRef.current = null;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!playing && !stepping) return;
+
+    const loop = (ts: number) => {
+      if (lastTsRef.current == null) lastTsRef.current = ts;
+      const dt = (ts - (lastTsRef.current ?? ts)) / 1000;
+      lastTsRef.current = ts;
+
+      setT((prev) => {
+        let next = prev + dt;
+        if (stepping) {
+          const target = Math.min(stepStart + 1, T_MAX);
+          if (next >= target) {
+            next = target;
+            setStepping(false);
+          }
+        } else {
+          next = Math.min(T_MAX, next);
+        }
+        const addEvery = 0.05;
+        if (next - lastAddedTRef.current >= addEvery || next >= T_MAX) {
+          const newPoint = { t: next, v: v0 + a * next };
+          setVSeries((s) => [...s, newPoint]);
+          lastAddedTRef.current = next;
+        }
+        if (!stepping && next >= T_MAX) {
+          setPlaying(false);
+          cancelAnimationFrame(rafRef.current!);
+          rafRef.current = null;
+        }
+        return next;
+      });
+
+      if (playing || stepping) rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      lastTsRef.current = null;
+    };
+  }, [playing, stepping, v0, a, stepStart]);
+
+  const stepOneSecond = () => {
+    setPlaying(false);
+    setStepStart(t);
+    setStepping(true);
+    lastTsRef.current = null;
+  };
+
+  const SelectButtons: React.FC<{
+    label: string;
+    options: number[];
+    selected: number;
+    onSelect: (v: number) => void;
+    unit: string;
+  }> = ({ label, options, selected, onSelect, unit }) => (
+    <Card className="shadow-md rounded-2xl w-full">
+      <CardHeader>
+        <CardTitle className="text-lg">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-5 gap-2 w-full">
+          {options.map((val) => (
+            <Button
+              key={val}
+              onClick={() => onSelect(val)}
+              className={`flex-1 text-lg py-4 rounded-2xl whitespace-nowrap ${
+                selected === val ? "ring-2 ring-offset-2 ring-blue-500" : ""
+              }`}
+              variant={selected === val ? "default" : "secondary"}
+            >
+              {val.toFixed(2)} {unit}
+            </Button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const arrowLenPerMs = 75; // 長さを半分に
+  const arrowLen = Math.max(0, Math.min(Math.abs(v) * arrowLenPerMs * 0.75, 200));
+  const arrowDir = Math.sign(v) || 1;
+
+  const cx = xToPx(x);
+  const cxClamped = Math.max(MARGIN_L, Math.min(cx, SVG_W - MARGIN_R));
+
+  const tTicks = [0, 1, 2, 3, 4, 5];
+  const vTicks = [-3, -2, -1, 0, 1, 2, 3, 4, 5];
+
+  return (
+    <div className="w-full min-h-screen bg-white p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <h1 className="text-2xl font-semibold">等加速度直線運動シミュレーション</h1>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+          <SelectButtons
+            label={<span className="text-2xl">初速 v₀ を選択</span>}
+            options={V0_OPTIONS}
+            selected={v0}
+            onSelect={(nv) => {
+              setV0(nv);
+              resetSim(nv, a);
+            }}
+            unit="m/s"
+          />
+          <SelectButtons
+            label={<span className="text-2xl">加速度 a を選択</span>}
+            options={A_OPTIONS}
+            selected={a}
+            onSelect={(na) => {
+              setA(na);
+              resetSim(v0, na);
+            }}
+            unit="m/s²"
+          />
+        </div>
+
+        <Card className="shadow-md rounded-2xl">
+          <CardContent className="pt-6 flex items-center gap-4 flex-wrap">
+            <Button
+              className="text-lg py-4 px-6 rounded-2xl"
+              onClick={() => {
+                if (t >= T_MAX) {
+                  resetSim(v0, a);
+                  setPlaying(true);
+                } else {
+                  setPlaying((p) => !p);
+                }
+              }}
+            >
+              {playing ? "一時停止" : "再生"}
+            </Button>
+            <Button
+              className="text-lg py-4 px-6 rounded-2xl"
+              variant="secondary"
+              onClick={stepOneSecond}
+            >
+              1秒進める
+            </Button>
+            <Button
+              className="text-lg py-4 px-6 rounded-2xl"
+              variant="outline"
+              onClick={() => resetSim(v0, a)}
+            >
+              リセット
+            </Button>
+            <div className="text-base text-muted-foreground ml-2">
+              時刻 t = <span className="font-medium">{t.toFixed(2)} s</span>, 速度 v = <span className="font-medium">{v.toFixed(2)} m/s</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          <Card className="shadow-md rounded-2xl">
+            <CardHeader>
+              <CardTitle>位置と速度</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <svg width={SVG_W} height={SVG_H} className="w-full h-auto">
+                <defs>
+                  <marker id="arrowhead" markerWidth="5" markerHeight="3.5" refX="5" refY="1.75" orient="auto">
+                    <path d="M0,0 L5,1.75 L0,3.5" fill="#ef4444" />
+                  </marker>
+                </defs>
+
+                <line x1={xToPx(X_MIN)} x2={xToPx(X_MAX)} y1={AXIS_Y} y2={AXIS_Y} stroke="#222" strokeWidth={2} />
+
+                {Array.from({ length: X_MAX - X_MIN + 1 }, (_, i) => X_MIN + i).map((tick) => (
+                  <g key={tick}>
+                    <line x1={xToPx(tick)} x2={xToPx(tick)} y1={AXIS_Y - 8} y2={AXIS_Y + 8} stroke="#666" strokeWidth={1.5} />
+                    <text x={xToPx(tick)} y={AXIS_Y + 22} textAnchor="middle" fontSize={24} fill="#333">{tick}</text>
+                  </g>
+                ))}
+
+                <text x={xToPx(0)} y={AXIS_Y - 14} textAnchor="middle" fontSize={24} fill="#333">x=0</text>
+
+                <circle cx={cxClamped} cy={AXIS_Y} r={12} fill="#3b82f6" />
+
+                {(() => {
+                  const ay = AXIS_Y - 40;
+                  const x1 = cxClamped;
+                  const x2 = cxClamped + arrowDir * arrowLen;
+                  const textX = (x1 + x2) / 2;
+                  const textY = ay - 10;
+                  return (
+                    <g style={{ color: "#ef4444" }}>
+                      <line x1={x1} y1={ay} x2={x2} y2={ay} stroke="#ef4444" strokeWidth={3.5} markerEnd="url(#arrowhead)" />
+                      <text x={textX} y={textY} fontSize={28} textAnchor="middle" fill="#ef4444">{v.toFixed(2)} m/s</text>
+                    </g>
+                  );
+                })()}
+              </svg>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md rounded-2xl">
+            <CardHeader>
+              <CardTitle>v–t グラフ（速度–時間）</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={vSeries} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" dataKey="t" domain={[0, 5]} ticks={tTicks} allowDecimals={false} tick={{ fontSize: 18 }} label={{ value: "t [s]", position: "insideBottom", offset: -5, style: { fontSize: 18 } }} />
+                  <YAxis type="number" domain={[V_MIN, V_MAX]} ticks={vTicks} allowDecimals={false} interval={0} tick={{ fontSize: 18 }} label={{ value: "v [m/s]", angle: -90, position: "insideLeft", style: { fontSize: 18 } }} />
+                  <ReferenceLine y={0} stroke="#111" strokeWidth={2} />
+                  <Tooltip formatter={(val: any, name: any) => [Number(val).toFixed(2), name === "v" ? "v [m/s]" : name]} />
+                  <Line type="linear" dataKey="v" dot={false} strokeWidth={3} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="text-sm text-muted-foreground mt-2">縦線: 1 s ごと / 横線: 1 m/s ごと (0 m/s が t 軸)</div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
