@@ -144,7 +144,7 @@
     const A_OPTIONS  = [-1.0, -0.5, 0.0, 0.5, 1.0];
 
     const X_MIN = -3;
-    const X_MAX = 18;  // -3〜18 m
+    const X_MAX = 13;  // -3〜18 m
     const T_MAX = 5;
     const V_MIN = -3;
     const V_MAX = 6;   // 縦軸 -3〜6 m/s
@@ -276,45 +276,53 @@
       vtGridG.innerHTML = '';
       vtAxesG.innerHTML = '';
 
-      // 縦線（t: 0..5）
-      for(let tt=0; tt<=T_MAX; tt++){
-        const x = tToPx(tt);
-        const vline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        vline.setAttribute('x1', x); vline.setAttribute('x2', x);
-        vline.setAttribute('y1', CH_M.top); vline.setAttribute('y2', CH_H - CH_M.bottom);
-        vline.setAttribute('stroke', '#e5e7eb');
-        vline.setAttribute('stroke-width', '1');
-        vtGridG.appendChild(vline);
+     // --- 縦線（t: 0..T_MAX） ---
+for (let tt = 0; tt <= T_MAX; tt++) {
+  const x = tToPx(tt);
+  const vline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  vline.setAttribute('x1', x); vline.setAttribute('x2', x);
+  vline.setAttribute('y1', CH_M.top); vline.setAttribute('y2', CH_H - CH_M.bottom);
 
-        const tlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        tlab.setAttribute('x', x);
-        tlab.setAttribute('y', CH_H - CH_M.bottom + FS);  // ← 余白の上端＋フォント分ちょい下
-        tlab.setAttribute('text-anchor', 'middle');
-        tlab.setAttribute('font-size', String(FS));
-        tlab.setAttribute('fill', '#333');
-        tlab.textContent = String(tt);
-        vtAxesG.appendChild(tlab);
-      }
+  // t=0 を実線・太線、それ以外は薄めで少し太く
+  const isAxis = (tt === 0);
+  vline.setAttribute('stroke', isAxis ? '#111' : '#dce3ea'); // ← 薄線の色も少し濃く
+  vline.setAttribute('stroke-width', isAxis ? '2' : '1.5');  // ← 太さアップ
 
-      // 横線（v: -3..6）
-      for(let vv=V_MIN; vv<=V_MAX; vv++){
-        const y = vToPy(vv);
-        const hline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        hline.setAttribute('x1', CH_M.left); hline.setAttribute('x2', CH_W - CH_M.right);
-        hline.setAttribute('y1', y); hline.setAttribute('y2', y);
-        hline.setAttribute('stroke', vv===0 ? '#111' : '#e5e7eb');
-        hline.setAttribute('stroke-width', vv===0 ? '2' : '1');
-        vtGridG.appendChild(hline);
+  vtGridG.appendChild(vline);
 
-        const vlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        vlab.setAttribute('x', CH_M.left - 10);
-        vlab.setAttribute('y', y + 12);
-        vlab.setAttribute('text-anchor', 'end');
-        vlab.setAttribute('font-size', String(FS));
-        vlab.setAttribute('fill', '#333');
-        vlab.textContent = String(vv);
-        vtAxesG.appendChild(vlab);
-      }
+  const tlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  tlab.setAttribute('x', x);
+  tlab.setAttribute('y', CH_H - CH_M.bottom + FS); // ← 既に余白基準に直してある想定
+  tlab.setAttribute('text-anchor', 'middle');
+  tlab.setAttribute('font-size', String(FS));
+  tlab.setAttribute('fill', '#333');
+  tlab.textContent = String(tt);
+  vtAxesG.appendChild(tlab);
+}
+
+// --- 横線（v: -3..6） ---
+for (let vv = V_MIN; vv <= V_MAX; vv++) {
+  const y = vToPy(vv);
+  const hline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  hline.setAttribute('x1', CH_M.left); hline.setAttribute('x2', CH_W - CH_M.right);
+  hline.setAttribute('y1', y); hline.setAttribute('y2', y);
+
+  // v=0 は実線・太線、他は薄め＆“少し太い”
+  const isZero = (vv === 0);
+  hline.setAttribute('stroke', isZero ? '#111' : '#dce3ea');
+  hline.setAttribute('stroke-width', isZero ? '2' : '1.5');  // ← 1 → 1.5 に
+
+  vtGridG.appendChild(hline);
+
+  const vlab = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  vlab.setAttribute('x', CH_M.left - 10);
+  vlab.setAttribute('y', y + 12);
+  vlab.setAttribute('text-anchor', 'end');
+  vlab.setAttribute('font-size', String(FS));
+  vlab.setAttribute('fill', '#333');
+  vlab.textContent = String(vv);
+  vtAxesG.appendChild(vlab);
+}
 
       // 軸ラベル（36px）
       const tl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
