@@ -206,6 +206,12 @@
           <div class="stat"><div class="label">時間t</div><div class="value" id="tVal">0.00 s</div></div>
         </div>
       </div>
+
+      <section class="card" id="leaderboardCard" aria-live="polite">
+  <h3 style="margin:0 0 8px">ランキング（上位10）</h3>
+  <div id="leaderboard">読み込み中…</div>
+</section>
+      
     </section>
   </main>
 
@@ -261,6 +267,107 @@
       }
     }
   };
+
+
+// === Leaderboard settings ===
+// ★ここを自分のシートIDとシート名に差し替えてください
+const SHEET_ID = '16PFWfElWUfN3x7iV4fSOnw0y3IdQBtrJIVzg6yOmLoU';
+const SHEET_NAME = 'フォームの回答 1'; // タブ名（変更していればその名前）
+
+// Google Visualization API (gviz) のJSONを叩いて成績取得
+// 共有が「リンク閲覧可」ならCORS越しでもフロントから読めます
+async function loadLeaderboard() {
+  const url =
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
+  const box = document.getElementById('leaderboard');
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+
+    // gvizは "google.visualization.Query.setResponse(...)" で返るので中のJSON部分だけ切り出す
+    const json = JSON.parse(text.replace(/^[^{]+/, '').replace(/;?\s*$/, ''));
+    const cols = json.table.cols.map(c => (c && c.label) ? c.label : '');
+    const rows = (json.table.rows || []).map(r => r.c.map(c => c ? c.v : ''));
+
+    // どの列が何かを自動判定（見出しの一部でゆるくマッチ）
+    const idx = {
+      timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0), // 見つからなければ0列目
+      studentId: findIndex(cols, /番号|学籍|id/i),
+      studentName: findIndex(cols, /氏名|名前|name/i),
+      totalScore: findIndex(cols, /score|スコア|合計|点/i)
+    };
+
+    // レコード整形
+    let recs = rows.map(r => ({
+      timestamp: r[idx.timestamp],
+      id: String(r[idx.studentId] ?? '').trim(),
+      name: String(r[idx.studentName] ?? '').trim(),
+      score: Number(String(r[idx.totalScore] ?? '').replace(/[^\d.-]/g, ''))
+    }));
+
+    // 10点未満は除外、無効値も除外
+    recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
+
+    // 同一ID（または氏名）で最高点のみ残す
+    recs = bestByKey(recs, (x) => x.id || x.name);
+
+    // スコア降順、同点は新しい順
+    recs.sort((a, b) => b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp)));
+
+    // 上位10件
+    recs = recs.slice(0, 10);
+
+    // 描画
+    box.innerHTML = renderTableHTML(recs);
+
+  } catch (e) {
+    console.error(e);
+    if (box) box.textContent = 'ランキングを読み込めませんでした…';
+  }
+
+  function findIndex(arr, regex, fallback = -1) {
+    const i = arr.findIndex(h => regex.test(String(h)));
+    return i >= 0 ? i : fallback;
+  }
+  function bestByKey(list, keyFn) {
+    const best = new Map(); // key -> record
+    for (const r of list) {
+      const k = keyFn(r);
+      if (!k) continue;
+      const cur = best.get(k);
+      if (!cur || r.score > cur.score) best.set(k, r);
+    }
+    return Array.from(best.values());
+  }
+  function renderTableHTML(items) {
+    if (!items.length) return 'まだランキングはありません。';
+    const rows = items.map((r, i) => `
+      <tr>
+        <td style="text-align:center; font-weight:700">${i+1}</td>
+        <td>${escapeHTML(r.name || '—')}</td>
+        <td style="text-align:center">${escapeHTML(r.id || '—')}</td>
+        <td style="text-align:right; font-variant-numeric: tabular-nums">${r.score}</td>
+      </tr>`).join('');
+    return `
+      <div style="overflow:auto">
+      <table style="width:100%; border-collapse:collapse; font-size:14px">
+        <thead>
+          <tr>
+            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
+            <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
+            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
+            <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      </div>`;
+  }
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+}
+
+  
   const submitBox = document.getElementById('submitBox');
   const submitBtn = document.getElementById('submitBtn');
   const studentIdInput = document.getElementById('studentId');
@@ -292,6 +399,11 @@
     await fetch(CONFIG.GOOGLE_FORMS.url, { method:'POST', mode:'no-cors', body: fd });
     showToast('送信しました！（Googleフォーム）');
     submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+
+     // 数秒待つとシートに反映されるので少し遅らせて再読込
+ setTimeout(loadLeaderboard, 5000);
+
+    
   }catch(e){
     console.error(e);
     showToast('送信に失敗しました…');
@@ -551,6 +663,11 @@ hLine.style.bottom = groundOffsetPx + 'px';
       window.visualViewport.addEventListener('resize', ()=>{ baselineTop=null; fitSceneToViewport(); });
     }
   }
+  // 初回読み込み＆60秒ごとに更新
+loadLeaderboard();
+setInterval(loadLeaderboard, 60000);
+
+  
   if(document.readyState === 'complete' || document.readyState === 'interactive'){
     setTimeout(bindFit, 50);
   }else{
