@@ -462,13 +462,18 @@ async function submitResult(){
       totalScore: score,
       timestamp: new Date().toISOString() // 任意（記録用）
     };
-    const res = await fetch(GAS_URL, {
-      method:'POST',
-      mode:'cors',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const json = await res.json().catch(()=>({}));
+    const params = new URLSearchParams({
+  studentId,
+  studentName,
+  totalScore: String(score)
+  // timestamp はサーバ側で付与しているので不要
+});
+const res = await fetch(GAS_URL, {
+  method: 'POST',
+  body: params   // ← ヘッダは付けない（ブラウザが適切に付ける）
+});
+const json = await res.json().catch(()=>({}));
+
     if(json.ok){
       showToast('送信しました！');
       submitBtn.disabled = true;
