@@ -304,7 +304,8 @@ async function loadLeaderboard () {
   }
 
   // フォールバック：CSV（[ウェブに公開] 有効時）
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${encodeURIComponent(SHEET_GID)}&single=true&output=csv`;
+ const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ10LcB0wupR7ip5mhf_WskxAZiQQIXytBQ45Sxyf2ej9R1xULe-iQbj7RU2TgNXOrjTrUVefFQOEIO/pub?output=csv";
+  
   try {
     const res = await fetch(csvUrl, { credentials: 'omit' });
     const text = await res.text();
