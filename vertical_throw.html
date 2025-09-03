@@ -272,33 +272,60 @@
 // === Leaderboard settings ===
 // ★ここを自分のシートIDとシート名に差し替えてください
 const SHEET_ID = '16PFWfElWUfN3x7iV4fSOnw0y3IdQBtrJIVzg6yOmLoU';
-const SHEET_NAME = 'フォームの回答 1'; // タブ名（変更していればその名前）
+const SHEET_GID = '1244360108'; // 数字
 
 // Google Visualization API (gviz) のJSONを叩いて成績取得
 // 共有が「リンク閲覧可」ならCORS越しでもフロントから読めます
 async function loadLeaderboard() {
-  const url =
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-
   const box = document.getElementById('leaderboard');
+  if (!box) return;
+
+  // 1) gviz JSON（タブ名不要、gid指定）
+  const gvizUrl =
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(SHEET_GID)}`;
+
   try {
-    const res = await fetch(url);
+    const res = await fetch(gvizUrl, { credentials: 'omit' });
     const text = await res.text();
 
-    // gvizは "google.visualization.Query.setResponse(...)" で返るので中のJSON部分だけ切り出す
+    // ログインページを引いたら例外に投げる（<html> などが来る）
+    if (/^\s*</.test(text)) throw new Error('Not public / got HTML');
+
+    // gviz包みを剥がしてJSON化
     const json = JSON.parse(text.replace(/^[^{]+/, '').replace(/;?\s*$/, ''));
     const cols = json.table.cols.map(c => (c && c.label) ? c.label : '');
     const rows = (json.table.rows || []).map(r => r.c.map(c => c ? c.v : ''));
 
-    // どの列が何かを自動判定（見出しの一部でゆるくマッチ）
+    renderFromRows(cols, rows);
+    return; // 成功したら終了
+  } catch (e) {
+    console.warn('gviz fetch failed, try CSV fallback:', e);
+  }
+
+  // 2) CSVフォールバック（「ウェブに公開」が必要）
+  // どちらでもOK：pub?output=csv の方が安定
+  const csvUrl =
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${encodeURIComponent(SHEET_GID)}&single=true&output=csv`;
+
+  try {
+    const res = await fetch(csvUrl, { credentials: 'omit' });
+    const text = await res.text();
+    const { cols, rows } = parseCSV(text);
+    renderFromRows(cols, rows);
+  } catch (e) {
+    console.error(e);
+    box.textContent = 'ランキングを読み込めませんでした…';
+  }
+
+  function renderFromRows(cols, rows) {
+    // 見出しをゆるく自動判定
     const idx = {
-      timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0), // 見つからなければ0列目
+      timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0),
       studentId: findIndex(cols, /番号|学籍|id/i),
       studentName: findIndex(cols, /氏名|名前|name/i),
       totalScore: findIndex(cols, /score|スコア|合計|点/i)
     };
 
-    // レコード整形
     let recs = rows.map(r => ({
       timestamp: r[idx.timestamp],
       id: String(r[idx.studentId] ?? '').trim(),
@@ -309,29 +336,47 @@ async function loadLeaderboard() {
     // 10点未満は除外、無効値も除外
     recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
 
-    // 同一ID（または氏名）で最高点のみ残す
+    // 同一ID（なければ氏名）で最高点のみ採用
     recs = bestByKey(recs, (x) => x.id || x.name);
 
     // スコア降順、同点は新しい順
     recs.sort((a, b) => b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp)));
 
-    // 上位10件
     recs = recs.slice(0, 10);
 
-    // 描画
     box.innerHTML = renderTableHTML(recs);
+  }
 
-  } catch (e) {
-    console.error(e);
-    if (box) box.textContent = 'ランキングを読み込めませんでした…';
+  function parseCSV(text) {
+    // シンプルCSVパーサ（ダブルクオート対応）
+    const rows = [];
+    let cur = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i], next = text[i+1];
+      if (inQ) {
+        if (ch === '"' && next === '"') { field += '"'; i++; }
+        else if (ch === '"') { inQ = false; }
+        else { field += ch; }
+      } else {
+        if (ch === '"') { inQ = true; }
+        else if (ch === ',') { cur.push(field); field = ''; }
+        else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+        else if (ch === '\r') { /* ignore */ }
+        else { field += ch; }
+      }
+    }
+    if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+    const cols = rows.shift() || [];
+    return { cols, rows };
   }
 
   function findIndex(arr, regex, fallback = -1) {
     const i = arr.findIndex(h => regex.test(String(h)));
     return i >= 0 ? i : fallback;
   }
+
   function bestByKey(list, keyFn) {
-    const best = new Map(); // key -> record
+    const best = new Map();
     for (const r of list) {
       const k = keyFn(r);
       if (!k) continue;
@@ -340,6 +385,7 @@ async function loadLeaderboard() {
     }
     return Array.from(best.values());
   }
+
   function renderTableHTML(items) {
     if (!items.length) return 'まだランキングはありません。';
     const rows = items.map((r, i) => `
@@ -364,6 +410,7 @@ async function loadLeaderboard() {
       </table>
       </div>`;
   }
+
   function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 }
 
