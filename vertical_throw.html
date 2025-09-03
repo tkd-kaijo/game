@@ -274,39 +274,37 @@
 const SHEET_ID = '16PFWfElWUfN3x7iV4fSOnw0y3IdQBtrJIVzg6yOmLoU';
 const SHEET_GID = '1244360108'; // 数字
 
+  
+
 // Google Visualization API (gviz) のJSONを叩いて成績取得
 // 共有が「リンク閲覧可」ならCORS越しでもフロントから読めます
-async function loadLeaderboard() {
+async function loadLeaderboard () {
   const box = document.getElementById('leaderboard');
   if (!box) return;
 
-  // 1) gviz JSON（タブ名不要、gid指定）
-  const gvizUrl =
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(SHEET_GID)}`;
+  // gviz JSON （gid 指定）
+  const gvizUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(SHEET_GID)}`;
 
   try {
     const res = await fetch(gvizUrl, { credentials: 'omit' });
     const text = await res.text();
 
-    // ログインページを引いたら例外に投げる（<html> などが来る）
-    if (/^\s*</.test(text)) throw new Error('Not public / got HTML');
+    // HTML（ログインページ等）を引いたら失敗扱い
+    if (/^\s*</.test(text)) throw new Error('Got HTML');
 
-    // gviz包みを剥がしてJSON化
+    // gviz のラッパを剥がす
     const json = JSON.parse(text.replace(/^[^{]+/, '').replace(/;?\s*$/, ''));
-    const cols = json.table.cols.map(c => (c && c.label) ? c.label : '');
-    const rows = (json.table.rows || []).map(r => r.c.map(c => c ? c.v : ''));
+    const cols = (json.table.cols || []).map(c => (c && c.label) ? c.label : '');
+    const rows = (json.table.rows || []).map(r => (r.c || []).map(c => c ? c.v : ''));
 
     renderFromRows(cols, rows);
-    return; // 成功したら終了
+    return;
   } catch (e) {
-    console.warn('gviz fetch failed, try CSV fallback:', e);
+    console.warn('gviz failed:', e);
   }
 
-  // 2) CSVフォールバック（「ウェブに公開」が必要）
-  // どちらでもOK：pub?output=csv の方が安定
-  const csvUrl =
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${encodeURIComponent(SHEET_GID)}&single=true&output=csv`;
-
+  // フォールバック：CSV（[ウェブに公開] 有効時）
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${encodeURIComponent(SHEET_GID)}&single=true&output=csv`;
   try {
     const res = await fetch(csvUrl, { credentials: 'omit' });
     const text = await res.text();
@@ -317,8 +315,8 @@ async function loadLeaderboard() {
     box.textContent = 'ランキングを読み込めませんでした…';
   }
 
-  function renderFromRows(cols, rows) {
-    // 見出しをゆるく自動判定
+  function renderFromRows (cols, rows) {
+    // 見出しの自動当て
     const idx = {
       timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0),
       studentId: findIndex(cols, /番号|学籍|id/i),
@@ -327,28 +325,28 @@ async function loadLeaderboard() {
     };
 
     let recs = rows.map(r => ({
-      timestamp: r[idx.timestamp],
+      timestamp: String(r[idx.timestamp] ?? ''),
       id: String(r[idx.studentId] ?? '').trim(),
       name: String(r[idx.studentName] ?? '').trim(),
       score: Number(String(r[idx.totalScore] ?? '').replace(/[^\d.-]/g, ''))
     }));
 
-    // 10点未満は除外、無効値も除外
+    // 10点未満は除外
     recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
 
-    // 同一ID（なければ氏名）で最高点のみ採用
-    recs = bestByKey(recs, (x) => x.id || x.name);
+    // 同一ID（なければ氏名）で最高点のみ
+    recs = bestByKey(recs, x => x.id || x.name);
 
-    // スコア降順、同点は新しい順
-    recs.sort((a, b) => b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp)));
+    // スコア降順、同点は新しい順（gviz の "Date(YYYY,MM,DD,...)" を解釈）
+    recs.sort((a, b) =>
+      b.score - a.score || (parseGvizDate(b.timestamp) - parseGvizDate(a.timestamp))
+    );
 
     recs = recs.slice(0, 10);
-
     box.innerHTML = renderTableHTML(recs);
   }
 
-  function parseCSV(text) {
-    // シンプルCSVパーサ（ダブルクオート対応）
+  function parseCSV (text) {
     const rows = [];
     let cur = [], field = '', inQ = false;
     for (let i = 0; i < text.length; i++) {
@@ -358,7 +356,7 @@ async function loadLeaderboard() {
         else if (ch === '"') { inQ = false; }
         else { field += ch; }
       } else {
-        if (ch === '"') { inQ = true; }
+        if (ch === '"') inQ = true;
         else if (ch === ',') { cur.push(field); field = ''; }
         else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
         else if (ch === '\r') { /* ignore */ }
@@ -370,12 +368,12 @@ async function loadLeaderboard() {
     return { cols, rows };
   }
 
-  function findIndex(arr, regex, fallback = -1) {
+  function findIndex (arr, regex, fallback = -1) {
     const i = arr.findIndex(h => regex.test(String(h)));
     return i >= 0 ? i : fallback;
   }
 
-  function bestByKey(list, keyFn) {
+  function bestByKey (list, keyFn) {
     const best = new Map();
     for (const r of list) {
       const k = keyFn(r);
@@ -386,7 +384,20 @@ async function loadLeaderboard() {
     return Array.from(best.values());
   }
 
-  function renderTableHTML(items) {
+  // "Date(2025,8,3,15,29,31)" → Date
+  function parseGvizDate (v) {
+    if (v instanceof Date) return v;
+    const m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
+    if (m) {
+      const [ , Y, M, D, h, m2, s ] = m.map(Number);
+      return new Date(Y, M, D, h, m2, s);
+    }
+    // フォールバック：通常のDateパース
+    const d = new Date(v);
+    return isNaN(d) ? new Date(0) : d;
+  }
+
+  function renderTableHTML (items) {
     if (!items.length) return 'まだランキングはありません。';
     const rows = items.map((r, i) => `
       <tr>
@@ -411,7 +422,11 @@ async function loadLeaderboard() {
       </div>`;
   }
 
-  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  function escapeHTML (s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
 }
 
   
