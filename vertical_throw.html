@@ -440,38 +440,61 @@ async function loadLeaderboard () {
 
   function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2000); }
   function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
-  async function submitResult(){
-  // ★ 10点未満は提出不可
+
+
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbx56Yx0bAFHRguU9cO-1YGCRM2-KSf-6ltA8o12VP_jNYIplglHb_Ej4mKvw3yCP9ZfAw/exec';
+
+async function submitResult(){
   if (score < 10) {
     showToast('スコアが10点未満のため提出できません');
     return;
   }
-
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
-  if(!studentId || !studentName){
+  if(!/^\d{4}$/.test(studentId) || !studentName){
     showToast('4桁番号と氏名を入力してください');
     return;
   }
   try{
-    const fd = new FormData();
-    fd.append(CONFIG.GOOGLE_FORMS.entry.studentId, studentId);
-    fd.append(CONFIG.GOOGLE_FORMS.entry.studentName, studentName);
-    fd.append(CONFIG.GOOGLE_FORMS.entry.totalScore, String(score));
-    fd.append(CONFIG.GOOGLE_FORMS.entry.timestamp, new Date().toLocaleString());
-    await fetch(CONFIG.GOOGLE_FORMS.url, { method:'POST', mode:'no-cors', body: fd });
-    showToast('送信しました！（Googleフォーム）');
-    submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+    const payload = {
+      studentId,
+      studentName,
+      totalScore: score,
+      timestamp: new Date().toISOString() // 任意（記録用）
+    };
+    const res = await fetch(GAS_URL, {
+      method:'POST',
+      mode:'cors',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json().catch(()=>({}));
+    if(json.ok){
+      showToast('送信しました！');
+      submitBtn.disabled = true;
+      studentIdInput.disabled = true;
+      studentNameInput.disabled = true;
 
-     // 数秒待つとシートに反映されるので少し遅らせて再読込
- setTimeout(loadLeaderboard, 5000);
-
-    
+      // （ランキングを公開用シートから読んでいる場合）少し後に再読込
+      setTimeout(loadLeaderboard, 4000);
+    }else{
+      console.warn('GAS rejected:', json);
+      const msg = ({
+        'INVALID_STUDENT_ID':'学籍番号が正しくありません',
+        'EMPTY_NAME':'氏名を入力してください',
+        'INVALID_SCORE':'スコアが不正です',
+        'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
+        'RATE_LIMIT':'連投が早すぎます。少し待って再送してください',
+      })[json.error] || '送信に失敗しました…';
+      showToast(msg);
+    }
   }catch(e){
     console.error(e);
     showToast('送信に失敗しました…');
   }
 }
+
+  
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   // レイアウト関連
