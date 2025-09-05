@@ -30,6 +30,7 @@
   .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:14px; background:rgba(255,255,255,.08); color:var(--yellow)}
   #challengeTextHUD{font-weight:700}
   #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
+  .excellent{ color:#8fffd6; font-weight:800; margin-left:8px }
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
   .ok{color:#ffd36a; font-weight:800; margin-left:8px}
@@ -667,40 +668,65 @@ renderGrid();                // ★引数なし
     requestAnimationFrame(step);
   }
 
-  // 採点：<10%:3点 / 10–20%:2点 / 20–30%:1点
+  // 採点
   function evaluateAndProceed(H,T){
-    const errPct = (challenge.type==='H')
-      ? Math.abs(H - challenge.target) / challenge.target
-      : Math.abs(T - challenge.target) / challenge.target;
+  const errPct = (challenge.type==='H')
+    ? Math.abs(H - challenge.target) / challenge.target
+    : Math.abs(T - challenge.target) / challenge.target;
 
-    let gained = 0;
-    if(errPct < 0.10){ gained=3; score+=3; resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; greatSound(); }
-    else if(errPct < 0.20){ gained=2; score+=2; resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; goodSound(); }
-    else if(errPct < 0.30){ gained=1; score+=1; resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; okSound(); }
-    else { resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`; wrongSound(); }
+  let gained = 0;
 
-    scoreHUD.textContent = String(score) + '点';
-    lastGainedPoints = gained;
-    lockBtn.disabled=true; retryBtn.disabled=false;
+  if (errPct < 0.03) {                  // ★ 3%以内は4点 & Excellent!!!
+    gained = 4; 
+    score += 4;
+    resultTextHUD.innerHTML =
+      `<span class="excellent">Excellent!!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    greatSound();                       // 好きなら別SEを足してもOK
+  } else if (errPct < 0.10) {           // 10%未満 → 3点
+    gained = 3; 
+    score += 3;
+    resultTextHUD.innerHTML =
+      `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    greatSound();
+  } else if (errPct < 0.20) {           // 20%未満 → 2点
+    gained = 2; 
+    score += 2;
+    resultTextHUD.innerHTML =
+      `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    goodSound();
+  } else if (errPct < 0.30) {           // 30%未満 → 1点
+    gained = 1; 
+    score += 1;
+    resultTextHUD.innerHTML =
+      `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    okSound();
+  } else {                              // それ以外 → 0点
+    resultTextHUD.innerHTML =
+      `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
+    wrongSound();
+  }
 
-    if(round>=maxRounds){
-  const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
-  resultTextHUD.innerHTML =
-    `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
-    `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
-  challengeTextHUD.textContent = finalMsg;
-  retryBtn.style.display='none';
-  resetBtn.style.display='inline-block';
+  scoreHUD.textContent = String(score) + '点';
+  lastGainedPoints = gained;
+  lockBtn.disabled=true; retryBtn.disabled=false;
 
-  // ★ 10点以上だけ提出可
-  if (score >= 10) {
-    showSubmitBox();
-  } else {
-    submitBox.style.display = 'none'; // 念のため隠す
-    showToast('今回はスコアが10点未満のため提出できません');
+  if (round >= maxRounds) {
+    const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
+    resultTextHUD.innerHTML =
+      `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
+      `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
+    challengeTextHUD.textContent = finalMsg;
+    retryBtn.style.display='none';
+    resetBtn.style.display='inline-block';
+
+    if (score >= 10) {
+      showSubmitBox();
+    } else {
+      submitBox.style.display = 'none';
+      showToast('今回はスコアが10点未満のため提出できません');
+    }
   }
 }
-  }
 
   function setupNextRound(){
     if(round<maxRounds){ round += 1; }
