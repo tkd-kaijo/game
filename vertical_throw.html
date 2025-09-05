@@ -282,9 +282,14 @@ async function loadLeaderboard () {
   const box = document.getElementById('leaderboard');
   if (!box) return;
 
-  // gviz JSON （gid 指定）
-  const gvizUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(SHEET_GID)}`;
+ // 追加
+const SHEET_NAME = 'Submissions';
 
+// 置き換え（gidではなくsheet=を使う）
+const gvizUrl =
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
+  
   try {
     const res = await fetch(gvizUrl, { credentials: 'omit' });
     const text = await res.text();
