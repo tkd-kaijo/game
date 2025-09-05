@@ -228,7 +228,7 @@
   <div class="submitBox" id="submitBox" style="display:none" aria-live="polite">
     <h3>提出</h3>
     <div class="submitRow">
-      <label for="studentId">4桁番号(年組番)：</label>
+      <label for="studentId">4桁番号(年組番、半角)：</label>
       <input id="studentId" type="text" placeholder="3143" inputmode="numeric" />
     </div>
     <div class="submitRow">
@@ -468,7 +468,7 @@ async function submitResult(){
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
   if(!/^\d{4}$/.test(studentId) || !studentName){
-    showToast('4桁番号と氏名を入力してください');
+    showToast('4桁番号(半角)と氏名を入力してください');
     return;
   }
   try{
