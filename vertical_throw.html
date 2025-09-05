@@ -162,6 +162,10 @@
   .submitRow button{ padding:10px 14px; border-radius:10px; border:none; font-weight:700; cursor:pointer; color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf); box-shadow: 0 8px 22px rgba(122,255,175,.28); }
   .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
   .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
+
+/* ランキングはreadoutsの横幅を全取り（デスクトップ＝Mac表示でも下に回る） */
+#leaderboardCard{ grid-column: 1 / -1; }
+
 </style>
 </head>
 <body>
