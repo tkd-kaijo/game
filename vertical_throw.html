@@ -205,13 +205,17 @@
           <div class="stat"><div class="label">現在の高さ y</div><div class="value" id="yNow">0.00 m</div></div>
           <div class="stat"><div class="label">最高到達高度 H</div><div class="value" id="hVal">0.00 m</div></div>
           <div class="stat"><div class="label">時間t</div><div class="value" id="tVal">0.00 s</div></div>
+
+
+           <section class="card" id="leaderboardCard" aria-live="polite">
+    <h3 style="margin:0 0 8px">トップ10(※平常点的には「提出できたか否か」のみの判断)</h3>
+    <div id="leaderboard">読み込み中…</div>
+  </section>
+          
         </div>
       </div>
 
-      <section class="card" id="leaderboardCard" aria-live="polite">
-  <h3 style="margin:0 0 8px">トップ10 ※平常点的には「提出したか否か」だけ見るので、あまりこだわらないように。</h3>
-  <div id="leaderboard">読み込み中…</div>
-</section>
+      
       
     </section>
   </main>
