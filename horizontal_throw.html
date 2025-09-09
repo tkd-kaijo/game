@@ -904,6 +904,9 @@ function escapeHTML (s) {
   // ====== 初期化 ======
   requestAnimationFrame(rouletteLoop);
   setupRound();
+
+  loadLeaderboard();
+setInterval(loadLeaderboard, 60000);
 })();
 </script>
 </body>
