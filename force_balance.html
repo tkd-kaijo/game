@@ -42,7 +42,7 @@
     <div class="hud">
       <div class="pill">スコア：<b id="scoreLabel">0</b></div>
       <div class="pill">残り：<b id="timeLabel">60.00s</b></div>
-      <div class="pill">ルール：<b>1分間で正解数を競う</b></div>
+      <div class="pill">ルール：<b>1分で何問？（正:+1／誤:-1）</b></div>
       <button id="assistBtn" class="btn-toggle" aria-pressed="false" title="補助線を引くモードを切替">補助線を引く</button>
       <button id="startBtn">スタート</button>
       <button id="resetBtn" disabled>リセット</button>
@@ -56,10 +56,10 @@
       <span class="chip"><span class="dot c-green"></span>表示中の力②</span>
       <span class="chip"><span class="dot c-purple"></span>あなたの解答（ドラッグ中/提出済）</span>
       <span class="chip"><span class="dot c-yellow"></span>正解（ラウンド終了時のみ）</span>
-      <span class="chip"><span class="dot c-gray"></span>補助線（トグルONで自由に破線）</span>
+      <span class="chip"><span class="dot c-gray"></span>補助線（トグルONで破線）</span>
       <span class="chip">8×8マス（交点は9×9）／中央の交点に物体</span>
     </div>
-    <div class="msg" id="msg">[操作] スタート後、中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。60秒で何問解けるか挑戦！ 補助線モードで作図の下書きも可。</div>
+    <div class="msg" id="msg">[操作] スタート後、中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。補助線は問題が切替わるたびに消えます。</div>
   </div>
 
   <div class="footer">
@@ -72,12 +72,12 @@
   // ====== 基本設定 ======
   const gridSquares = 8;                   // 8×8マス
   const points = gridSquares + 1;          // 交点は 9 × 9
-  const centerIndex = Math.floor(points/2);// 中央インデックス（0基準）
-  const margin = 28;                       // 余白（px）
+  const centerIndex = Math.floor(points/2);
+  const margin = 28;
   const gameSeconds = 60.0;                // 1分勝負
   const revealDelayMs = 400;               // 正解表示の短いディレイ
 
-  // ====== キャンバス & DPI 補正 ======
+  // ====== キャンバス調整 ======
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
@@ -109,29 +109,29 @@
     return {i,j};
   }
 
-  // ====== ゲーム状態 ======
+  // ====== 状態 ======
   let score = 0;
   let startTime = null;
   let timerId = null;
   let playing = false;
   let awaitingAnswer = false;
-  let forces = null;       // {A:{i,j}, B:{i,j}, C:{i,j}}
-  let lastAnswer = null;   // 提出済み {i,j}
+  let forces = null;       // {A,B,C}
+  let lastAnswer = null;
   let revealCorrect = false;
 
-  // ドラッグ入力状態（解答用）
+  // 解答ドラッグ
   let dragging = false;
-  let dragPos = null;      // {x,y}（キャンバス座標）
-  const startFromCenterRadiusFactor = 0.5; // 中央近傍からのみ開始
+  let dragPos = null;      // {x,y}
+  const startFromCenterRadiusFactor = 0.5;
 
   // 補助線モード
   let assistMode = false;
   let assistDragging = false;
-  let assistStart = null; // {i,j}
-  let assistTempEnd = null; // {x,y} ドラッグ中座標
-  const assistLines = []; // [{a:{i,j}, b:{i,j}} ...]
+  let assistStart = null;     // {i,j}
+  let assistTempEnd = null;   // {x,y}
+  const assistLines = [];     // [{a:{i,j}, b:{i,j}}]
 
-  // UI 参照
+  // UI
   const msgEl = document.getElementById('msg');
   const scoreLabel = document.getElementById('scoreLabel');
   const timeLabel  = document.getElementById('timeLabel');
@@ -143,7 +143,7 @@
   resetBtn.addEventListener('click', hardReset);
   assistBtn.addEventListener('click', toggleAssist);
 
-  // ====== 補助関数 ======
+  // ====== ユーティリティ ======
   function randInt(n){ return Math.floor(Math.random()*n); }
   function pickEndpointExceptCenter(){
     while(true){
@@ -158,7 +158,7 @@
     return (dax + dbx === 0 && day + dby === 0);
   }
 
-  // ラウンド生成：A,B をランダム、C = −(A+B)
+  // 出題生成
   function generateRound(){
     let A, B, C;
     let safety = 0;
@@ -182,6 +182,16 @@
     lastAnswer = null;
     revealCorrect = false;
     awaitingAnswer = true;
+  }
+
+  // ★ 出題切替（ここで補助線を全消去）
+  function nextRound(){
+    assistLines.length = 0;          // 要望：問題切替で補助線全消し
+    assistDragging = false;
+    assistStart = null;
+    assistTempEnd = null;
+    generateRound();
+    draw();
   }
 
   // ====== 描画 ======
@@ -211,7 +221,6 @@
     ctx.restore();
   }
 
-  // 中央の球（強調）
   function drawCenterBody(){
     const {x,y} = ijToXY(centerIndex, centerIndex);
     const r = Math.max(10, spacing()*0.18);
@@ -222,18 +231,14 @@
     grad.addColorStop(0.55, '#23304a');
     grad.addColorStop(1, '#101722');
     ctx.fillStyle = grad;
-
     ctx.shadowColor = 'rgba(120,170,255,0.45)';
     ctx.shadowBlur = Math.max(8, r*0.8);
     ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-
     ctx.shadowBlur = 0;
     ctx.lineWidth = Math.max(2, r*0.14);
-    ctx.strokeStyle = 'rgba(130,180,255,0.55)';
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(130,180,255,0.55)'; ctx.stroke();
     ctx.lineWidth = Math.max(1, r*0.06);
-    ctx.strokeStyle = '#2e3a52';
-    ctx.stroke();
+    ctx.strokeStyle = '#2e3a52'; ctx.stroke();
     ctx.restore();
   }
 
@@ -292,38 +297,33 @@
     drawGrid();
 
     // 補助線（確定済み）
-    for(const seg of assistLines){
-      drawAssistLine(seg.a, seg.b, false);
-    }
+    for(const seg of assistLines){ drawAssistLine(seg.a, seg.b, false); }
 
     drawCenterBody();
 
     const O = ijToXY(centerIndex, centerIndex);
 
     if(forces){
-      // 表示中の2ベクトル
       const Axy = ijToXY(forces.A.i, forces.A.j);
       const Bxy = ijToXY(forces.B.i, forces.B.j);
       drawArrow(O, Axy, '#69b7ff');
       drawArrow(O, Bxy, '#7dffa7');
 
-      // 解答ドラッグ中の仮表示
+      // 解答ドラッグ中
       if(dragging && dragPos){
         drawArrow(O, dragPos, '#c59eff', [8,6]);
         const snapped = xyToIJ(dragPos.x, dragPos.y);
-        if(!(snapped.i===centerIndex && snapped.j===centerIndex)){
-          drawHoverSnapCircle(snapped.i, snapped.j);
-        }
+        if(!(snapped.i===centerIndex && snapped.j===centerIndex)){ drawHoverSnapCircle(snapped.i, snapped.j); }
       }
 
-      // 補助線ドラッグ中の仮表示
+      // 補助線ドラッグ中
       if(assistDragging && assistStart && assistTempEnd){
         drawAssistLine(assistStart, assistTempEnd, true);
         const snap = xyToIJ(assistTempEnd.x, assistTempEnd.y);
         drawHoverSnapCircle(snap.i, snap.j);
       }
 
-      // 提出済みの解答
+      // 提出済み
       if(lastAnswer){
         const Ans = ijToXY(lastAnswer.i, lastAnswer.j);
         drawArrow(O, Ans, '#c59eff', [8,6]);
@@ -344,9 +344,7 @@
       if(!playing) return;
       const remain = remainingSeconds();
       timeLabel.textContent = Math.max(0, remain).toFixed(2) + 's';
-      if(remain <= 0){
-        finishGame();
-      }
+      if(remain <= 0){ finishGame(); }
     }, 30);
   }
   function stopTimer(){ if(timerId){ clearInterval(timerId); timerId = null; } }
@@ -356,57 +354,40 @@
     return gameSeconds - elapsed;
   }
 
-  // ====== 進行管理 ======
+  // ====== 進行 ======
   function startGame(){
-    score = 0;
-    updateScore(0);
+    score = 0; updateScore(0,true);
     startTime = performance.now();
     playing = true;
-    startBtn.disabled = true;
-    resetBtn.disabled = false;
-    assistLines.length = 0; // スタートで補助線はクリア（必要なら残す仕様に変更可）
-    nextRound();
+    startBtn.disabled = true; resetBtn.disabled = false;
+    nextRound();                        // ← 出題時に補助線クリア
     startTimer();
-    announce('スタート！ 60秒でできるだけ正解しよう。補助線モードは必要に応じてON/OFFしてね。');
+    announce('スタート！ 正解+1／不正解-1。60秒でハイスコアを狙おう。');
   }
   function finishGame(){
-    playing = false;
-    awaitingAnswer = false;
-    revealCorrect = false; // 終了時は正解表示オフ
-    stopTimer();
-    draw();
-    announce(`終了！ スコア：${score} 問 正解 🎉（もう一度挑戦する？）`);
-    startBtn.disabled = false;
-    startBtn.textContent = 'もう一度';
+    playing = false; awaitingAnswer = false; revealCorrect = false;
+    stopTimer(); draw();
+    announce(`終了！ スコア：${score} 点（正:+1／誤:-1）。もう一度挑戦する？`);
+    startBtn.disabled = false; startBtn.textContent = 'もう一度';
   }
-  function nextRound(){
-    generateRound();
-    draw();
-  }
-  function updateScore(delta){
-    score += delta;
+  function updateScore(delta, force=false){
+    if(!force) score += delta;
     scoreLabel.textContent = String(score);
   }
 
   function hardReset(){
-    playing = false;
-    awaitingAnswer = false;
-    revealCorrect = false;
+    playing = false; awaitingAnswer = false; revealCorrect = false;
     stopTimer();
-    score = 0;
-    startTime = null;
-    lastAnswer = null;
-    forces = null;
+    score = 0; startTime = null;
+    lastAnswer = null; forces = null;
     dragging = false; dragPos = null;
-    assistDragging = false; assistStart = null; assistTempEnd = null;
-    assistLines.length = 0;
+    assistMode = false; assistBtn.setAttribute('aria-pressed','false'); assistBtn.textContent = '補助線を引く';
+    assistDragging = false; assistStart = null; assistTempEnd = null; assistLines.length = 0;
     timeLabel.textContent = gameSeconds.toFixed(2)+'s';
     scoreLabel.textContent = '0';
-    startBtn.disabled = false;
-    startBtn.textContent = 'スタート';
-    announce('[操作] スタート後、中央からドラッグで解答。補助線モード中は自由に破線を引けます（もう一度押すと解除）。');
-    fitCanvasDPI();
-    draw();
+    startBtn.disabled = false; startBtn.textContent = 'スタート';
+    announce('[操作] 中央からドラッグで解答。補助線は出題切替で自動消去。補助線ボタンでON/OFF切替。');
+    fitCanvasDPI(); draw();
   }
 
   function announce(text){ msgEl.innerHTML = text.replace(/\n/g,'<br/>'); }
@@ -435,23 +416,19 @@
       const startIJ = xyToIJ(pos.x, pos.y);
       assistDragging = true;
       assistStart = startIJ;
-      assistTempEnd = pos; // XYで保持して仮線を引く
+      assistTempEnd = pos;
       canvas.setPointerCapture?.(e.pointerId);
-      e.preventDefault();
-      draw();
-      return;
+      e.preventDefault(); draw(); return;
     }
 
-    // 通常：解答ドラッグ（中央近傍からのみ）
+    // 解答ドラッグ（中央近傍からのみ）
     if(!playing || !forces) return;
     const O = ijToXY(centerIndex, centerIndex);
     const r = Math.max(10, spacing()*startFromCenterRadiusFactor);
     if(Math.hypot(pos.x - O.x, pos.y - O.y) <= r * 2.0){
-      dragging = true;
-      dragPos = pos;
+      dragging = true; dragPos = pos;
       canvas.setPointerCapture?.(e.pointerId);
-      e.preventDefault();
-      draw();
+      e.preventDefault(); draw();
     }
   }
 
@@ -460,14 +437,11 @@
 
     if(assistMode){
       if(!assistDragging) return;
-      assistTempEnd = pos;
-      draw();
-      return;
+      assistTempEnd = pos; draw(); return;
     }
 
     if(!dragging) return;
-    dragPos = pos;
-    draw();
+    dragPos = pos; draw();
   }
 
   function pointerUp(e){
@@ -477,43 +451,36 @@
       if(!assistDragging) return;
       assistDragging = false;
       const endIJ = xyToIJ(pos.x, pos.y);
-      // 同じ点なら無視
       if(!(assistStart.i===endIJ.i && assistStart.j===endIJ.j)){
-        assistLines.push({a: {...assistStart}, b: {...endIJ}});
+        assistLines.push({a:{...assistStart}, b:{...endIJ}});
       }
-      assistStart = null;
-      assistTempEnd = null;
-      draw();
-      return;
+      assistStart = null; assistTempEnd = null; draw(); return;
     }
 
     if(!dragging) return;
     dragging = false;
 
-    if(!playing || !awaitingAnswer || !forces) { dragPos = null; draw(); return; }
+    if(!playing || !awaitingAnswer || !forces){ dragPos = null; draw(); return; }
 
     // 解答スナップ
     const {i,j} = xyToIJ(pos.x, pos.y);
     if(i===centerIndex && j===centerIndex){
       announce('中央（物体位置）は終点にできません。もう一度ドラッグしてね。');
-      dragPos = null;
-      draw();
-      return;
+      dragPos = null; draw(); return;
     }
     lastAnswer = {i,j};
-    dragPos = null;
-    draw();
+    dragPos = null; draw();
 
-    // 判定 → 正解ならスコア+1。どちらでも次問題へ
+    // 判定 → 正解+1／不正解-1
     const correct = (i===forces.C.i && j===forces.C.j);
-    if(correct){
-      updateScore(1);
-      revealCorrect = true; draw();
-      setTimeout(() => { revealCorrect = false; awaitingAnswer = true; generateRound(); draw(); }, revealDelayMs);
-    }else{
-      revealCorrect = true; draw(); // 答えを短く見せる
-      setTimeout(() => { revealCorrect = false; awaitingAnswer = true; generateRound(); draw(); }, revealDelayMs);
-    }
+    updateScore(correct ? +1 : -1);
+    revealCorrect = true; draw();
+
+    // 短く見せて次問題（ここで補助線クリアも行われる）
+    setTimeout(() => {
+      revealCorrect = false; awaitingAnswer = true;
+      nextRound(); // ← 出題切替で補助線全削除
+    }, revealDelayMs);
   }
 
   canvas.addEventListener('pointerdown', pointerDown, {passive:false});
