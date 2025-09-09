@@ -396,7 +396,7 @@
   function toggleAssist(){
     assistMode = !assistMode;
     assistBtn.setAttribute('aria-pressed', String(assistMode));
-    assistBtn.textContent = assistMode ? '補助線モード中（もう一度で解除）' : '補助線を引く';
+    assistBtn.textContent = assistMode ? '補助線モード解除' : '補助線を引く';
     announce(assistMode ? '補助線モードON：格子点から格子点へドラッグで破線を引けます。' : '補助線モードOFF。');
   }
 
