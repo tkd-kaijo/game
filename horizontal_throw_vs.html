@@ -606,9 +606,12 @@ body.prestart .btn{ pointer-events: none; opacity: .6; }
       // 自分は ok 以上でデバフ解除
       if (verdict!=='miss'){ this.clearDebuff(); }
 
-      // 次の課題へ
-      this.pickChallenge();
-      this.fireBtn.disabled=false; this.locked=false;
+      // miss 以外のときだけ新しい課題を出す
+if (verdict !== 'miss') {
+  this.pickChallenge();
+}
+this.fireBtn.disabled = false;
+this.locked = false;
     }
 
     /* ---- ライフサイクル ---- */
