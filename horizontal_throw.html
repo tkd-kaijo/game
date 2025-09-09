@@ -237,7 +237,12 @@
           <div class="stat"><div class="label">現在位置 (x, y)</div><div class="value" id="posNow">0.00 m, 0.00 m</div></div>
           <div class="stat"><div class="label">飛行時間 T</div><div class="value" id="tVal">0.00 s</div></div>
           <div class="stat"><div class="label">着地点 xₗ</div><div class="value" id="xLandVal">0.00 m</div></div>
+          
         </div>
+        <section class="card" id="leaderboardCard" aria-live="polite" style="margin-top:8px">
+  <h3 style="margin:0 0 8px">トップ10</h3>
+  <div id="leaderboard">読み込み中…</div>
+</section>
       </div>
     </section>
   </main>
@@ -298,18 +303,8 @@
   const scoreHUD=document.getElementById('scoreHUD');
 
   // ====== 提出設定 ======
-  const CONFIG = {
-    SUBMIT_MODE: 'google_forms',
-    GOOGLE_FORMS: {
-      url: 'https://docs.google.com/forms/d/e/1FAIpQLSexuPjkPNsE9YuXd8dZH1XfZ1Yuwb71fYbJFQMG-E0bPxyEIQ/formResponse',
-      entry: {
-        studentId: 'entry.196095964',
-        studentName: 'entry.914895046',
-        totalScore: 'entry.1303752079',
-        timestamp: 'entry.1852796806'
-      }
-    }
-  };
+ // ★ あなたのGASデプロイURLをセット（鉛直投げ上げと同じもの）
+const GAS_URL = 'https://script.google.com/macros/s/AKfycby9E7HsozLuu1ZAXAf5yYLactnN9S160cdpGi45DZAevDXZWI8YorzP7yIbjaMnCMgv/exec';
   const submitBox = document.getElementById('submitBox');
   const submitBtn = document.getElementById('submitBtn');
   const studentIdInput = document.getElementById('studentId');
@@ -317,22 +312,50 @@
   const toast = document.getElementById('toast');
   function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2000); }
   function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
-  async function submitResult(){
-    if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
-    const studentId = studentIdInput.value.trim();
-    const studentName = studentNameInput.value.trim();
-    if(!studentId || !studentName){ showToast('4桁番号と氏名を入力してください'); return; }
-    try{
-      const fd = new FormData();
-      fd.append(CONFIG.GOOGLE_FORMS.entry.studentId, studentId);
-      fd.append(CONFIG.GOOGLE_FORMS.entry.studentName, studentName);
-      fd.append(CONFIG.GOOGLE_FORMS.entry.totalScore, String(score));
-      fd.append(CONFIG.GOOGLE_FORMS.entry.timestamp, new Date().toLocaleString());
-      await fetch(CONFIG.GOOGLE_FORMS.url, { method:'POST', mode:'no-cors', body: fd });
-      showToast('送信しました！（Googleフォーム）');
-      submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
-    }catch(e){ console.error(e); showToast('送信に失敗しました…'); }
+async function submitResult(){
+  if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
+
+  const studentId = studentIdInput.value.trim();
+  const studentName = studentNameInput.value.trim();
+
+  // 4桁・半角チェック（鉛直と同じ仕様）
+  if(!/^\d{4}$/.test(studentId) || !studentName){
+    showToast('4桁番号(半角)と氏名を入力してください');
+    return;
   }
+
+  try{
+    const params = new URLSearchParams({
+      studentId,
+      studentName,
+      totalScore: String(score)
+      // timestamp は GAS 側で付与
+    });
+
+    const res = await fetch(GAS_URL, { method: 'POST', body: params });
+    const json = await res.json().catch(()=>({}));
+
+    if(json.ok){
+      showToast('送信しました！');
+      submitBtn.disabled = true;
+      studentIdInput.disabled = true;
+      studentNameInput.disabled = true;
+      setTimeout(loadLeaderboard, 4000); // 少し待ってランキング再読込
+    }else{
+      const msg = ({
+        'INVALID_STUDENT_ID':'学籍番号が正しくありません',
+        'EMPTY_NAME':'氏名を入力してください',
+        'INVALID_SCORE':'スコアが不正です',
+        'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
+        'RATE_LIMIT':'連投が早すぎます。少し待って再送してください',
+      })[json.error] || '送信に失敗しました…';
+      showToast(msg);
+    }
+  }catch(e){
+    console.error(e);
+    showToast('送信に失敗しました…');
+  }
+}
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   // ====== レイアウト・スケール ======
@@ -660,29 +683,48 @@ function setupRound(){
 
   // ====== 採点（<5%:3 / <10%:2 / <15%:1） ======
   function evaluateAndProceed(){
-    const errPct = Math.abs(xLand - xTarget) / xTarget;
-    let gained = 0;
-    if(errPct < 0.10){ gained=3; score+=3; resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; greatSound(); }
-    else if(errPct < 0.20){ gained=2; score+=2; resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; goodSound(); }
-    else if(errPct < 0.30){ gained=1; score+=1; resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`; okSound(); }
-    else { resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`; wrongSound(); }
+  const errPct = Math.abs(xLand - xTarget) / xTarget;
+  let gained = 0;
 
-    scoreHUD.textContent = String(score) + '点';
-    lastGainedPoints = gained;
-    lockBtn.disabled=true; retryBtn.disabled=false;
-
-    if(round>=maxRounds){
-      const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
-      resultTextHUD.innerHTML =
-        `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
-        `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
-      challengeTextHUD.textContent = finalMsg;
-      retryBtn.style.display='none';
-      resetBtn.style.display='inline-block';
-      if (score >= 10) { showSubmitBox(); }
-      else { submitBox.style.display='none'; showToast('今回はスコアが10点未満のため提出できません'); }
-    }
+  if (errPct < 0.03) { // 3%未満 → 4点 & Excellent!!!
+    gained = 4; 
+    score += 4;
+    resultTextHUD.innerHTML =
+      `<span style="color:#8fffd6; font-weight:800; margin-left:8px">Excellent!!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    greatSound();
+  } else if (errPct < 0.10){ // 10%未満 → 3点
+    gained=3; score+=3;
+    resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    greatSound();
+  } else if (errPct < 0.20){ // 20%未満 → 2点
+    gained=2; score+=2;
+    resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    goodSound();
+  } else if (errPct < 0.30){ // 30%未満 → 1点
+    gained=1; score+=1;
+    resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
+    okSound();
+  } else {
+    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
+    wrongSound();
   }
+
+  scoreHUD.textContent = String(score) + '点';
+  lastGainedPoints = gained;
+  lockBtn.disabled=true; retryBtn.disabled=false;
+
+  if(round>=maxRounds){
+    const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
+    resultTextHUD.innerHTML =
+      `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
+      `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
+    challengeTextHUD.textContent = finalMsg;
+    retryBtn.style.display='none';
+    resetBtn.style.display='inline-block';
+    if (score >= 10) { showSubmitBox(); }
+    else { submitBox.style.display='none'; showToast('今回はスコアが10点未満のため提出できません'); }
+  }
+}
 
   // ====== 進行制御 ======
   function setupNextRound(){
@@ -735,6 +777,129 @@ function setupRound(){
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize', ()=>{ setTimeout(handleResize, 50); });
   }
+
+  // === Leaderboard（CSVのみ） ===
+
+// ★ここを自分の「公開したいシートのCSV URL」に置き換える
+//   例）「ファイル → ウェブに公開」で Submissions シートだけ公開したURL
+//   最後が &output=csv になっているやつです。
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ10LcB0wupR7ip5mhf_WskxAZiQQIXytBQ45Sxyf2ej9R1xULe-iQbj7RU2TgNXOrjTrUVefFQOEIO/pub?output=csv";
+
+async function loadLeaderboard () {
+  const box = document.getElementById('leaderboard');
+  if (!box) return;
+
+  try {
+    const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+    const res = await fetch(url, { credentials: 'omit', cache: 'no-store' });
+    const text = await res.text();
+    const { cols, rows } = parseCSV(text);
+    renderFromRows(cols, rows);
+  } catch (e) {
+    console.error(e);
+    box.textContent = 'ランキングを読み込めませんでした…';
+  }
+
+  function renderFromRows (cols, rows) {
+    // ヘッダ名が合わない場合に備えて列番号にフォールバック
+    const idx = {
+      timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0),
+      studentId: findIndex(cols, /番号|学籍|id/i, 1),
+      studentName: findIndex(cols, /氏名|名前|name/i, 2),
+      totalScore: findIndex(cols, /score|スコア|合計|点/i, 3)
+    };
+
+    let recs = rows.map(r => ({
+      timestamp: String(r[idx.timestamp] ?? ''),
+      id: String(r[idx.studentId] ?? '').trim(),
+      name: String(r[idx.studentName] ?? '').trim(),
+      score: Number(String(r[idx.totalScore] ?? '').replace(/[^\d.-]/g, ''))
+    }));
+
+    // 10点未満は対象外
+    recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
+
+    // 同一ID（なければ氏名）で最高点だけ残す
+    recs = bestByKey(recs, x => x.id || x.name);
+
+    // スコア降順、同点は新しい提出（timestampが大きい）を優先
+    recs.sort((a, b) => b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp)));
+
+    // 上位10件
+    recs = recs.slice(0, 10);
+
+    box.innerHTML = renderTableHTML(recs);
+  }
+}
+
+function parseCSV (text) {
+  const rows = [];
+  let cur = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], next = text[i+1];
+    if (inQ) {
+      if (ch === '"' && next === '"') { field += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { cur.push(field); field = ''; }
+      else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+      else if (ch === '\r') { /* ignore */ }
+      else { field += ch; }
+    }
+  }
+  if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+  const cols = rows.shift() || [];
+  return { cols, rows };
+}
+
+function findIndex (arr, regex, fallback = -1) {
+  const i = arr.findIndex(h => regex.test(String(h)));
+  return i >= 0 ? i : fallback;
+}
+
+function bestByKey (list, keyFn) {
+  const best = new Map();
+  for (const r of list) {
+    const k = keyFn(r);
+    if (!k) continue;
+    const cur = best.get(k);
+    if (!cur || r.score > cur.score) best.set(k, r);
+  }
+  return Array.from(best.values());
+}
+
+function renderTableHTML (items) {
+  if (!items.length) return 'まだランキングはありません。';
+  const rows = items.map((r, i) => `
+    <tr>
+      <td style="text-align:center; font-weight:700">${i+1}</td>
+      <td>${escapeHTML(r.name || '—')}</td>
+      <td style="text-align:center">${escapeHTML(r.id || '—')}</td>
+      <td style="text-align:right; font-variant-numeric: tabular-nums">${r.score}</td>
+    </tr>`).join('');
+  return `
+    <div style="overflow:auto">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <thead>
+        <tr>
+          <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
+          <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
+          <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
+          <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+}
+
+function escapeHTML (s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
 
   // ====== 初期化 ======
   requestAnimationFrame(rouletteLoop);
