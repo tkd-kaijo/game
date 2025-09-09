@@ -55,15 +55,15 @@
       <span class="chip"><span class="dot c-blue"></span>表示中の力①</span>
       <span class="chip"><span class="dot c-green"></span>表示中の力②</span>
       <span class="chip"><span class="dot c-purple"></span>あなたの解答（ドラッグ中/提出済）</span>
-      <span class="chip"><span class="dot c-yellow"></span>正解（ラウンド終了時のみ）</span>
+      <span class="chip"><span class="dot c-yellow"></span>正解（短時間だけ表示）</span>
       <span class="chip"><span class="dot c-gray"></span>補助線（トグルONで破線）</span>
       <span class="chip">8×8マス（交点は9×9）／中央の交点に物体</span>
     </div>
-    <div class="msg" id="msg">[操作] スタート後、中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。補助線は問題が切替わるたびに消えます。</div>
+    <div class="msg" id="msg">[操作] 中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。補助線は問題切替ごとにリセットされます。</div>
   </div>
 
   <div class="footer">
-    ヒント：3つの力のベクトル和は <span class="kbd">0</span>。表示の2本 <span class="kbd">F₁</span>, <span class="kbd">F₂</span> に対して欠けた力は <span class="kbd">F₃ = −(F₁ + F₂)</span>。
+    ヒント：3つの力のベクトル和は <span class="kbd">0</span>。表示の2本 <span class="kbd">F₁, F₂</span> に対して欠けた力は <span class="kbd">F₃ = −(F₁ + F₂)</span>。
   </div>
 </div>
 
@@ -76,6 +76,12 @@
   const margin = 28;
   const gameSeconds = 60.0;                // 1分勝負
   const revealDelayMs = 400;               // 正解表示の短いディレイ
+
+  // 「一直線・ほぼ一直線」排除パラメータ（調整可）
+  const THETA_MIN_DEG = 22.5;              // 角度の最小分離
+  const COS_TH = Math.cos(THETA_MIN_DEG * Math.PI/180); // ≈ 0.924
+  const D_MIN = 0.5;                       // 視覚分離距離（グリッド単位）
+  const MIN_LEN = 1;                       // 最短長（中心から1以上）
 
   // ====== キャンバス調整 ======
   const canvas = document.getElementById('canvas');
@@ -143,7 +149,34 @@
   resetBtn.addEventListener('click', hardReset);
   assistBtn.addEventListener('click', toggleAssist);
 
-  // ====== ユーティリティ ======
+  // ====== ベクトル評価：一直線＆ほぼ一直線の排除 ======
+  function isBadPair(A, B){
+    const dxA = A.i - centerIndex, dyA = A.j - centerIndex;
+    const dxB = B.i - centerIndex, dyB = B.j - centerIndex;
+
+    // 中心には来ない前提だが一応
+    const lenA = Math.hypot(dxA, dyA);
+    const lenB = Math.hypot(dxB, dyB);
+    if(lenA < MIN_LEN || lenB < MIN_LEN) return true;
+
+    // 1) 厳密平行（同一直線）
+    if (dxA*dyB === dyA*dxB) return true;
+
+    // 2) 角度の最小分離
+    const dot = dxA*dxB + dyA*dyB;
+    const cosT = dot / (lenA * lenB);
+    const absCos = Math.abs(cosT);
+    if (absCos > COS_TH) return true;
+
+    // 3) 視覚分離距離（短い方基準）
+    const sinT = Math.sqrt(Math.max(0, 1 - cosT*cosT));
+    const sep = Math.min(lenA, lenB) * Math.abs(sinT);
+    if (sep < D_MIN) return true;
+
+    return false; // 採用OK
+  }
+
+  // ====== 出題生成 ======
   function randInt(n){ return Math.floor(Math.random()*n); }
   function pickEndpointExceptCenter(){
     while(true){
@@ -158,24 +191,35 @@
     return (dax + dbx === 0 && day + dby === 0);
   }
 
-  // 出題生成
   function generateRound(){
     let A, B, C;
     let safety = 0;
     do{
       safety++;
       A = pickEndpointExceptCenter();
+
+      // B は A と同一点／完全逆向きを避ける＋「ほぼ一直線」も避ける
       do{
         B = pickEndpointExceptCenter();
-      } while(endpointsEqual(A,B) || endpointOpposite(A,B));
+      } while(
+        endpointsEqual(A,B) ||               // 同一点NG
+        endpointOpposite(A,B) ||             // 完全逆向きNG（冗長）
+        isBadPair(A,B)                       // 提案した包括ルール
+      );
+
       const dxA = A.i - centerIndex, dyA = A.j - centerIndex;
       const dxB = B.i - centerIndex, dyB = B.j - centerIndex;
       const dxC = -(dxA + dxB), dyC = -(dyA + dyB);
       C = { i: centerIndex + dxC, j: centerIndex + dyC };
+
       const inBounds = (C.i>=0 && C.i<points && C.j>=0 && C.j<points);
       const notCenter = !(C.i===centerIndex && C.j===centerIndex);
       const distinct = !endpointsEqual(C,A) && !endpointsEqual(C,B);
-      if(inBounds && notCenter && distinct) break;
+
+      if(inBounds && notCenter && distinct){
+        // 念のため、C を含めた見た目の分離も軽くチェック（A と C がほぼ一直線…は起こりうる）
+        if(!isBadPair(A,C) && !isBadPair(B,C)) break;
+      }
     } while(safety<999);
 
     forces = {A,B,C};
@@ -184,9 +228,9 @@
     awaitingAnswer = true;
   }
 
-  // ★ 出題切替（ここで補助線を全消去）
+  // ★ 出題切替（補助線全消去）
   function nextRound(){
-    assistLines.length = 0;          // 要望：問題切替で補助線全消し
+    assistLines.length = 0;
     assistDragging = false;
     assistStart = null;
     assistTempEnd = null;
@@ -360,14 +404,14 @@
     startTime = performance.now();
     playing = true;
     startBtn.disabled = true; resetBtn.disabled = false;
-    nextRound();                        // ← 出題時に補助線クリア
+    nextRound();                        // 出題時に補助線クリア＆制約適用
     startTimer();
-    announce('スタート！ 正解+1／不正解-1。60秒でハイスコアを狙おう。');
+    announce('スタート！ 正解+1／不正解-1。一直線・ほぼ一直線な配置は除外済みです。');
   }
   function finishGame(){
     playing = false; awaitingAnswer = false; revealCorrect = false;
     stopTimer(); draw();
-    announce(`終了！ スコア：${score} 点（正:+1／誤:-1）。もう一度挑戦する？`);
+    announce(`終了！ スコア：${score} 点。もう一度挑戦する？`);
     startBtn.disabled = false; startBtn.textContent = 'もう一度';
   }
   function updateScore(delta, force=false){
@@ -396,7 +440,7 @@
   function toggleAssist(){
     assistMode = !assistMode;
     assistBtn.setAttribute('aria-pressed', String(assistMode));
-    assistBtn.textContent = assistMode ? '補助線モード解除' : '補助線を引く';
+    assistBtn.textContent = assistMode ? '補助線モード中（もう一度で解除）' : '補助線を引く';
     announce(assistMode ? '補助線モードON：格子点から格子点へドラッグで破線を引けます。' : '補助線モードOFF。');
   }
 
@@ -476,10 +520,10 @@
     updateScore(correct ? +1 : -1);
     revealCorrect = true; draw();
 
-    // 短く見せて次問題（ここで補助線クリアも行われる）
+    // 短く見せて次問題（ここで補助線リセット）
     setTimeout(() => {
       revealCorrect = false; awaitingAnswer = true;
-      nextRound(); // ← 出題切替で補助線全削除
+      nextRound();
     }, revealDelayMs);
   }
 
