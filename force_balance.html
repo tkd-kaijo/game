@@ -7,6 +7,7 @@
 <style>
   :root {
     --bg:#0f1117; --panel:#161a22; --ink:#e6edf3; --muted:#9aa4b2;
+    --accent:#5dd4ff; --accent2:#9b8cff; --ok:#2ecc71; --warn:#ffd166; --danger:#ff6b6b;
   }
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans JP,sans-serif;}
   .wrap{max-width:980px;margin:24px auto;padding:0 16px;}
@@ -15,9 +16,10 @@
   .hud{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .pill{padding:6px 10px;border-radius:999px;background:var(--panel);color:var(--ink);border:1px solid #222836}
   .pill b{font-variant-numeric:tabular-nums}
-  button{all:unset;cursor:pointer;padding:10px 14px;border-radius:10px;background:linear-gradient(180deg,#1c2331,#141923);border:1px solid #1e2432}
+  button{all:unset;cursor:pointer;padding:10px 14px;border-radius:10px;background:linear-gradient(180deg,#1c2331,#141923);border:1px solid #1e2432;transition:.15s}
   button:hover{filter:brightness(1.05)}
   button:disabled{opacity:.5;cursor:not-allowed}
+  .btn-toggle[aria-pressed="true"]{background:linear-gradient(180deg,#1f2740,#141923);border-color:#2e3a52;box-shadow:0 0 0 2px rgba(93,212,255,.15) inset}
   #canvasBox{background:var(--panel);border:1px solid #1e2432;border-radius:16px;padding:12px}
   #canvas{width:100%;height:auto;display:block;background:linear-gradient(180deg,#151a23,#131722);border-radius:12px}
   .msg{margin-top:10px;min-height:28px;color:var(--muted)}
@@ -28,6 +30,7 @@
   .c-green{background:#7dffa7}
   .c-purple{background:#c59eff}
   .c-yellow{background:#ffd166}
+  .c-gray{background:#a4b0c6}
   .footer{margin-top:16px;color:var(--muted);font-size:14px}
   .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;background:#0e1220;padding:2px 6px;border:1px solid #242a3a;border-radius:6px}
 </style>
@@ -37,9 +40,10 @@
   <header>
     <h1>力のつり合いゲーム〜力を加えてつり合わせろ！〜</h1>
     <div class="hud">
-      <div class="pill">ラウンド：<b id="roundLabel">0 / 5</b></div>
-      <div class="pill">タイム：<b id="timeLabel">0.00s</b></div>
-      <div class="pill">制限：<b id="limitLabel">--</b></div>
+      <div class="pill">スコア：<b id="scoreLabel">0</b></div>
+      <div class="pill">残り：<b id="timeLabel">60.00s</b></div>
+      <div class="pill">ルール：<b>1分間で正解数を競う</b></div>
+      <button id="assistBtn" class="btn-toggle" aria-pressed="false" title="補助線を引くモードを切替">補助線を引く</button>
       <button id="startBtn">スタート</button>
       <button id="resetBtn" disabled>リセット</button>
     </div>
@@ -51,10 +55,11 @@
       <span class="chip"><span class="dot c-blue"></span>表示中の力①</span>
       <span class="chip"><span class="dot c-green"></span>表示中の力②</span>
       <span class="chip"><span class="dot c-purple"></span>あなたの解答（ドラッグ中/提出済）</span>
-      <span class="chip"><span class="dot c-yellow"></span>正解（ラウンド終了時）</span>
+      <span class="chip"><span class="dot c-yellow"></span>正解（ラウンド終了時のみ）</span>
+      <span class="chip"><span class="dot c-gray"></span>補助線（トグルONで自由に破線）</span>
       <span class="chip">8×8マス（交点は9×9）／中央の交点に物体</span>
     </div>
-    <div class="msg" id="msg">[操作] 中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。1回でも誤答か時間切れでゲームオーバー。</div>
+    <div class="msg" id="msg">[操作] スタート後、中央からドラッグして矢印を引き、離すと最近傍の交点にスナップ。60秒で何問解けるか挑戦！ 補助線モードで作図の下書きも可。</div>
   </div>
 
   <div class="footer">
@@ -65,12 +70,12 @@
 <script>
 (() => {
   // ====== 基本設定 ======
-  const gridSquares = 8;                   // ★ 8×8マス
+  const gridSquares = 8;                   // 8×8マス
   const points = gridSquares + 1;          // 交点は 9 × 9
   const centerIndex = Math.floor(points/2);// 中央インデックス（0基準）
   const margin = 28;                       // 余白（px）
-  const maxSeconds = 40.0;                 // 制限時間 40秒
-  const totalRounds = 5;
+  const gameSeconds = 60.0;                // 1分勝負
+  const revealDelayMs = 400;               // 正解表示の短いディレイ
 
   // ====== キャンバス & DPI 補正 ======
   const canvas = document.getElementById('canvas');
@@ -80,7 +85,6 @@
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const box = canvas.parentElement || document.body;
     const boxRect = box.getBoundingClientRect();
-    // 画面下端までの残り高さ（ボックス上辺から下端まで）
     const remainH = Math.max(220, window.innerHeight - boxRect.top - 24);
     const availW  = box.clientWidth || boxRect.width;
     const cssSize = Math.max(200, Math.floor(Math.min(availW, remainH)));
@@ -106,7 +110,7 @@
   }
 
   // ====== ゲーム状態 ======
-  let round = 0;
+  let score = 0;
   let startTime = null;
   let timerId = null;
   let playing = false;
@@ -114,23 +118,30 @@
   let forces = null;       // {A:{i,j}, B:{i,j}, C:{i,j}}
   let lastAnswer = null;   // 提出済み {i,j}
   let revealCorrect = false;
-  let gameOverFlag = false;
 
-  // ドラッグ入力状態
+  // ドラッグ入力状態（解答用）
   let dragging = false;
   let dragPos = null;      // {x,y}（キャンバス座標）
   const startFromCenterRadiusFactor = 0.5; // 中央近傍からのみ開始
 
+  // 補助線モード
+  let assistMode = false;
+  let assistDragging = false;
+  let assistStart = null; // {i,j}
+  let assistTempEnd = null; // {x,y} ドラッグ中座標
+  const assistLines = []; // [{a:{i,j}, b:{i,j}} ...]
+
+  // UI 参照
   const msgEl = document.getElementById('msg');
-  const roundLabel = document.getElementById('roundLabel');
+  const scoreLabel = document.getElementById('scoreLabel');
   const timeLabel  = document.getElementById('timeLabel');
-  const limitLabel = document.getElementById('limitLabel');
   const startBtn   = document.getElementById('startBtn');
   const resetBtn   = document.getElementById('resetBtn');
-  if(limitLabel) limitLabel.textContent = maxSeconds.toFixed(2) + 's';
+  const assistBtn  = document.getElementById('assistBtn');
 
   startBtn.addEventListener('click', startGame);
   resetBtn.addEventListener('click', hardReset);
+  assistBtn.addEventListener('click', toggleAssist);
 
   // ====== 補助関数 ======
   function randInt(n){ return Math.floor(Math.random()*n); }
@@ -200,26 +211,22 @@
     ctx.restore();
   }
 
-  // ★中央の球：不透明寄り（alpha 0.95）＋グローで強調
+  // 中央の球（強調）
   function drawCenterBody(){
     const {x,y} = ijToXY(centerIndex, centerIndex);
-    const r = Math.max(10, spacing()*0.18);   // やや大きめ
+    const r = Math.max(10, spacing()*0.18);
     ctx.save();
-    ctx.globalAlpha = 0.95;                   // 透明度を下げ（=不透明寄りに）
+    ctx.globalAlpha = 0.95;
     const grad = ctx.createRadialGradient(x,y,r*0.15, x,y,r);
     grad.addColorStop(0, '#3a4a6b');
     grad.addColorStop(0.55, '#23304a');
     grad.addColorStop(1, '#101722');
     ctx.fillStyle = grad;
 
-    // 外側グロー
     ctx.shadowColor = 'rgba(120,170,255,0.45)';
     ctx.shadowBlur = Math.max(8, r*0.8);
-    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-
     ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
 
-    // エッジ強調ストローク（二重）
     ctx.shadowBlur = 0;
     ctx.lineWidth = Math.max(2, r*0.14);
     ctx.strokeStyle = 'rgba(130,180,255,0.55)';
@@ -227,7 +234,6 @@
     ctx.lineWidth = Math.max(1, r*0.06);
     ctx.strokeStyle = '#2e3a52';
     ctx.stroke();
-
     ctx.restore();
   }
 
@@ -259,6 +265,17 @@
     ctx.restore();
   }
 
+  function drawAssistLine(aIJ, bIJ, temp=false){
+    const A = ijToXY(aIJ.i, aIJ.j);
+    const B = temp ? bIJ : ijToXY(bIJ.i, bIJ.j);
+    ctx.save();
+    ctx.setLineDash([6,6]);
+    ctx.lineWidth = Math.max(1.5, spacing()*0.05);
+    ctx.strokeStyle = '#a4b0c6';
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    ctx.restore();
+  }
+
   function drawHoverSnapCircle(i,j){
     const {x,y} = ijToXY(i,j);
     ctx.save();
@@ -273,6 +290,12 @@
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     drawGrid();
+
+    // 補助線（確定済み）
+    for(const seg of assistLines){
+      drawAssistLine(seg.a, seg.b, false);
+    }
+
     drawCenterBody();
 
     const O = ijToXY(centerIndex, centerIndex);
@@ -284,13 +307,20 @@
       drawArrow(O, Axy, '#69b7ff');
       drawArrow(O, Bxy, '#7dffa7');
 
-      // ドラッグ中の仮表示
+      // 解答ドラッグ中の仮表示
       if(dragging && dragPos){
         drawArrow(O, dragPos, '#c59eff', [8,6]);
         const snapped = xyToIJ(dragPos.x, dragPos.y);
         if(!(snapped.i===centerIndex && snapped.j===centerIndex)){
           drawHoverSnapCircle(snapped.i, snapped.j);
         }
+      }
+
+      // 補助線ドラッグ中の仮表示
+      if(assistDragging && assistStart && assistTempEnd){
+        drawAssistLine(assistStart, assistTempEnd, true);
+        const snap = xyToIJ(assistTempEnd.x, assistTempEnd.y);
+        drawHoverSnapCircle(snap.i, snap.j);
       }
 
       // 提出済みの解答
@@ -312,82 +342,82 @@
     stopTimer();
     timerId = setInterval(() => {
       if(!playing) return;
-      const t = elapsedSeconds();
-      timeLabel.textContent = t.toFixed(2) + 's';
-      if(t > maxSeconds && !gameOverFlag){
-        gameOver(`時間切れ… ${maxSeconds.toFixed(0)}秒以内に5連続正解が必要です。`);
+      const remain = remainingSeconds();
+      timeLabel.textContent = Math.max(0, remain).toFixed(2) + 's';
+      if(remain <= 0){
+        finishGame();
       }
     }, 30);
   }
   function stopTimer(){ if(timerId){ clearInterval(timerId); timerId = null; } }
-  function elapsedSeconds(){ return startTime ? (performance.now() - startTime)/1000 : 0; }
+  function remainingSeconds(){
+    if(!startTime) return gameSeconds;
+    const elapsed = (performance.now() - startTime) / 1000;
+    return gameSeconds - elapsed;
+  }
 
   // ====== 進行管理 ======
   function startGame(){
-    playing = true;
-    gameOverFlag = false;
-    round = 0;
+    score = 0;
+    updateScore(0);
     startTime = performance.now();
+    playing = true;
     startBtn.disabled = true;
     resetBtn.disabled = false;
+    assistLines.length = 0; // スタートで補助線はクリア（必要なら残す仕様に変更可）
     nextRound();
     startTimer();
-    announce('スタート！ 中央からドラッグして矢印を引き、離すと最近傍の交点にスナップします。');
-  }
-  function nextRound(){
-    round++;
-    if(round > totalRounds){ finishGame(); return; }
-    roundLabel.textContent = `${round} / ${totalRounds}`;
-    generateRound();
-    draw();
+    announce('スタート！ 60秒でできるだけ正解しよう。補助線モードは必要に応じてON/OFFしてね。');
   }
   function finishGame(){
     playing = false;
     awaitingAnswer = false;
-    revealCorrect = true;
+    revealCorrect = false; // 終了時は正解表示オフ
     stopTimer();
-    const t = elapsedSeconds();
     draw();
-    if(t <= maxSeconds){
-      announce(`クリア！ 5回連続正解。記録：${t.toFixed(2)}秒（${maxSeconds.toFixed(0)}秒以内達成）🎉`);
-    }else{
-      announce(`5回連続正解！ でも ${t.toFixed(2)}秒 で制限超過… 惜しい！もう一度挑戦してね。`);
-    }
+    announce(`終了！ スコア：${score} 問 正解 🎉（もう一度挑戦する？）`);
     startBtn.disabled = false;
     startBtn.textContent = 'もう一度';
   }
-  function gameOver(reason='ゲームオーバー'){
-    playing = false;
-    awaitingAnswer = false;
-    gameOverFlag = true;
-    revealCorrect = true;
-    stopTimer();
+  function nextRound(){
+    generateRound();
     draw();
-    announce(`❌ ${reason}`);
-    startBtn.disabled = false;
-    startBtn.textContent = 'リトライ';
   }
+  function updateScore(delta){
+    score += delta;
+    scoreLabel.textContent = String(score);
+  }
+
   function hardReset(){
     playing = false;
     awaitingAnswer = false;
-    gameOverFlag = false;
     revealCorrect = false;
+    stopTimer();
+    score = 0;
+    startTime = null;
     lastAnswer = null;
     forces = null;
-    round = 0;
-    startTime = null;
-    dragging = false;
-    dragPos = null;
-    timeLabel.textContent = '0.00s';
-    roundLabel.textContent = '0 / 5';
+    dragging = false; dragPos = null;
+    assistDragging = false; assistStart = null; assistTempEnd = null;
+    assistLines.length = 0;
+    timeLabel.textContent = gameSeconds.toFixed(2)+'s';
+    scoreLabel.textContent = '0';
     startBtn.disabled = false;
     startBtn.textContent = 'スタート';
-    announce('[操作] 中央からドラッグで矢印を作図。離すと最近傍の交点へスナップします（中央は不可）。');
+    announce('[操作] スタート後、中央からドラッグで解答。補助線モード中は自由に破線を引けます（もう一度押すと解除）。');
     fitCanvasDPI();
     draw();
   }
 
   function announce(text){ msgEl.innerHTML = text.replace(/\n/g,'<br/>'); }
+
+  // ====== 補助線モード ======
+  function toggleAssist(){
+    assistMode = !assistMode;
+    assistBtn.setAttribute('aria-pressed', String(assistMode));
+    assistBtn.textContent = assistMode ? '補助線モード中（もう一度で解除）' : '補助線を引く';
+    announce(assistMode ? '補助線モードON：格子点から格子点へドラッグで破線を引けます。' : '補助線モードOFF。');
+  }
 
   // ====== 入力：Pointer Events ======
   function getCanvasXYFromEvent(e){
@@ -398,8 +428,22 @@
   }
 
   function pointerDown(e){
-    if(!playing || !awaitingAnswer || !forces) return;
     const pos = getCanvasXYFromEvent(e);
+
+    // 補助線モード
+    if(assistMode){
+      const startIJ = xyToIJ(pos.x, pos.y);
+      assistDragging = true;
+      assistStart = startIJ;
+      assistTempEnd = pos; // XYで保持して仮線を引く
+      canvas.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+      draw();
+      return;
+    }
+
+    // 通常：解答ドラッグ（中央近傍からのみ）
+    if(!playing || !forces) return;
     const O = ijToXY(centerIndex, centerIndex);
     const r = Math.max(10, spacing()*startFromCenterRadiusFactor);
     if(Math.hypot(pos.x - O.x, pos.y - O.y) <= r * 2.0){
@@ -410,39 +454,76 @@
       draw();
     }
   }
+
   function pointerMove(e){
+    const pos = getCanvasXYFromEvent(e);
+
+    if(assistMode){
+      if(!assistDragging) return;
+      assistTempEnd = pos;
+      draw();
+      return;
+    }
+
     if(!dragging) return;
-    dragPos = getCanvasXYFromEvent(e);
+    dragPos = pos;
     draw();
   }
+
   function pointerUp(e){
+    const pos = getCanvasXYFromEvent(e);
+
+    if(assistMode){
+      if(!assistDragging) return;
+      assistDragging = false;
+      const endIJ = xyToIJ(pos.x, pos.y);
+      // 同じ点なら無視
+      if(!(assistStart.i===endIJ.i && assistStart.j===endIJ.j)){
+        assistLines.push({a: {...assistStart}, b: {...endIJ}});
+      }
+      assistStart = null;
+      assistTempEnd = null;
+      draw();
+      return;
+    }
+
     if(!dragging) return;
     dragging = false;
-    const pos = getCanvasXYFromEvent(e);
+
+    if(!playing || !awaitingAnswer || !forces) { dragPos = null; draw(); return; }
+
+    // 解答スナップ
     const {i,j} = xyToIJ(pos.x, pos.y);
     if(i===centerIndex && j===centerIndex){
       announce('中央（物体位置）は終点にできません。もう一度ドラッグしてね。');
-      dragPos = null; draw(); return;
+      dragPos = null;
+      draw();
+      return;
     }
     lastAnswer = {i,j};
-    dragPos = null; draw();
+    dragPos = null;
+    draw();
 
+    // 判定 → 正解ならスコア+1。どちらでも次問題へ
     const correct = (i===forces.C.i && j===forces.C.j);
     if(correct){
-      awaitingAnswer = false;
+      updateScore(1);
       revealCorrect = true; draw();
-      announce('✅ 正解！ 次のラウンドへ…');
-      setTimeout(() => { revealCorrect = false; nextRound(); }, 450);
+      setTimeout(() => { revealCorrect = false; awaitingAnswer = true; generateRound(); draw(); }, revealDelayMs);
     }else{
-      revealCorrect = true; draw();
-      gameOver('ベクトルがつり合いません（不正解）。');
+      revealCorrect = true; draw(); // 答えを短く見せる
+      setTimeout(() => { revealCorrect = false; awaitingAnswer = true; generateRound(); draw(); }, revealDelayMs);
     }
   }
 
   canvas.addEventListener('pointerdown', pointerDown, {passive:false});
-  canvas.addEventListener('pointermove',  pointerMove, {passive:false});
-  canvas.addEventListener('pointerup',    pointerUp,   {passive:false});
-  canvas.addEventListener('pointercancel', () => { dragging = false; dragPos = null; draw(); });
+  canvas.addEventListener('pointermove',  pointerMove,  {passive:false});
+  canvas.addEventListener('pointerup',    pointerUp,    {passive:false});
+  canvas.addEventListener('pointercancel', () => {
+    dragging = false; dragPos = null;
+    assistDragging = false; assistTempEnd = null;
+    draw();
+  });
 
   // タッチスクロール抑止（キャンバス上のみ）
   canvas.addEventListener('touchstart', (e)=>e.preventDefault(), {passive:false});
