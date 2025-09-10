@@ -475,16 +475,36 @@ this.mulTag = document.getElementById(prefix==='A'?'mulA':'mulB');
       this.pickChallenge();
       this.updateMulUI();
     }
+setDebuffMulPreservePhase(newMul){
+  newMul = Math.max(1.0, Math.min(newMul, 64)); // 安全な範囲にクランプ
+  if (!this.runningRoulette){
+    this.debuffMul = newMul;
+    this.updateMulUI();
+    return;
+  }
+  const now = performance.now();
+  const oldCycle = baseCycleSec / this.debuffMul;
+  const elapsed = (now - this.t0Roulette) / 1000;
+  const oldPhase = ((elapsed % oldCycle) + oldCycle) % oldCycle; // [0, oldCycle)
+  const phase01 = oldPhase / oldCycle;                           // 0〜1 の位相
 
-    applyDebuff(factor){
-      this.debuffMul *= factor;
-      this.debuffMul = Math.min(this.debuffMul, 64);
-      this.updateMulUI();
-    }
-    clearDebuff(){
-      this.debuffMul = 1.0;
-      this.updateMulUI();
-    }
+  // 倍率更新
+  this.debuffMul = newMul;
+  this.updateMulUI();
+
+  // 新しいサイクルでも位相を維持するように t0 を調整
+  const newCycle = baseCycleSec / this.debuffMul;
+  const newPhaseSec = phase01 * newCycle;
+  this.t0Roulette = now - newPhaseSec * 1000;
+}
+   applyDebuff(factor){
+  const target = Math.min(this.debuffMul * factor, 64);
+  this.setDebuffMulPreservePhase(target);
+}
+
+clearDebuff(){
+  this.setDebuffMulPreservePhase(1.0);
+}
     updateMulUI(){
   this.mulTag.textContent = `ルーレット速度 ×${this.debuffMul.toFixed(1)}`;
 }
