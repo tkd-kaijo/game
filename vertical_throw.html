@@ -30,6 +30,15 @@
   .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:14px; background:rgba(255,255,255,.08); color:var(--yellow)}
   #challengeTextHUD{font-weight:700}
   #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
+
+  /* 1%未満の最上位ランク表示 */
+.perfect{
+  color:#b7fffb;            /* ちょっと明るめの水色 */
+  font-weight:900;
+  margin-left:8px;
+  text-shadow:0 0 10px rgba(106,227,255,.55);
+}
+
   .excellent{ color:#8fffd6; font-weight:800; margin-left:8px }
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
@@ -640,7 +649,17 @@ renderGrid();                // ★引数なし
 
   let gained = 0;
 
-  if (errPct < 0.03) {                  // ★ 3%以内は4点 & Excellent!!!
+   if (errPct < 0.01) {
+    gained = 5;
+    score += 5;
+    resultTextHUD.innerHTML =
+      `<span class="perfect">PERFECT!!!!（誤差 ${(errPct*100).toFixed(2)}% / +${gained}点）</span>`;
+    // 好きならファンファーレを強めに
+    greatSound();
+    setTimeout(()=>beep(1760,0.10),110);
+    setTimeout(()=>beep(2093,0.14),230);
+  
+  } else if (errPct < 0.03) {                  // ★ 3%以内は4点 & Excellent!!!
     gained = 4; 
     score += 4;
     resultTextHUD.innerHTML =
