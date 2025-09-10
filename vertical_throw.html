@@ -221,7 +221,7 @@
 
 
            <section class="card" id="leaderboardCard" aria-live="polite">
-    <h3 style="margin:0 0 8px">トップ10(※平常点的には「提出できたか否か」のみの判断)</h3>
+    <h3 style="margin:0 0 8px">トップ30(※平常点的には「提出できたか否か」のみの判断)</h3>
     <div id="leaderboard">読み込み中…</div>
   </section>
           
@@ -332,7 +332,7 @@ async function loadLeaderboard () {
     recs.sort((a, b) =>
       b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp))
     );
-    recs = recs.slice(0, 10);
+    recs = recs.slice(0, 30);
     box.innerHTML = renderTableHTML(recs);
   }
 }
