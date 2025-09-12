@@ -76,6 +76,20 @@
   box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
 }
 
+  
+  
+  /* iPhone等の狭幅では縦センタリングをやめて通常フローに */
+@media (max-width: 768px){
+  body{
+    display:block;               /* ← flexをやめる */
+    min-height:100dvh;
+    padding:12px 12px 16px;      /* 余白は少しだけ */
+  }
+  .app{ margin: 0 auto; }        /* 横だけ中央に */
+}
+
+
+  
 @media (min-width: 820px) {
   button {
     font-size: clamp(34px, 3.8vw, 53px);
@@ -515,22 +529,25 @@ let currentScale = null;   // ★いま使う px/m を保持
     return Math.min(window.innerHeight, vvh);
   }
   function fitSceneToViewport(){
-    const vh = getVH();
-    if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
-    const margin = 12;
-    let desired = Math.floor(vh - baselineTop - margin);
-    desired = Math.max(220, Math.min(desired, vh - margin));
-    const prev = parseFloat(getComputedStyle(scene).height);
-    if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
-    scene.style.height = desired + 'px';
+  const vh = getVH();
+  const margin = 12;
 
-// ★このタイミングで1回だけスケールを計算して保持
-currentScale = scalePxPerMeterForMaxMeters(60);
+  // 毎回、最新の位置から計算
+  const baselineTop = scene.getBoundingClientRect().top;
 
-// ★保持スケールで描画
-renderGrid(); 
-hLine.style.bottom = groundOffsetPx + 'px';
-  }
+  let desired = Math.floor(vh - baselineTop - margin);
+  desired = Math.max(220, Math.min(desired, vh - margin));
+
+  const prev = parseFloat(getComputedStyle(scene).height);
+  if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
+
+  scene.style.height = desired + 'px';
+
+  // スケール再描画
+  currentScale = scalePxPerMeterForMaxMeters(60);
+  renderGrid();
+  hLine.style.bottom = groundOffsetPx + 'px';
+}
 
   // グリッド描画（0〜60m）
  function renderGrid(scale){
