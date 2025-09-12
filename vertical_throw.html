@@ -174,6 +174,30 @@
     .bar{ height: 18px; }
   }
 
+/* 既定（PCなど）では従来どおり：右下にランキング */
+#leaderboardCardMobile{ display:none; }
+
+/* 小画面（iPhone想定）：アニメ＋readoutsを2列、ランキングはその下に全幅で表示 */
+@media (max-width: 640px){
+  .playgrid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;           /* 左：アニメ／右：y,H,t */
+    grid-template-areas: "scene readouts";    /* 1段目＝2列 */
+    gap:10px;
+  }
+  .scene{ grid-area: scene; min-width:0; }
+  .readouts{
+    grid-area: readouts; 
+    min-width:0;
+    grid-template-columns: 1fr;               /* y/H/t を1列に */
+  }
+  /* ランキングは readouts 内のカードを隠し、モバイル用カードを下に出す */
+  #leaderboardCard{ display:none; }
+  #leaderboardCardMobile{ display:block; margin-top:10px; }
+}
+
+  
+
   /* 常に赤字に固定 */
   #challengeTextHUD, .speed { color:#ff5b5b !important; }
 
@@ -237,6 +261,12 @@
            <section class="card" id="leaderboardCard" aria-live="polite">
     <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
     <div id="leaderboard">読み込み中…</div>
+
+             <!-- モバイル専用ランキング（iPhoneなど狭幅で表示） -->
+<section class="card" id="leaderboardCardMobile" aria-live="polite" style="display:none">
+  <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
+  <div id="leaderboardMobile">読み込み中…</div>
+</section>
   </section>
           
         </div>
@@ -327,28 +357,33 @@ async function loadLeaderboard () {
   }
 
   function renderFromRows (cols, rows) {
-    const idx = {
-      timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0),
-      studentId: findIndex(cols, /番号|学籍|id/i),
-      studentName: findIndex(cols, /氏名|名前|name/i),
-      totalScore: findIndex(cols, /score|スコア|合計|点/i)
-    };
+  const idx = {
+    timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0),
+    studentId: findIndex(cols, /番号|学籍|id/i),
+    studentName: findIndex(cols, /氏名|名前|name/i),
+    totalScore: findIndex(cols, /score|スコア|合計|点/i)
+  };
 
-    let recs = rows.map(r => ({
-      timestamp: String(r[idx.timestamp] ?? ''),
-      id: String(r[idx.studentId] ?? '').trim(),
-      name: String(r[idx.studentName] ?? '').trim(),
-      score: Number(String(r[idx.totalScore] ?? '').replace(/[^\d.-]/g, ''))
-    }));
+  let recs = rows.map(r => ({
+    timestamp: String(r[idx.timestamp] ?? ''),
+    id: String(r[idx.studentId] ?? '').trim(),
+    name: String(r[idx.studentName] ?? '').trim(),
+    score: Number(String(r[idx.totalScore] ?? '').replace(/[^\d.-]/g, ''))
+  }));
 
-    recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
-    recs = bestByKey(recs, x => x.id || x.name);
-    recs.sort((a, b) =>
-      b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp))
-    );
-    recs = recs.slice(0, 20);
-    box.innerHTML = renderTableHTML(recs);
-  }
+  recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
+  recs = bestByKey(recs, x => x.id || x.name);
+  recs.sort((a, b) =>
+    b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp))
+  );
+  recs = recs.slice(0, 20);
+
+  const html = renderTableHTML(recs);
+  const desktopBox = document.getElementById('leaderboard');
+  const mobileBox  = document.getElementById('leaderboardMobile');
+  if (desktopBox) desktopBox.innerHTML = html;
+  if (mobileBox)  mobileBox.innerHTML  = html;
+}
 }
 
   function parseCSV (text) {
