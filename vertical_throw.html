@@ -341,8 +341,9 @@ const SHEET_GID = '1876521549'; // 数字
 // Google Visualization API (gviz) のJSONを叩いて成績取得
 // 共有が「リンク閲覧可」ならCORS越しでもフロントから読めます
 async function loadLeaderboard () {
-  const box = document.getElementById('leaderboard');
-  if (!box) return;
+  const desktopBox = document.getElementById('leaderboard');
+  const mobileBox  = document.getElementById('leaderboardMobile');
+  if (!desktopBox && !mobileBox) return;  // 両方なければ終了
 
   const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ10LcB0wupR7ip5mhf_WskxAZiQQIXytBQ45Sxyf2ej9R1xULe-iQbj7RU2TgNXOrjTrUVefFQOEIO/pub?output=csv";
 
