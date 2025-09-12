@@ -427,41 +427,55 @@ async function loadLeaderboard () {
 
 
 
-  function renderTableHTML (items) {
+  function renderTableHTML(items){
   if (!items.length) return 'まだランキングはありません。';
 
-  // 左：1〜10位、右：11〜20位
-  const left = items.slice(0, 10);
+  // 左(1–10)・右(11–20) に分割
+  const left  = items.slice(0, 10);
   const right = items.slice(10, 20);
 
-  function makeTable(rows, offset=0){
-    return `
-      <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:8px">
-        <thead>
-          <tr>
-            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
-            <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
-            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
-            <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((r,i)=>`
-            <tr>
-              <td style="text-align:center; font-weight:700">${i+1+offset}</td>
-              <td>${escapeHTML(r.name || '—')}</td>
-              <td style="text-align:center">${escapeHTML(r.id || '—')}</td>
-              <td style="text-align:right; font-variant-numeric: tabular-nums">${r.score}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  }
+  // 行を10行ぶん作り、左右を同じ<tr>に詰める
+  const rows = Array.from({length: 10}, (_, i) => ({
+    L: left[i]  || {name:'', id:'', score:''},
+    R: right[i] || {name:'', id:'', score:''}
+  }));
 
+  // 1枚テーブル（8列）で固定。中央にスペーサ列を1本入れるなら col を1つ追加してもOK
   return `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; overflow:auto">
-      <div>${makeTable(left,0)}</div>
-      <div>${makeTable(right,10)}</div>
-    </div>`;
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:14px; margin-bottom:8px">
+      <colgroup>
+        <col style="width:7%"><col style="width:33%"><col style="width:12%"><col style="width:18%">
+        <col style="width:4%">  <!-- ちいさなスペース -->
+        <col style="width:7%"><col style="width:33%"><col style="width:12%"><col style="width:18%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
+          <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
+          <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
+          <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
+          <th></th>
+          <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
+          <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
+          <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
+          <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r,i)=>`
+          <tr>
+            <td style="text-align:center; font-weight:700; font-variant-numeric: tabular-nums">${i+1}</td>
+            <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escapeHTML(r.L.name || '—')}</td>
+            <td style="text-align:center; font-variant-numeric: tabular-nums">${escapeHTML(r.L.id || '—')}</td>
+            <td style="text-align:right;  font-variant-numeric: tabular-nums">${r.L.score ?? ''}</td>
+            <td></td>
+            <td style="text-align:center; font-weight:700; font-variant-numeric: tabular-nums">${i+11}</td>
+            <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escapeHTML(r.R.name || '—')}</td>
+            <td style="text-align:center; font-variant-numeric: tabular-nums">${escapeHTML(r.R.id || '—')}</td>
+            <td style="text-align:right;  font-variant-numeric: tabular-nums">${r.R.score ?? ''}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
   function escapeHTML (s) {
