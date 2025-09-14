@@ -236,7 +236,7 @@
         <div class="speed" id="speedLabel">0.00 m/s</div>
       </div>
       <div class="actions">
-        <button id="lockBtn">投射！</button>
+        <button id="lockBtn">投射！(Lボタン)</button>
         <button id="retryBtn" class="secondary" disabled>次のラウンド</button>
         <button id="resetBtn" class="secondary" style="display:none">もう一度</button>
       </div>
@@ -316,6 +316,22 @@
   const resultTextHUD=document.getElementById('resultTextHUD');
   const scoreHUD=document.getElementById('scoreHUD');
 
+  // ── L キーで「投射！」と同じ動作 ──
+document.addEventListener('keydown', (e) => {
+  // 入力中は無効（氏名・番号の入力を邪魔しない）
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+
+  // L / l キーのみ、長押しのリピートは無視
+  if ((e.key === 'l' || e.key === 'L' || e.code === 'KeyL') && !e.repeat) {
+    // クリック可能なときだけ発火（ラウンド中で未ロック＆ボタン有効）
+    if (!lockBtn.disabled && !locked) {
+      lockBtn.click(); // 既存のクリックハンドラをそのまま利用
+      e.preventDefault();
+    }
+  }
+});
+
   /* Googleフォーム設定 */
   const CONFIG = {
     SUBMIT_MODE: 'google_forms',
@@ -336,6 +352,7 @@
 const SHEET_ID = '16PFWfElWUfN3x7iV4fSOnw0y3IdQBtrJIVzg6yOmLoU';
 const SHEET_GID = '1876521549'; // 数字
 
+  
   
 
 // Google Visualization API (gviz) のJSONを叩いて成績取得
