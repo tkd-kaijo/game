@@ -236,8 +236,8 @@
         <div class="speed" id="speedLabel">0.00 m/s</div>
       </div>
       <div class="actions">
-        <button id="lockBtn">投射！(Lボタン)</button>
-        <button id="retryBtn" class="secondary" disabled>次のラウンド</button>
+        <button id="lockBtn">投射！(L)</button>
+        <button id="retryBtn" class="secondary" disabled>次のラウンド(N)</button>
         <button id="resetBtn" class="secondary" style="display:none">もう一度</button>
       </div>
 
@@ -316,17 +316,31 @@
   const resultTextHUD=document.getElementById('resultTextHUD');
   const scoreHUD=document.getElementById('scoreHUD');
 
-  // ── L キーで「投射！」と同じ動作 ──
+// ── L で投射 / N で次ラウンド ──
 document.addEventListener('keydown', (e) => {
-  // 入力中は無効（氏名・番号の入力を邪魔しない）
-  const tag = document.activeElement?.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+  // 入力中は無効
+  const ae = document.activeElement;
+  const tag = ae?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || ae?.isContentEditable) return;
 
-  // L / l キーのみ、長押しのリピートは無視
-  if ((e.key === 'l' || e.key === 'L' || e.code === 'KeyL') && !e.repeat) {
-    // クリック可能なときだけ発火（ラウンド中で未ロック＆ボタン有効）
+  if (e.repeat) return;  // 長押しの自動リピートは無視
+  const k = (e.key || '').toLowerCase();
+
+  // L キー：投射
+  if (k === 'l' || e.code === 'KeyL') {
     if (!lockBtn.disabled && !locked) {
-      lockBtn.click(); // 既存のクリックハンドラをそのまま利用
+      lockBtn.click();
+      e.preventDefault();
+    }
+    return;
+  }
+
+  // N キー：次のラウンド
+  if (k === 'n' || e.code === 'KeyN') {
+    // 非表示時（最終ラウンド後）は無効
+    const hidden = retryBtn.style.display === 'none';
+    if (!retryBtn.disabled && !hidden) {
+      retryBtn.click();
       e.preventDefault();
     }
   }
