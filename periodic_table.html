@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>周期表テトリス（1〜36、族集中モードあり）</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --grid: #1f2937;
+    --text: #e5e7eb;
+    --accent: #22d3ee;
+    --ok: #34d399;
+    --bad: #f87171;
+    --ghost: #374151;
+    --cell-gap: 2px;
+    --cell-size: 38px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    background: radial-gradient(1200px 800px at 70% 10%, #111827 0%, #0b1222 35%, #0f172a 70%);
+    color: var(--text); display: grid; place-items: center; min-height: 100dvh; padding: 20px;
+  }
+  .app {
+    display: grid; grid-template-columns: auto 320px; gap: 18px; align-items: start;
+    width: min(calc(18*var(--cell-size) + 40px), 100%);
+  }
+  .board-wrap {
+    background: color-mix(in oklab, var(--panel) 80%, black 20%);
+    padding: 12px; border: 1px solid #334155; border-radius: 16px; position: relative;
+    box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  }
+  .board {
+    display: grid; grid-template-columns: repeat(18, var(--cell-size));
+    grid-template-rows: repeat(4, var(--cell-size)); gap: var(--cell-gap);
+    position: relative;
+  }
+  .cell {
+    width: var(--cell-size); height: var(--cell-size);
+    background: var(--grid); border-radius: 8px; display: grid; place-items: center;
+    font-weight: 600; font-size: 14px; color: #cbd5e1; position: relative; overflow: hidden;
+  }
+  .cell.invalid { background: #0b1222; opacity: .4 }
+  .cell.target { outline: 2px dashed var(--accent); outline-offset: -3px; }
+  .cell.filled { background: #0e3b2d; }
+  .cell .small {
+    position: absolute; bottom: 2px; right: 6px; font-size: 10px; opacity: .6; font-weight: 500;
+  }
+  .falling {
+    position: absolute; transform: translate(-50%, -50%);
+    min-width: 80px; max-width: 120px;
+    background: #1f2937; border: 2px solid var(--accent); border-radius: 12px;
+    padding: 6px 10px; text-align: center; pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  }
+  .falling .sym { font-size: 22px; font-weight: 800; letter-spacing: .5px; }
+  .falling .jp { font-size: 12px; opacity: .9; margin-top: 2px; }
+  .hud {
+    background: color-mix(in oklab, var(--panel) 85%, black 15%);
+    border: 1px solid #334155; border-radius: 16px; padding: 14px 14px 8px;
+    position: sticky; top: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  }
+  .hud h1 { font-size: 18px; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+  .tag { padding: 2px 8px; border-radius: 999px; background: #0b1222; border: 1px solid #1f2937; font-size: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px;
+    background: #0b1222; border: 1px solid #334155; color: var(--text); cursor: pointer; user-select: none;
+    transition: .15s transform ease, .15s background ease, .15s border-color ease;
+  }
+  .btn:hover { transform: translateY(-1px); background: #0f1a30; border-color: #3b82f6; }
+  .btn.primary { background: #13213f; border-color: #3b82f6; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .card {
+    background: #0b1222; border: 1px solid #1f2937; border-radius: 12px; padding: 10px; font-size: 14px;
+  }
+  .big { font-size: 20px; font-weight: 800; }
+  .help { font-size: 12px; opacity: .8; line-height: 1.5; }
+  .pulse { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .toast {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+    background: #102b1f; border: 1px solid #22c55e; color: #d1fae5;
+    padding: 8px 12px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.3);
+    font-size: 13px; opacity: 0; pointer-events: none; transition: .2s opacity ease;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 980px) {
+    :root { --cell-size: 30px; }
+    .app { grid-template-columns: 1fr; }
+    .hud { position: relative; top: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="board-wrap">
+    <div id="board" class="board" aria-label="periodic-board"></div>
+    <div id="falling" class="falling" style="display:none">
+      <div class="sym">He</div>
+      <div class="jp">ヘリウム</div>
+    </div>
+  </div>
+
+  <aside class="hud" aria-label="hud">
+    <h1>周期表テトリス</h1>
+    <div class="row">
+      <button id="restart" class="btn primary">↻ リスタート（Enter）</button>
+      <button id="toggleMode" class="btn">M: モード切替</button>
+      <span id="modeTag" class="tag">全範囲</span>
+    </div>
+    <div class="stats">
+      <div class="card">スコア<br><span id="score" class="big">0</span></div>
+      <div class="card">コンボ<br><span id="combo" class="big">0</span></div>
+      <div class="card">残機<br><span id="lives" class="big">3</span></div>
+      <div class="card">配置済み<br><span id="placed" class="big">0</span></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      ねらい目（ターゲット）：<br>
+      <div class="row"><span class="tag">1族</span><span class="tag">2族</span><span class="tag">17族</span><span class="tag">18族</span></div>
+      <div class="help">※「族集中」モードでは1/2/17/18族のみ出題</div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <div class="help">
+        操作：← → 移動／↓ 加速／Space ハードドロップ／P 一時停止／M モード切替／Enter リスタート<br>
+        目標マスに正しく着地で <b>+100</b>（連続正解でボーナス）。ミスで残機−1。
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div id="toast" class="toast">Great!</div>
+
+<script>
+/** ===== 元素データ（Z=1..36）: z, sym, jp, en, period, group ===== */
+const ELEMENTS = [
+  [1,"H","水素","Hydrogen",1,1],
+  [2,"He","ヘリウム","Helium",1,18],
+  [3,"Li","リチウム","Lithium",2,1],
+  [4,"Be","ベリリウム","Beryllium",2,2],
+  [5,"B","ホウ素","Boron",2,13],
+  [6,"C","炭素","Carbon",2,14],
+  [7,"N","窒素","Nitrogen",2,15],
+  [8,"O","酸素","Oxygen",2,16],
+  [9,"F","フッ素","Fluorine",2,17],
+  [10,"Ne","ネオン","Neon",2,18],
+  [11,"Na","ナトリウム","Sodium",3,1],
+  [12,"Mg","マグネシウム","Magnesium",3,2],
+  [13,"Al","アルミニウム","Aluminium",3,13],
+  [14,"Si","ケイ素","Silicon",3,14],
+  [15,"P","リン","Phosphorus",3,15],
+  [16,"S","硫黄","Sulfur",3,16],
+  [17,"Cl","塩素","Chlorine",3,17],
+  [18,"Ar","アルゴン","Argon",3,18],
+  [19,"K","カリウム","Potassium",4,1],
+  [20,"Ca","カルシウム","Calcium",4,2],
+  [21,"Sc","スカンジウム","Scandium",4,3],
+  [22,"Ti","チタン","Titanium",4,4],
+  [23,"V","バナジウム","Vanadium",4,5],
+  [24,"Cr","クロム","Chromium",4,6],
+  [25,"Mn","マンガン","Manganese",4,7],
+  [26,"Fe","鉄","Iron",4,8],
+  [27,"Co","コバルト","Cobalt",4,9],
+  [28,"Ni","ニッケル","Nickel",4,10],
+  [29,"Cu","銅","Copper",4,11],
+  [30,"Zn","亜鉛","Zinc",4,12],
+  [31,"Ga","ガリウム","Gallium",4,13],
+  [32,"Ge","ゲルマニウム","Germanium",4,14],
+  [33,"As","ヒ素","Arsenic",4,15],
+  [34,"Se","セレン","Selenium",4,16],
+  [35,"Br","臭素","Bromine",4,17],
+  [36,"Kr","クリプトン","Krypton",4,18],
+].map(([z,sym,jp,en,period,group])=>({z,sym,jp,en,period,group}));
+
+const ROWS = 4, COLS = 18;
+
+/** ===== 有効マス判定：周期表の空白を無効化 ===== */
+function isValidCell(period, group) {
+  if (period === 1) return group === 1 || group === 18;       // H, He
+  if (period === 2 || period === 3) return group >= 1 && group <= 18;
+  if (period === 4) return group >= 1 && group <= 18;         // 3d含む
+  return false;
+}
+
+/** ===== DOM生成 ===== */
+const boardEl = document.getElementById('board');
+const fallingEl = document.getElementById('falling');
+const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
+const livesEl = document.getElementById('lives');
+const placedEl = document.getElementById('placed');
+const modeTag = document.getElementById('modeTag');
+const toastEl = document.getElementById('toast');
+
+const grid = []; // grid[r][c] → { filled:bool, element?:{...} }
+for (let r=1;r<=ROWS;r++){
+  const rowArr = [];
+  for (let c=1;c<=COLS;c++){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.r = r; cell.dataset.c = c;
+    if (!isValidCell(r,c)) cell.classList.add('invalid');
+    // 小さく(r,c)を出せるように
+    const sm = document.createElement('div');
+    sm.className = 'small';
+    if (isValidCell(r,c)) sm.textContent = `${r},${c}`;
+    cell.appendChild(sm);
+    boardEl.appendChild(cell);
+    rowArr.push({filled:false, el:cell});
+  }
+  grid.push(rowArr);
+}
+
+/** ===== ゲーム状態 ===== */
+let modeFocusGroups = false; // false: 全範囲, true: 1/2/17/18族集中
+let score=0, combo=0, lives=3, placed=0;
+let active=null;
+let timer=null, speed=900, paused=false;
+const BASE_SPEED=900, FAST_SPEED=60;
+
+/** ===== ユーティリティ ===== */
+function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function showToast(msg){
+  toastEl.textContent = msg; toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'), 900);
+}
+
+/** ===== 新しいブロックを出す ===== */
+function nextPool(){
+  let pool = ELEMENTS.filter(e=>e.z<=36);
+  if (modeFocusGroups){
+    pool = pool.filter(e=>[1,2,17,18].includes(e.group));
+  }
+  return pool;
+}
+function spawn(){
+  const e = randChoice(nextPool());
+  const startC = Math.min(Math.max(e.group,1),COLS);
+  active = {
+    ...e, x: startC, y: 0, // y: ピクセル位置用、ただし当たり判定は行で見る
+    vy: 1
+  };
+  fallingEl.querySelector('.sym').textContent = `${e.sym}`;
+  fallingEl.querySelector('.jp').textContent = `${e.jp}`;
+  fallingEl.style.display = 'block';
+  renderActive();
+  highlightTarget(e.period, e.group);
+}
+
+/** ===== ハイライト（目標マス） ===== */
+function highlightTarget(r,c){
+  document.querySelectorAll('.cell.target').forEach(n=>n.classList.remove('target'));
+  if (r>=1 && r<=ROWS && c>=1 && c<=COLS){
+    grid[r-1][c-1].el.classList.add('target');
+  }
+}
+
+/** ===== Active描画位置（DOM座標） ===== */
+function renderActive(){
+  if (!active) return;
+  // セル中心座標（targetの行に近づく感じで落とす）
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const cellW = cellSize + gap;
+  const cellH = cellSize + gap;
+
+  const centerX = (active.x-1)*cellW + cellSize/2 + gap;
+  // yは0〜(ROWS*cellH)へ。目標行中心は (period-1)*cellH + cellSize/2
+  const targetY = (active.period-1)*cellH + cellSize/2 + gap;
+  const clampedY = Math.min(active.y, targetY);
+  fallingEl.style.left = `${centerX}px`;
+  fallingEl.style.top = `${clampedY}px`;
+}
+
+/** ===== 1ステップ落下 ===== */
+function step(){
+  if (paused || !active) return;
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const cellH = cellSize + gap;
+  const targetY = (active.period-1)*cellH + cellSize/2 + gap;
+  active.y += Math.max(2, cellH/8);
+
+  // 到達 or オーバー
+  if (active.y >= targetY - 1){
+    // 列一致なら成功
+    const ok = (active.x === active.group);
+    place(ok);
+    return;
+  }
+  renderActive();
+}
+
+/** ===== 設置処理 ===== */
+function place(ok){
+  // 目標セル
+  const r = active.period, c = active.group;
+  const cell = grid[r-1][c-1];
+  // 重複設置は可（上書き表示だけ）。満杯管理はシンプルに省略（MVP）
+  cell.filled = true;
+  cell.el.classList.add('filled');
+  cell.el.textContent = `${active.sym} ${active.jp}`;
+  const sm = document.createElement('div'); sm.className = 'small'; sm.textContent = `${r},${c}`;
+  cell.el.appendChild(sm);
+
+  if (ok){
+    const add = 100 + combo*20;
+    score += add; combo += 1; placed += 1;
+    showToast(`正解！ +${add}`);
+  } else {
+    lives -= 1; combo = 0;
+    showToast(`ミス！ 正解は [${active.period},${active.group}]`);
+  }
+  updateHUD();
+  fallingEl.style.display = 'none';
+  document.querySelectorAll('.cell.target').forEach(n=>n.classList.remove('target'));
+
+  if (lives <= 0){
+    gameOver();
+  } else {
+    spawn();
+  }
+}
+
+/** ===== 入力 ===== */
+document.addEventListener('keydown', (e)=>{
+  if (!active && e.key === 'Enter'){ start(); return; }
+  if (e.key === 'Enter'){ start(true); return; }
+  if (e.key.toLowerCase() === 'p'){ togglePause(); return; }
+  if (e.key.toLowerCase() === 'm'){ toggleMode(); return; }
+  if (!active) return;
+
+  if (e.key === 'ArrowLeft'){
+    active.x = Math.max(1, active.x-1); renderActive();
+  } else if (e.key === 'ArrowRight'){
+    active.x = Math.min(COLS, active.x+1); renderActive();
+  } else if (e.key === 'ArrowDown'){
+    tickFastOnce();
+  } else if (e.code === 'Space'){
+    hardDrop();
+  }
+  e.preventDefault();
+});
+
+function tickFastOnce(){
+  if (!active) return;
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const cellH = cellSize + gap;
+  active.y += cellH * .6;
+  step();
+}
+function hardDrop(){
+  if (!active) return;
+  const cellSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const cellH = cellSize + gap;
+  const targetY = (active.period-1)*cellH + cellSize/2 + gap;
+  active.y = targetY;
+  step();
+}
+
+document.getElementById('restart').addEventListener('click', ()=>start(true));
+document.getElementById('toggleMode').addEventListener('click', toggleMode);
+
+function toggleMode(){
+  modeFocusGroups = !modeFocusGroups;
+  modeTag.textContent = modeFocusGroups ? '族集中 (1/2/17/18)' : '全範囲';
+  showToast(modeTag.textContent);
+}
+
+/** ===== HUD更新・ゲーム制御 ===== */
+function updateHUD(){
+  scoreEl.textContent = score;
+  comboEl.textContent = combo;
+  livesEl.textContent = lives;
+  placedEl.textContent = placed;
+}
+function clearBoard(){
+  for (let r=1;r<=ROWS;r++){
+    for (let c=1;c<=COLS;c++){
+      const cell = grid[r-1][c-1];
+      cell.filled = false;
+      cell.el.className = 'cell' + (isValidCell(r,c)?'':' invalid');
+      cell.el.textContent = '';
+      const sm = document.createElement('div'); sm.className='small';
+      if (isValidCell(r,c)) sm.textContent = `${r},${c}`;
+      cell.el.appendChild(sm);
+    }
+  }
+}
+function loop(){
+  step();
+}
+function start(reset=false){
+  if (reset){
+    score=0; combo=0; lives=3; placed=0;
+    clearBoard();
+  }
+  updateHUD();
+  paused=false;
+  speed = BASE_SPEED;
+  if (timer) clearInterval(timer);
+  timer = setInterval(loop, speed);
+  if (!active) spawn();
+}
+function togglePause(){
+  if (!timer) return;
+  paused = !paused;
+  showToast(paused ? '一時停止' : '再開');
+}
+function gameOver(){
+  clearInterval(timer); timer=null; active=null;
+  showToast(`ゲームオーバー！ スコア:${score}`);
+}
+
+/** 自動開始 */
+start(true);
+</script>
+</body>
+</html>
