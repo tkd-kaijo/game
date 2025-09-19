@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>周期表テトリス v2（1〜36＋1/2/17/18族 全範囲、iPad対応）</title>
+<title>周期表テトリス v3（空欄=原子番号・欠番非表示・iPad対応）</title>
 <style>
   :root {
     --bg: #0f172a;
@@ -13,7 +13,6 @@
     --accent: #22d3ee;
     --ok: #34d399;
     --bad: #f87171;
-    --ghost: #374151;
     --cell-gap: 2px;
     --cell-size: 38px; /* JSで上書きして画面幅いっぱいに */
   }
@@ -33,11 +32,10 @@
   .board { width: 100%; display: grid; grid-template-columns: repeat(18, var(--cell-size));
     grid-template-rows: repeat(7, var(--cell-size)); gap: var(--cell-gap); position: relative; }
   .cell { width: var(--cell-size); height: var(--cell-size); background: var(--grid);
-    border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #cbd5e1;
+    border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #cbd5e1;
     position: relative; overflow: hidden; user-select: none; touch-action: manipulation; }
-  .cell.invalid { background: #0b1222; opacity: .35 }
+  .cell .z { font-size: clamp(11px, calc(var(--cell-size)*0.32), 16px); opacity: .65; font-weight: 700; }
   .cell.filled { background: #0e3b2d; }
-  .cell .small { position: absolute; bottom: 2px; right: 6px; font-size: 10px; opacity: .6; font-weight: 500; }
 
   .falling { position: absolute; transform: translate(-50%, -50%); width: var(--cell-size); height: var(--cell-size);
     background: #1f2937; border: 2px solid var(--accent); border-radius: 8px; display: grid; place-items: center;
@@ -77,10 +75,10 @@
   </div>
 
   <aside class="hud" aria-label="hud">
-    <h1>周期表テトリス v2</h1>
+    <h1>周期表テトリス v3</h1>
     <div class="row">
       <button id="restart" class="btn primary">↻ リスタート（Enter）</button>
-      <button id="toggleMode" class="btn">M: モード切替</button>
+      <button id="toggleMode" class="btn">モード切替 (M)</button>
       <span id="modeTag" class="tag">全範囲</span>
     </div>
     <div class="stats">
@@ -88,16 +86,16 @@
       <div class="card">コンボ<br><span id="combo" class="big">0</span></div>
       <div class="card">ミス<br><span id="miss" class="big">0/5</span></div>
       <div class="card">配置済み<br><span id="placed" class="big">0</span></div>
+      <div class="card">タイム<br><span id="time" class="big">0.0s</span></div>
     </div>
     <div class="card" style="margin-top:10px">
-      出題モード：<br>
-      <div class="help">全範囲＝<b>Z1〜36</b> ＋ <b>1,2,17,18族の全元素</b>／ 族集中＝<b>1,2,17,18族のみ</b></div>
-    </div>
-    <div class="card" style="margin-top:10px">
-      <div class="help">
-        操作：← → 移動／↓ 加速／Space ハードドロップ／P 一時停止／M モード切替／Enter リスタート<br>
-        iPad：<b>左右スワイプ</b>＝左右移動、<b>下スワイプ</b>＝ハードドロップ、<b>タップ</b>＝少し加速
-      </div>
+      出題モード：
+      <ul style="margin:.4em 0 .2em .9em; padding:0; font-size:12px; line-height:1.6">
+        <li><b>全範囲</b>＝Z1〜36 ＋ 1/2/17/18族（周期7まで）</li>
+        <li><b>族集中</b>＝1/2/17/18族のみ</li>
+        <li><b>1〜20</b>＝Z1〜20のみ</li>
+      </ul>
+      <div class="help">iPad：左右スワイプ＝左右移動／下スワイプ＝ハードドロップ／タップ＝少し加速</div>
     </div>
   </aside>
 </div>
@@ -129,32 +127,19 @@ const BASE_SET_1to36 = [
   [33,"As","ヒ素","Arsenic",4,15], [34,"Se","セレン","Selenium",4,16],
   [35,"Br","臭素","Bromine",4,17], [36,"Kr","クリプトン","Krypton",4,18]
 ];
-
 const GROUPS_EXTRA = [
-  // 1族：H, Li, Na, K, Rb, Cs, Fr
   [37,"Rb","ルビジウム","Rubidium",5,1], [55,"Cs","セシウム","Cesium",6,1], [87,"Fr","フランシウム","Francium",7,1],
-  // 2族：Be, Mg, Ca, Sr, Ba, Ra
   [38,"Sr","ストロンチウム","Strontium",5,2], [56,"Ba","バリウム","Barium",6,2], [88,"Ra","ラジウム","Radium",7,2],
-  // 17族：F, Cl, Br, I, At, Ts
   [53,"I","ヨウ素","Iodine",5,17], [85,"At","アスタチン","Astatine",6,17], [117,"Ts","テネシン","Tennessine",7,17],
-  // 18族：He, Ne, Ar, Kr, Xe, Rn, Og
   [54,"Xe","キセノン","Xenon",5,18], [86,"Rn","ラドン","Radon",6,18], [118,"Og","オガネソン","Oganesson",7,18]
 ];
-
 const ELEMENTS_ALL = [...BASE_SET_1to36, ...GROUPS_EXTRA]
   .map(([z,sym,jp,en,period,group])=>({z,sym,jp,en,period,group}))
-  // period 1の無効マス（2-17族）などは後でisValidCellで管理
   .sort((a,b)=>a.z-b.z);
 
-// 盤面：period=1..7, group=1..18
+// period=1..7, group=1..18 に対し、実在するセルのみ生成
 const ROWS = 7, COLS = 18;
-
-/** 有効マス判定（MVP：period 1は1と18のみ。他は1..18を許容） */
-function isValidCell(period, group) {
-  if (period === 1) return group === 1 || group === 18; // H, He
-  if (period >= 2 && period <= 7) return group >= 1 && group <= 18;
-  return false;
-}
+const cellByKey = new Map(); // key: `${r}-${c}` => {el, filled, elem}
 
 // ===== DOM =====
 const boardWrap = document.getElementById('boardWrap');
@@ -165,70 +150,91 @@ const comboEl = document.getElementById('combo');
 const missEl = document.getElementById('miss');
 const placedEl = document.getElementById('placed');
 const modeTag = document.getElementById('modeTag');
+const timeEl = document.getElementById('time');
 const toastEl = document.getElementById('toast');
 
-// グリッド生成
-const grid = [];
-(function buildGrid(){
+// ===== オーディオ（効果音：正解/不正解） =====
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function ensureAudio(){ if (!audioCtx) audioCtx = new AudioCtx(); }
+function beep(type='ok'){
+  ensureAudio();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine';
+  if (type==='ok'){ o.frequency.value = 880; } else { o.frequency.value = 220; }
+  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.18);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + 0.2);
+}
+
+// ===== グリッド生成（実在セルのみ） =====
+function buildGrid(){
   boardEl.innerHTML = '';
-  for (let r=1;r<=ROWS;r++){
-    const rowArr = [];
-    for (let c=1;c<=COLS;c++){
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.dataset.r = r; cell.dataset.c = c;
-      if (!isValidCell(r,c)) cell.classList.add('invalid');
-      const sm = document.createElement('div');
-      sm.className = 'small';
-      if (isValidCell(r,c)) sm.textContent = `${r},${c}`;
-      cell.appendChild(sm);
-      boardEl.appendChild(cell);
-      rowArr.push({filled:false, el:cell});
-    }
-    grid.push(rowArr);
+  cellByKey.clear();
+  for (const e of ELEMENTS_ALL){
+    const key = `${e.period}-${e.group}`;
+    if (cellByKey.has(key)) continue; // 念のため
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.style.gridRowStart = e.period;
+    cell.style.gridColumnStart = e.group;
+    // 初期表示は原子番号（未配置感を出す）
+    cell.innerHTML = `<div class="z">${e.z}</div>`;
+    boardEl.appendChild(cell);
+    cellByKey.set(key, {el:cell, filled:false, elem:e});
   }
-})();
+}
+buildGrid();
 
 // ===== レイアウト：画面幅いっぱいにセルを自動調整 =====
 function updateCellSize(){
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
   const wrapW = boardWrap.clientWidth - 24; // 内側余白の目安
-  const size = Math.max(20, Math.floor((wrapW - (COLS-1)*gap) / COLS));
+  const size = Math.max(22, Math.floor((wrapW - (COLS-1)*gap) / COLS));
   document.documentElement.style.setProperty('--cell-size', size + 'px');
 }
-window.addEventListener('resize', updateCellSize);
-updateCellSize();
+window.addEventListener('resize', updateCellSize); updateCellSize();
 
 // ===== 状態 =====
-let modeFocusGroups = false; // false: 全範囲, true: 族集中（1/2/17/18）
+const MODE_ALL = 0, MODE_FOCUS = 1, MODE_1to20 = 2;
+let mode = MODE_ALL;
 let score=0, combo=0, misses=0, placed=0;
 let active=null; let timer=null; let paused=false;
-const BASE_SPEED=900; let speed=BASE_SPEED;
-const MAX_MISS=5;
-
-// 既に配置された元素（z）
+const BASE_SPEED=900; let speed=BASE_SPEED; const MAX_MISS=5;
 const placedSet = new Set();
-// クリア対象（全範囲モードの全要素を基準に）
+let startTimeMs = 0; // クリア時間計測
+let timeTimer = null;
+
 const TARGET_SET_ALL = new Set(ELEMENTS_ALL.map(e=>e.z));
 const TARGET_SET_FOCUS = new Set(ELEMENTS_ALL.filter(e=>[1,2,17,18].includes(e.group)).map(e=>e.z));
+const TARGET_SET_1to20 = new Set(ELEMENTS_ALL.filter(e=>e.z<=20).map(e=>e.z));
 
 function showToast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'), 900); }
 function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
-function pool(){
-  const base = modeFocusGroups ? ELEMENTS_ALL.filter(e=>[1,2,17,18].includes(e.group)) : ELEMENTS_ALL;
-  return base.filter(e=>!placedSet.has(e.z)); // 既に埋まっている元素は落とさない
+function currentPool(){
+  let base;
+  if (mode===MODE_ALL){ base = ELEMENTS_ALL; }
+  else if (mode===MODE_FOCUS){ base = ELEMENTS_ALL.filter(e=>[1,2,17,18].includes(e.group)); }
+  else { base = ELEMENTS_ALL.filter(e=>e.z<=20); }
+  return base.filter(e=>!placedSet.has(e.z));
+}
+
+function currentTargetSet(){
+  if (mode===MODE_ALL) return TARGET_SET_ALL;
+  if (mode===MODE_FOCUS) return TARGET_SET_FOCUS;
+  return TARGET_SET_1to20;
 }
 
 function spawn(){
-  const p = pool();
-  if (p.length === 0){
-    // クリア
-    gameClear();
-    return;
-  }
+  const p = currentPool();
+  if (p.length === 0){ gameClear(); return; }
   const e = randChoice(p);
-  active = { ...e, x: Math.min(Math.max(e.group,1),COLS), y: 0 };
+  // 初期位置：中央上部（列=9固定、y=0）
+  active = { ...e, x: 9, y: 0 };
   fallingEl.querySelector('.sym').textContent = `${e.sym}`;
   fallingEl.querySelector('.jp').textContent = `${e.jp}`;
   fallingEl.style.display = 'grid';
@@ -241,7 +247,6 @@ function renderActive(){
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
   const cw = size + gap, ch = size + gap;
   const centerX = (active.x-1)*cw + size/2 + gap;
-  // 目標行の中心
   const targetY = (active.period-1)*ch + size/2 + gap;
   const clampedY = Math.min(active.y, targetY);
   fallingEl.style.left = `${centerX}px`;
@@ -254,33 +259,26 @@ function step(){
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
   const ch = size + gap; const targetY = (active.period-1)*ch + size/2 + gap;
   active.y += Math.max(2, ch/8);
-  if (active.y >= targetY - 1){
-    const ok = (active.x === active.group);
-    place(ok);
-    return;
-  }
+  if (active.y >= targetY - 1){ const ok = (active.x === active.group); place(ok); return; }
   renderActive();
 }
 
 function place(ok){
-  const r = active.period, c = active.group;
-  const cell = grid[r-1][c-1];
-  cell.filled = true; cell.el.classList.add('filled');
-  cell.el.textContent = `${active.sym} ${active.jp}`;
-  const sm = document.createElement('div'); sm.className='small'; sm.textContent = `${r},${c}`; cell.el.appendChild(sm);
+  const key = `${active.period}-${active.group}`;
+  const cell = cellByKey.get(key);
+  if (cell){
+    cell.filled = true; cell.el.classList.add('filled');
+    cell.el.textContent = `${active.sym} ${active.jp}`;
+  }
   placedSet.add(active.z);
 
-  if (ok){
-    const add = 100 + combo*20; score += add; combo += 1; placed += 1; showToast(`正解！ +${add}`);
-  } else {
-    misses += 1; combo = 0; showToast(`ミス！ 正解は [${r},${c}]`);
-  }
-  updateHUD();
-  fallingEl.style.display = 'none';
-  active = null;
+  if (ok){ const add = 100 + combo*20; score += add; combo += 1; placed += 1; beep('ok'); showToast(`正解！ +${add}`); }
+  else { misses += 1; combo = 0; beep('ng'); showToast(`ミス！ 正解は [${active.period},${active.group}]`); }
 
-  // クリア判定（現在のモードのターゲットが全て埋まったら）
-  const targetSet = modeFocusGroups ? TARGET_SET_FOCUS : TARGET_SET_ALL;
+  updateHUD();
+  fallingEl.style.display = 'none'; active = null;
+
+  const targetSet = currentTargetSet();
   let done = true; for (const z of targetSet){ if (!placedSet.has(z)) { done = false; break; } }
   if (done) { gameClear(); return; }
   if (misses >= MAX_MISS){ gameOver(); return; }
@@ -289,17 +287,13 @@ function place(ok){
 
 function updateHUD(){
   scoreEl.textContent = score; comboEl.textContent = combo; missEl.textContent = `${misses}/${MAX_MISS}`; placedEl.textContent = placed;
+  if (startTimeMs){ const t = (performance.now() - startTimeMs)/1000; timeEl.textContent = `${t.toFixed(1)}s`; }
 }
 
 function clearBoard(){
   placedSet.clear();
-  for (let r=1;r<=ROWS;r++){
-    for (let c=1;c<=COLS;c++){
-      const cell = grid[r-1][c-1];
-      cell.filled = false; cell.el.className = 'cell' + (isValidCell(r,c)?'':' invalid');
-      cell.el.textContent = '';
-      const sm = document.createElement('div'); sm.className='small'; if (isValidCell(r,c)) sm.textContent = `${r},${c}`; cell.el.appendChild(sm);
-    }
+  for (const [key, cell] of cellByKey){
+    cell.filled = false; cell.el.className = 'cell'; cell.el.innerHTML = `<div class="z">${cell.elem.z}</div>`;
   }
 }
 
@@ -307,14 +301,33 @@ function loop(){ step(); }
 
 function start(reset=false){
   if (reset){ score=0; combo=0; misses=0; placed=0; clearBoard(); }
-  updateHUD(); paused=false; speed=BASE_SPEED; if (timer) clearInterval(timer); timer = setInterval(loop, speed);
+  updateHUD(); paused=false; if (timer) clearInterval(timer); timer = setInterval(loop, 900);
+  startTimeMs = performance.now(); if (timeTimer) clearInterval(timeTimer);
+  timeTimer = setInterval(updateHUD, 100);
   if (!active) spawn();
 }
 
 function togglePause(){ if (!timer) return; paused = !paused; showToast(paused? '一時停止' : '再開'); }
-function toggleMode(){ modeFocusGroups = !modeFocusGroups; modeTag.textContent = modeFocusGroups ? '族集中 (1/2/17/18)' : '全範囲'; showToast(modeFocusGroups? '族集中' : '全範囲'); }
-function gameOver(){ clearInterval(timer); timer=null; active=null; showToast(`ゲームオーバー！ スコア:${score}`); }
-function gameClear(){ clearInterval(timer); timer=null; active=null; showToast('クリア！おめでとう🎉'); }
+function toggleMode(){
+  mode = (mode + 1) % 3;
+  modeTag.textContent = mode===0 ? '全範囲' : (mode===1 ? '族集中 (1/2/17/18)' : '1〜20');
+  showToast(modeTag.textContent);
+  // モード切替で再スタート
+  start(true);
+}
+
+function gameOver(){
+  clearInterval(timer); timer=null; active=null; if (timeTimer) { clearInterval(timeTimer); timeTimer=null; }
+  showToast(`ゲームオーバー！ スコア:${score}`);
+}
+
+function gameClear(){
+  clearInterval(timer); timer=null; active=null; if (timeTimer) { clearInterval(timeTimer); timeTimer=null; }
+  const secs = (performance.now() - startTimeMs)/1000;
+  const bonus = Math.max(0, Math.round(30000 / (secs + 10))); // 速いほど高ボーナス（上限≈3000）
+  score += bonus; updateHUD();
+  showToast(`クリア！ ${secs.toFixed(1)}s / タイムボーナス +${bonus}`);
+}
 
 // ===== 入力（キーボード） =====
 function tickFastOnce(){ if (!active) return; const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size')); const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap')); const ch = size + gap; active.y += ch * .6; step(); }
@@ -337,26 +350,20 @@ document.addEventListener('keydown', (e)=>{
 let touchStartX=0, touchStartY=0, touchMoved=false;
 const SWIPE_THRESHOLD = 24; // px
 boardWrap.addEventListener('touchstart', (ev)=>{
-  const t = ev.changedTouches[0]; touchStartX = t.clientX; touchStartY = t.clientY; touchMoved = false; }, {passive:true});
+  const t = ev.changedTouches[0]; touchStartX = t.clientX; touchStartY = t.clientY; touchMoved = false; ensureAudio();
+}, {passive:true});
 boardWrap.addEventListener('touchmove', (ev)=>{
   if (!active) return;
   const t = ev.changedTouches[0]; const dx = t.clientX - touchStartX; const dy = t.clientY - touchStartY;
   if (Math.abs(dx) > Math.abs(dy)){
-    if (Math.abs(dx) > SWIPE_THRESHOLD){
-      if (dx > 0){ active.x = Math.min(COLS, active.x+1); } else { active.x = Math.max(1, active.x-1); }
-      renderActive(); touchStartX = t.clientX; touchStartY = t.clientY; touchMoved = true; // 連続移動可
-    }
+    if (Math.abs(dx) > SWIPE_THRESHOLD){ if (dx > 0){ active.x = Math.min(COLS, active.x+1); } else { active.x = Math.max(1, active.x-1); } renderActive(); touchStartX = t.clientX; touchStartY = t.clientY; touchMoved = true; }
   } else {
     if (dy > SWIPE_THRESHOLD){ hardDrop(); touchMoved = true; }
   }
 }, {passive:true});
-boardWrap.addEventListener('touchend', (ev)=>{
-  if (!active) return;
-  if (!touchMoved){ tickFastOnce(); } // タップ：少し加速
-});
+boardWrap.addEventListener('touchend', ()=>{ if (!active) return; if (!touchMoved){ tickFastOnce(); } });
 
 // ===== ボタン =====
-Document.prototype.q = Document.prototype.querySelector; // 小ワザ
 const $ = (sel)=>document.querySelector(sel);
 $('#restart').addEventListener('click', ()=>start(true));
 $('#toggleMode').addEventListener('click', toggleMode);
