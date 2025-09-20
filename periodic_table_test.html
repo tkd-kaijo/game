@@ -113,7 +113,7 @@ function periodicNeighbors(a,b){
 }
 
 // ====== 盤面（4×10、上に見えない検出行=11段目） ======
-const COLS = 4, ROWS_VISIBLE = 10, ROWS_TOTAL = 11; // 11段目(インデックス10)に積んだらゲームオーバー
+const COLS = 4, ROWS_VISIBLE = 10, ROWS_TOTAL = 10; // 11段目(インデックス10)に積んだらゲームオーバー
 const board = Array.from({length: ROWS_TOTAL}, ()=> Array(COLS).fill(null));
 
 // ====== DOM ======
@@ -161,7 +161,7 @@ const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyVal
 window.addEventListener('resize', updateCellSize); updateCellSize();
 
 // ====== 状態 ======
-let timer=null, speedMs=900, fast=false, paused=false;
+let timer=null, speedMs=600, fast=false, paused=false;
 let score=0, currentChain=0;
 let active = null; // {elem, x, y}
 
@@ -199,6 +199,11 @@ function updateHUD(){ scoreEl.textContent=score; chainEl.textContent=currentChai
 function spawn(){
   const e = randElem();
   active = { elem: e, x: 1, y: 0 }; // 中央上部（列=1: 0..3 の2列目）
+   // 生成位置が埋まっていたらゲームオーバー
+  if(board[0][active.x]){
+    gameOver();
+    return;
+  }
   fallingEl.querySelector('.sym').textContent=e.sym;
   fallingEl.querySelector('.jp').textContent=e.jp;
   fallingEl.style.display='grid';
@@ -218,14 +223,14 @@ function renderActive(){
 
 function canMove(nx, ny){
   if(nx<0||nx>=COLS) return false;
-  if(ny>=ROWS_TOTAL) return false;
+  if(ny>=ROWS_VISIBLE) return false;
   if(ny>=0 && board[ny][nx]) return false;
   return true;
 }
 
 function tick(){
   if(paused||!active) return;
-  const step = fast? 2:1;
+  const step = fast? 4:1;
   for(let i=0;i<step;i++){
     const ny = active.y + 1;
     if(canMove(active.x, ny)){
@@ -244,8 +249,7 @@ function lock(){
   paintBoard();
   fallingEl.style.display='none'; active=null; snd('lock');
 
-  // オーバーフロー判定（11段目=インデックス10に置いたら）
-  if(y>=ROWS_VISIBLE){ gameOver(); return; }
+
 
   // 消去判定（連鎖処理）
   let chain = 0; let totalCleared=0;
@@ -294,10 +298,19 @@ function findAndClearGroups(){
 function applyGravity(){
   for(let c=0;c<COLS;c++){
     const stack = [];
-    for(let r=0;r<ROWS_TOTAL;r++){ if(board[r][c]) stack.push(board[r][c]); }
-    for(let r=0;r<ROWS_TOTAL;r++) board[r][c]=null;
-    let r = 0; // 下から詰める
-    for(const e of stack){ board[r][c]=e; r++; }
+    // 上→下に走査して「その列のブロック」を集める
+    for(let r=0;r<ROWS_TOTAL;r++){
+      if(board[r][c]) stack.push(board[r][c]);
+    }
+    // いったん空に
+    for(let r=0;r<ROWS_TOTAL;r++) board[r][c] = null;
+    // 下から順に詰め直す（下=インデックス大）
+    let r = ROWS_TOTAL - 1;
+    while(stack.length){
+      const e = stack.pop();     // いちばん下に来るやつから置く
+      board[r][c] = e;
+      r--;
+    }
   }
 }
 
