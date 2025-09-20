@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>周期表ぷよ風 v5（Z1〜20・4×10・隣接規則）</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --grid: #1f2937;
+    --text: #e5e7eb;
+    --accent: #22d3ee;
+    --ok: #34d399;
+    --bad: #f87171;
+    --cell-gap: 3px;
+    --cell-size: 48px; /* JSで横幅いっぱいに自動調整 */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    background: radial-gradient(1200px 800px at 70% 10%, #111827 0%, #0b1222 35%, #0f172a 70%);
+    color: var(--text); display: grid; place-items: start center; min-height: 100dvh; padding: 16px;
+  }
+  .app { width: 100%; max-width: 980px; display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+  @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+
+  .board-wrap { width: 100%; background: color-mix(in oklab, var(--panel) 80%, black 20%);
+    padding: 12px; border: 1px solid #334155; border-radius: 16px; position: relative;
+    box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  .board { width: 100%; display: grid; grid-template-columns: repeat(4, var(--cell-size));
+    grid-template-rows: repeat(10, var(--cell-size)); gap: var(--cell-gap); position: relative; }
+  .cell { width: var(--cell-size); height: var(--cell-size); background: var(--grid);
+    border-radius: 10px; display: grid; place-items: center; font-weight: 900; font-size: 16px; color: #cbd5e1;
+    position: relative; overflow: hidden; user-select: none; touch-action: manipulation; }
+  .cell.filled { background: #0e3b2d; }
+  .cell .label { display: grid; gap: 2px; text-align: center; }
+  .cell .sym { font-size: clamp(14px, calc(var(--cell-size)*0.42), 28px); }
+  .cell .jp { font-size: clamp(10px, calc(var(--cell-size)*0.26), 16px); opacity: .9; }
+
+  .falling { position: absolute; transform: translate(-50%, -50%); width: var(--cell-size); height: var(--cell-size);
+    background: #1f2937; border: 2px solid var(--accent); border-radius: 10px; display: none; place-items: center;
+    text-align: center; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,.45); left: 50%; top: 0; }
+  .falling .label { display: grid; gap: 2px; }
+  .falling .sym { font-weight: 900; letter-spacing: .4px; font-size: clamp(14px, calc(var(--cell-size)*0.42), 28px); }
+  .falling .jp { font-size: clamp(10px, calc(var(--cell-size)*0.26), 16px); opacity: .9; }
+
+  .hud { background: color-mix(in oklab, var(--panel) 85%, black 15%); border: 1px solid #334155;
+    border-radius: 16px; padding: 14px; position: sticky; top: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  .hud h1 { font-size: 18px; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: #0b1222;
+    border: 1px solid #334155; color: var(--text); cursor: pointer; user-select: none; transition: .15s transform ease, .15s background ease, .15s border-color ease; }
+  .btn:hover { transform: translateY(-1px); background: #0f1a30; border-color: #3b82f6; }
+  .btn.primary { background: #13213f; border-color: #3b82f6; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .card { background: #0b1222; border: 1px solid #1f2937; border-radius: 12px; padding: 10px; font-size: 14px; }
+  .big { font-size: 20px; font-weight: 800; }
+  .help { font-size: 12px; opacity: .85; line-height: 1.5; }
+  .toast { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: #102b1f; border: 1px solid #22c55e; color: #d1fae5;
+    padding: 8px 12px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.3); font-size: 13px; opacity: 0; pointer-events: none; transition: .2s opacity ease; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="board-wrap" id="boardWrap">
+    <div id="board" class="board" aria-label="playfield"></div>
+    <div id="falling" class="falling">
+      <div class="label">
+        <div class="sym">He</div>
+        <div class="jp">ヘリウム</div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="hud" aria-label="hud">
+    <h1>周期表ぷよ風 v5</h1>
+    <div class="row">
+      <button id="startBtn" class="btn primary">▶ スタート（Enter）</button>
+      <button id="pauseBtn" class="btn">一時停止（P）</button>
+    </div>
+    <div class="stats">
+      <div class="card">スコア<br><span id="score" class="big">0</span></div>
+      <div class="card">チェイン<br><span id="chain" class="big">0</span></div>
+      <div class="card">落下速度<br><span id="speedu" class="big">1.0x</span></div>
+      <div class="card">ヒント<br><span class="help">同じ色ではなく、<b>周期表で隣り合う関係</b>の要素だけがつながります（上下左右）。4つ以上で消去、連鎖でボーナス。</span></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <div class="help">
+        出題：<b>Z1〜20</b>（H〜Ca）。
+        フィールド：<b>4×10</b>（11段目に積むとゲームオーバー）。
+        操作：← → 移動／↓ 加速／Space ハードドロップ／P 一時停止。iPadは左右スワイプ・下スワイプ・タップ対応。
+      </div>
+    </div>
+  </aside>
+</div>
+<div id="toast" class="toast">Great!</div>
+
+<script>
+// ====== 元素データ Z=1..20（記号・日本語名・period・group） ======
+const ELEMENTS = [
+  [1,"H","水素",1,1],[2,"He","ヘリウム",1,18],
+  [3,"Li","リチウム",2,1],[4,"Be","ベリリウム",2,2],[5,"B","ホウ素",2,13],[6,"C","炭素",2,14],[7,"N","窒素",2,15],[8,"O","酸素",2,16],[9,"F","フッ素",2,17],[10,"Ne","ネオン",2,18],
+  [11,"Na","ナトリウム",3,1],[12,"Mg","マグネシウム",3,2],[13,"Al","アルミニウム",3,13],[14,"Si","ケイ素",3,14],[15,"P","リン",3,15],[16,"S","硫黄",3,16],[17,"Cl","塩素",3,17],[18,"Ar","アルゴン",3,18],
+  [19,"K","カリウム",4,1],[20,"Ca","カルシウム",4,2]
+].map(([z,sym,jp,period,group])=>({z,sym,jp,period,group}));
+
+// 周期表上で隣接しているか（上下左右のマンハッタン距離=1）
+function periodicNeighbors(a,b){
+  return Math.abs(a.period - b.period) + Math.abs(a.group - b.group) === 1;
+}
+
+// ====== 盤面（4×10、上に見えない検出行=11段目） ======
+const COLS = 4, ROWS_VISIBLE = 10, ROWS_TOTAL = 11; // 11段目(インデックス10)に積んだらゲームオーバー
+const board = Array.from({length: ROWS_TOTAL}, ()=> Array(COLS).fill(null));
+
+// ====== DOM ======
+const boardWrap = document.getElementById('boardWrap');
+const boardEl = document.getElementById('board');
+const fallingEl = document.getElementById('falling');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const scoreEl = document.getElementById('score');
+const chainEl = document.getElementById('chain');
+const speedEl = document.getElementById('speedu');
+const toastEl = document.getElementById('toast');
+
+// セルDOM（表示は可視10段のみ）
+const cellEls = [];
+function buildGrid(){
+  boardEl.innerHTML=''; cellEls.length=0;
+  for(let r=0;r<ROWS_VISIBLE;r++){
+    const row=[];
+    for(let c=0;c<COLS;c++){
+      const d=document.createElement('div'); d.className='cell';
+      boardEl.appendChild(d); row.push(d);
+    }
+    cellEls.push(row);
+  }
+}
+buildGrid();
+
+// 横幅いっぱいにセルを自動調整
+function updateCellSize(){
+  const wrapW = boardWrap.clientWidth - 24; // 余白
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const size = Math.max(26, Math.floor((wrapW - (COLS-1)*gap) / COLS));
+  document.documentElement.style.setProperty('--cell-size', size + 'px');
+}
+window.addEventListener('resize', updateCellSize); updateCellSize();
+
+// ====== 状態 ======
+let timer=null, speedMs=900, fast=false, paused=false;
+let score=0, currentChain=0;
+let active = null; // {elem, x, y}
+
+// 効果音
+const AudioCtx = window.AudioContext || window.webkitAudioContext; let audioCtx=null;
+function ensureAudio(){ if(!audioCtx) audioCtx=new AudioCtx(); }
+function snd(type='lock'){
+  ensureAudio(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='sine';
+  const now=audioCtx.currentTime;
+  if(type==='clear'){ o.frequency.setValueAtTime(880, now); }
+  else if(type==='chain'){ o.frequency.setValueAtTime(1320, now); }
+  else if(type==='over'){ o.frequency.setValueAtTime(110, now); }
+  else { o.frequency.setValueAtTime(330, now); }
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.exponentialRampToValueAtTime(0.25, now+0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, now+0.18);
+  o.connect(g).connect(audioCtx.destination); o.start(); o.stop(now+0.2);
+}
+
+function showToast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'), 900); }
+function randElem(){ return ELEMENTS[Math.floor(Math.random()*ELEMENTS.length)]; }
+
+// ====== ゲーム制御 ======
+function start(){
+  // 初期化
+  for(let r=0;r<ROWS_TOTAL;r++) for(let c=0;c<COLS;c++) board[r][c]=null;
+  for(let r=0;r<ROWS_VISIBLE;r++) for(let c=0;c<COLS;c++){ cellEls[r][c].className='cell'; cellEls[r][c].innerHTML=''; }
+  score=0; currentChain=0; paused=false; speedMs=900; fast=false; updateHUD();
+  if(timer) clearInterval(timer); timer=setInterval(tick, speedMs);
+  spawn();
+}
+
+function updateHUD(){ scoreEl.textContent=score; chainEl.textContent=currentChain; speedEl.textContent=(fast? '1.8x':'1.0x'); }
+
+function spawn(){
+  const e = randElem();
+  active = { elem: e, x: 1, y: 0 }; // 中央上部（列=1: 0..3 の2列目）
+  fallingEl.querySelector('.sym').textContent=e.sym;
+  fallingEl.querySelector('.jp').textContent=e.jp;
+  fallingEl.style.display='grid';
+  renderActive();
+}
+
+function renderActive(){
+  if(!active) return;
+  const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const cw=size+gap; const ch=size+gap;
+  const x = active.x*cw + size/2; // x: 0..3 -> セル中心
+  const y = active.y*ch + size/2; // y: 0..9 可視、落下中も可視内に描画
+  fallingEl.style.left = `${x + 12}px`; // boardWrap padding補正
+  fallingEl.style.top  = `${y + 12}px`;
+}
+
+function canMove(nx, ny){
+  if(nx<0||nx>=COLS) return false;
+  if(ny>=ROWS_TOTAL) return false;
+  if(ny>=0 && board[ny][nx]) return false;
+  return true;
+}
+
+function tick(){
+  if(paused||!active) return;
+  const step = fast? 2:1;
+  for(let i=0;i<step;i++){
+    const ny = active.y + 1;
+    if(canMove(active.x, ny)){
+      active.y = ny; renderActive();
+    } else {
+      lock(); return; // ロック後はtickを抜ける
+    }
+  }
+}
+
+function lock(){
+  // 盤面に固定
+  const {x,y,elem} = active;
+  if(y>=ROWS_TOTAL) return; // 念のため
+  if(y>=0) board[y][x]=elem;
+  paintBoard();
+  fallingEl.style.display='none'; active=null; snd('lock');
+
+  // オーバーフロー判定（11段目=インデックス10に置いたら）
+  if(y>=ROWS_VISIBLE){ gameOver(); return; }
+
+  // 消去判定（連鎖処理）
+  let chain = 0; let totalCleared=0;
+  while(true){
+    const cleared = findAndClearGroups();
+    if(cleared.length===0) break;
+    chain++; currentChain = chain; totalCleared += cleared.length; score += cleared.length * 100 * chain; snd(chain===1? 'clear':'chain');
+    applyGravity(); paintBoard();
+  }
+  if(chain>0){ showToast(chain===1? `消去 ${totalCleared}` : `${chain}連鎖！ ${totalCleared}`); }
+  else { currentChain = 0; }
+  updateHUD();
+  spawn();
+}
+
+function neighbors4(r,c){
+  return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc])=>nr>=0&&nr<ROWS_TOTAL&&nc>=0&&nc<COLS);
+}
+
+// 周期表隣接関係で繋がるグループを探索し、サイズ>=4を消去対象に
+function findAndClearGroups(){
+  const visited = Array.from({length: ROWS_TOTAL}, ()=>Array(COLS).fill(false));
+  const toClear = [];
+  for(let r=0;r<ROWS_TOTAL;r++){
+    for(let c=0;c<COLS;c++){
+      const elem = board[r][c]; if(!elem || visited[r][c]) continue;
+      // BFS: エッジ条件=盤面で隣接 & 周期表で隣接
+      const q=[[r,c]]; visited[r][c]=true; const group=[[r,c]];
+      while(q.length){
+        const [cr,cc]=q.shift(); const a = board[cr][cc];
+        for(const [nr,nc] of neighbors4(cr,cc)){
+          if(visited[nr][nc]) continue; const b=board[nr][nc]; if(!b) continue;
+          if(periodicNeighbors(a,b)){ visited[nr][nc]=true; q.push([nr,nc]); group.push([nr,nc]); }
+        }
+      }
+      if(group.length>=4){ toClear.push(...group); }
+    }
+  }
+  // 重複除去
+  const uniq = Array.from(new Set(toClear.map(([r,c])=>r+","+c))).map(s=>s.split(',').map(Number));
+  // 消去
+  for(const [r,c] of uniq){ board[r][c]=null; }
+  return uniq;
+}
+
+function applyGravity(){
+  for(let c=0;c<COLS;c++){
+    const stack = [];
+    for(let r=0;r<ROWS_TOTAL;r++){ if(board[r][c]) stack.push(board[r][c]); }
+    for(let r=0;r<ROWS_TOTAL;r++) board[r][c]=null;
+    let r = 0; // 下から詰める
+    for(const e of stack){ board[r][c]=e; r++; }
+  }
+}
+
+function paintBoard(){
+  for(let r=0;r<ROWS_VISIBLE;r++){
+    for(let c=0;c<COLS;c++){
+      const cell = cellEls[r][c];
+      const e = board[r][c];
+      if(!e){ cell.className='cell'; cell.innerHTML=''; continue; }
+      cell.className='cell filled';
+      cell.innerHTML = `<div class="label"><div class="sym">${e.sym}</div><div class="jp">${e.jp}</div></div>`;
+    }
+  }
+}
+
+function gameOver(){
+  if(timer) clearInterval(timer); timer=null; snd('over'); showToast(`ゲームオーバー！ スコア:${score}`);
+}
+
+// ====== 入力 ======
+startBtn.addEventListener('click', ()=>{ ensureAudio(); if(!timer) start(); });
+pauseBtn.addEventListener('click', ()=>{ paused=!paused; showToast(paused? '一時停止' : '再開'); });
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ ensureAudio(); if(!timer) start(); return; }
+  if(!active) return;
+  if(e.key.toLowerCase()==='p'){ paused=!paused; showToast(paused? '一時停止' : '再開'); return; }
+  if(paused) return;
+  if(e.key==='ArrowLeft' && canMove(active.x-1, active.y)){ active.x--; renderActive(); }
+  else if(e.key==='ArrowRight' && canMove(active.x+1, active.y)){ active.x++; renderActive(); }
+  else if(e.key==='ArrowDown'){ fast=true; updateHUD(); }
+  else if(e.code==='Space'){
+    // ハードドロップ
+    while(canMove(active.x, active.y+1)) active.y++;
+    renderActive(); lock();
+  }
+});
+
+document.addEventListener('keyup', (e)=>{ if(e.key==='ArrowDown'){ fast=false; updateHUD(); }});
+
+// iPadタッチ
+let sx=0, sy=0, moved=false; const TH=24;
+boardWrap.addEventListener('touchstart', ev=>{ const t=ev.changedTouches[0]; sx=t.clientX; sy=t.clientY; moved=false; ensureAudio(); }, {passive:true});
+boardWrap.addEventListener('touchmove', ev=>{
+  if(!active||paused) return; const t=ev.changedTouches[0]; const dx=t.clientX-sx; const dy=t.clientY-sy;
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(Math.abs(dx)>TH){ if(dx>0&&canMove(active.x+1, active.y)) active.x++; else if(dx<0&&canMove(active.x-1, active.y)) active.x--; renderActive(); sx=t.clientX; sy=t.clientY; moved=true; }
+  } else {
+    if(dy>TH){ // 下スワイプ＝ハードドロップ
+      while(canMove(active.x, active.y+1)) active.y++; renderActive(); lock(); moved=true; }
+  }
+}, {passive:true});
+boardWrap.addEventListener('touchend', ()=>{ if(!active||paused) return; if(!moved){ fast=true; setTimeout(()=>{ fast=false; updateHUD(); }, 150); } });
+
+showToast('▶ スタートで開始（Z1〜20 / 4×10 / 4つで消去 & 連鎖）');
+</script>
+</body>
+</html>
