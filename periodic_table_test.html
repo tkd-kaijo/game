@@ -144,10 +144,19 @@ buildGrid();
 
 // 横幅いっぱいにセルを自動調整
 function updateCellSize(){
-  const wrapW = boardWrap.clientWidth - 24; // 余白
-  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
-  const size = Math.max(26, Math.floor((wrapW - (COLS-1)*gap) / COLS));
+const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const wrapW = boardWrap.clientWidth - 24;
+  const wrapH = window.innerHeight - 200; // HUDや余白を引いた高さ（適宜調整）
+
+  // 横幅基準のサイズ
+  const sizeW = Math.floor((wrapW - (COLS-1)*gap) / COLS);
+  // 縦高さ基準のサイズ
+  const sizeH = Math.floor((wrapH - (ROWS_VISIBLE-1)*gap) / ROWS_VISIBLE);
+
+  const size = Math.max(20, Math.min(sizeW, sizeH)); // 小さすぎないように下限20px
   document.documentElement.style.setProperty('--cell-size', size + 'px');
+
+  
 }
 window.addEventListener('resize', updateCellSize); updateCellSize();
 
