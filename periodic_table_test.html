@@ -123,35 +123,229 @@ const chainEl=document.getElementById('chain');
 const speedEl=document.getElementById('speedu');
 const toastEl=document.getElementById('toast');
 
-const cellEls=[]; function buildGrid(){ boardEl.innerHTML=''; cellEls.length=0; for(let r=0;r<ROWS_VISIBLE;r++){ const row=[]; for(let c=0;c<COLS;c++){ const d=document.createElement('div'); d.className='cell'; boardEl.appendChild(d); row.push(d);} cellEls.push(row);} } buildGrid();
+// セルDOM（可視10段）
+const cellEls=[];
+function buildGrid(){
+  boardEl.innerHTML=''; cellEls.length=0;
+  for(let r=0;r<ROWS_VISIBLE;r++){
+    const row=[];
+    for(let c=0;c<COLS;c++){
+      const d=document.createElement('div'); d.className='cell';
+      boardEl.appendChild(d); row.push(d);
+    }
+    cellEls.push(row);
+  }
+}
+buildGrid();
 
-function updateCellSize(){ const gap=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap')); const wrapW=boardWrap.clientWidth-24; const wrapH=Math.max(300,window.innerHeight-220); const sizeW=Math.floor((wrapW-(COLS-1)*gap)/COLS); const sizeH=Math.floor((wrapH-(ROWS_VISIBLE-1)*gap)/ROWS_VISIBLE); const size=Math.max(20,Math.min(sizeW,sizeH)); document.documentElement.style.setProperty('--cell-size',size+'px'); } window.addEventListener('resize',updateCellSize); updateCellSize();
+// セルサイズ：横幅と高さの最小で決定（全体が画面に収まるように）
+function updateCellSize(){
+  const gap=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const wrapW=boardWrap.clientWidth-24; // 左右の内側余白
+  const wrapH=Math.max(300, window.innerHeight-220); // HUDぶん控え
+  const sizeW=Math.floor((wrapW-(COLS-1)*gap)/COLS);
+  const sizeH=Math.floor((wrapH-(ROWS_VISIBLE-1)*gap)/ROWS_VISIBLE);
+  const size=Math.max(20, Math.min(sizeW, sizeH));
+  document.documentElement.style.setProperty('--cell-size', size+'px');
+}
+window.addEventListener('resize', updateCellSize); updateCellSize();
 
-let timer=null,speedMs=900,speedMsFast=150,fast=false,paused=false; let score=0,currentChain=0; let active=null;
+// ====== 状態 ======
+let timer=null, speedMs=900, speedMsFast=150, fast=false, paused=false;
+let score=0, currentChain=0;
+let active=null; // {elem, x, y}
 
-const AudioCtx=window.AudioContext||window.webkitAudioContext; let audioCtx=null; function ensureAudio(){ if(!audioCtx) audioCtx=new AudioCtx(); } function snd(type='lock'){ ensureAudio(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='sine'; const now=audioCtx.currentTime; if(type==='clear'){o.frequency.setValueAtTime(880,now);} else if(type==='chain'){o.frequency.setValueAtTime(1320,now);} else if(type==='over'){o.frequency.setValueAtTime(110,now);} else{o.frequency.setValueAtTime(330,now);} g.gain.setValueAtTime(0.001,now); g.gain.exponentialRampToValueAtTime(0.25,now+0.02); g.gain.exponentialRampToValueAtTime(0.001,now+0.18); o.connect(g).connect(audioCtx.destination); o.start(); o.stop(now+0.2); }
+// 効果音
+const AudioCtx=window.AudioContext||window.webkitAudioContext; let audioCtx=null;
+function ensureAudio(){ if(!audioCtx) audioCtx=new AudioCtx(); }
+function snd(type='lock'){
+  ensureAudio(); const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type='sine';
+  const now=audioCtx.currentTime;
+  if(type==='clear'){ o.frequency.setValueAtTime(880, now); }
+  else if(type==='chain'){ o.frequency.setValueAtTime(1320, now); }
+  else if(type==='over'){ o.frequency.setValueAtTime(110, now); }
+  else { o.frequency.setValueAtTime(330, now); }
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.exponentialRampToValueAtTime(0.25, now+0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, now+0.18);
+  o.connect(g).connect(audioCtx.destination); o.start(); o.stop(now+0.2);
+}
 
 function showToast(msg){ toastEl.textContent=msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),900); }
 function randElem(){ return ELEMENTS[Math.floor(Math.random()*ELEMENTS.length)]; }
 
-function restartTimer(interval){ if(timer) clearInterval(timer); timer=setInterval(tick,interval); }
+// タイマー再設定
+function restartTimer(interval){ if(timer) clearInterval(timer); timer=setInterval(tick, interval); }
 
-function start(){ for(let r=0;r<ROWS_TOTAL;r++) for(let c=0;c<COLS;c++) board[r][c]=null; for(let r=0;r<ROWS_VISIBLE;r++) for(let c=0;c<COLS;c++){ cellEls[r][c].className='cell'; cellEls[r][c].innerHTML=''; } score=0; currentChain=0; paused=false; fast=false; updateHUD(); restartTimer(speedMs); spawn(); }
+function start(){
+  for(let r=0;r<ROWS_TOTAL;r++) for(let c=0;c<COLS;c++) board[r][c]=null;
+  for(let r=0;r<ROWS_VISIBLE;r++) for(let c=0;c<COLS;c++){ cellEls[r][c].className='cell'; cellEls[r][c].innerHTML=''; }
+  score=0; currentChain=0; paused=false; fast=false; updateHUD();
+  restartTimer(speedMs);
+  spawn();
+}
 
-function updateHUD(){ speedEl.textContent=(fast?'1.8x':'1.0x'); scoreEl.textContent=score; chainEl.textContent=currentChain; }
+function updateHUD(){ speedEl.textContent=(fast? '1.8x':'1.0x'); scoreEl.textContent=score; chainEl.textContent=currentChain; }
 
-function spawn(){ const e=randElem(); active={elem:e,x:1,y:0}; if(board[active.y][active.x]){gameOver();return;} fallingEl.querySelector('.sym').textContent=e.sym; fallingEl.querySelector('.jp').textContent=e.jp; fallingEl.style.display='grid'; renderActive(); }
+function spawn(){
+  const e=randElem();
+  active={ elem:e, x:1, y:0 }; // 2列目スタート
+  // 生成位置が埋まっていたらゲームオーバー
+  if(board[active.y][active.x]){ gameOver(); return; }
+  fallingEl.querySelector('.sym').textContent=e.sym;
+  fallingEl.querySelector('.jp').textContent=e.jp;
+  fallingEl.style.display='grid';
+  renderActive();
+}
 
-function renderActive(){ if(!active) return; const size=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size')); const gap=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap')); const cw=size+gap; const ch=size+gap; const x=active.x*cw+size/2; const y=active.y*ch+size/2; fallingEl.style.left=`${x+12}px`; fallingEl.style.top=`${y+12}px`; }
+function renderActive(){
+  if(!active) return;
+  const size=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const gap=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-gap'));
+  const cw=size+gap; const ch=size+gap;
+  const x=active.x*cw + size/2;
+  const y=active.y*ch + size/2;
+  fallingEl.style.left = `${x+12}px`; // boardWrap padding補正
+  fallingEl.style.top  = `${y+12}px`;
+}
 
-function canMove(nx,ny){ if(nx<0||nx>=COLS) return false; if(ny>=ROWS_VISIBLE) return false; if(ny>=0&&board[ny][nx]) return false; return true; }
+function canMove(nx, ny){
+  if(nx<0||nx>=COLS) return false;
+  if(ny>=ROWS_VISIBLE) return false; // 最下段で止める
+  if(ny>=0 && board[ny][nx]) return false;
+  return true;
+}
 
-function tick(){ if(paused||!active) return; const ny=active.y+1; if(canMove(active.x,ny)){ active.y=ny; renderActive(); } else { lock(); } }
+function tick(){
+  if(paused||!active) return;
+  const ny = active.y + 1;
+  if(canMove(active.x, ny)) { active.y = ny; renderActive(); }
+  else { lock(); }
+}
 
-function lock(){ const {x,y,elem}=active; if(y>=0) board[y][x]=elem; paintBoard(); fallingEl.style.display='none'; active=null; snd('lock'); let chain=0; let totalCleared=0; while(true){ const cleared=findAndClearGroups(); if(cleared.length===0) break; chain++; currentChain=chain; totalCleared+=cleared.length; score+=cleared.length*100*chain; snd(chain===1?'clear':'chain'); applyGravity(); paintBoard(); } if(chain>0){ showToast(chain===1?`消去 ${totalCleared}`:`${chain}連鎖！ ${totalCleared}`);} else{ currentChain=0; } updateHUD(); spawn(); }
+function lock(){
+  const {x,y,elem} = active;
+  if(y>=0) board[y][x] = elem;
+  paintBoard();
+  fallingEl.style.display='none'; active=null; snd('lock');
 
-function neighbors4(r,c){ return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc])=>nr>=0&&nr<ROWS_TOTAL&&nc>=0&&nc<COLS); }
+  // 連鎖処理
+  let chain=0, totalCleared=0;
+  while(true){
+    const cleared = findAndClearGroups();
+    if(cleared.length===0) break;
+    chain++; currentChain = chain; totalCleared += cleared.length;
+    score += cleared.length * 100 * chain; snd(chain===1? 'clear':'chain');
+    applyGravity(); paintBoard();
+  }
+  if(chain>0){ showToast(chain===1? `消去 ${totalCleared}` : `${chain}連鎖！ ${totalCleared}`); }
+  else { currentChain = 0; }
+  updateHUD();
+  spawn();
+}
 
-function findAndClearGroups(){ const visited=Array.from({length:ROWS_TOTAL},()=>Array(COLS).fill(false)); const toClear=[]; for(let r=0;r<ROWS_TOTAL;r++){ for(let c=0;c<COLS;c++){ const elem=board[r][c]; if(!elem||visited[r][c]) continue; const q=[[r,c]]; visited[r][c]=true; const group=[[r,c]]; while(q.length){ const [cr,cc]=q.shift(); const a=board[cr][cc]; for(const [nr,nc] of neighbors4(cr,cc)){ if(visited[nr][nc]) continue; const b=board[nr][nc]; if(!b) continue; if(periodicNeighbors(a,b)||a.sym===b.sym){ visited[nr][nc]=true; q.push([nr,nc]); group.push([nr,nc]); } } } if(group.length>=3){ toClear.push(...group);} } } const uniq=Array.from(new Set(toClear.map(([r,c])=>r+","+c))).map(s=>s.split(',').map(Number)); for(const [r,c] of uniq){ board[r][c]=null;} return uniq; }
+function neighbors4(r,c){
+  return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc])=>nr>=0&&nr<ROWS_TOTAL&&nc>=0&&nc<COLS);
+}
 
-function applyGravity(){ for(let c=0;c<COLS;c++){ const stack=[]; for(let r=0;r<ROWS_TOTAL;r++){ if(board[r][c]) stack.push(board[r][c]); } for(let r=0;r<ROWS_TOTAL;r++) board[r][c]=
+// 周期表隣接 or 同一元素 で連結成分を作り、サイズ>=3を消去
+function findAndClearGroups(){
+  const visited = Array.from({length:ROWS_TOTAL}, ()=>Array(COLS).fill(false));
+  const toClear = [];
+  for(let r=0;r<ROWS_TOTAL;r++){
+    for(let c=0;c<COLS;c++){
+      const elem = board[r][c];
+      if(!elem || visited[r][c]) continue;
+      const q=[[r,c]]; visited[r][c]=true; const group=[[r,c]];
+      while(q.length){
+        const [cr,cc]=q.shift(); const a=board[cr][cc];
+        for(const [nr,nc] of neighbors4(cr,cc)){
+          if(visited[nr][nc]) continue; const b=board[nr][nc]; if(!b) continue;
+          if( periodicNeighbors(a,b) || a.sym===b.sym ){
+            visited[nr][nc]=true; q.push([nr,nc]); group.push([nr,nc]);
+          }
+        }
+      }
+      if(group.length>=3){ toClear.push(...group); }
+    }
+  }
+  const uniq = Array.from(new Set(toClear.map(([r,c])=>`${r},${c}`))).map(s=>s.split(',').map(Number));
+  for(const [r,c] of uniq){ board[r][c]=null; }
+  return uniq;
+}
+
+function applyGravity(){
+  for(let c=0;c<COLS;c++){
+    const stack=[];
+    // 上→下に走査して拾う
+    for(let r=0;r<ROWS_TOTAL;r++) if(board[r][c]) stack.push(board[r][c]);
+    // いったん空に
+    for(let r=0;r<ROWS_TOTAL;r++) board[r][c]=null;
+    // 下から詰める（下=インデックス大）
+    let r=ROWS_TOTAL-1;
+    while(stack.length){
+      const e=stack.pop();
+      board[r][c]=e; r--;
+    }
+  }
+}
+
+function paintBoard(){
+  for(let r=0;r<ROWS_VISIBLE;r++){
+    for(let c=0;c<COLS;c++){
+      const cell = cellEls[r][c];
+      const e = board[r][c];
+      if(!e){ cell.className='cell'; cell.innerHTML=''; continue; }
+      cell.className='cell filled';
+      cell.innerHTML = `<div class="label"><div class="sym">${e.sym}</div><div class="jp">${e.jp}</div></div>`;
+    }
+  }
+}
+
+function gameOver(){
+  if(timer) clearInterval(timer); timer=null; snd('over'); showToast(`ゲームオーバー！ スコア:${score}`);
+}
+
+// ====== 入力 ======
+startBtn.addEventListener('click', ()=>{ ensureAudio(); if(!timer) start(); });
+pauseBtn.addEventListener('click', ()=>{ paused=!paused; showToast(paused? '一時停止' : '再開'); });
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ ensureAudio(); if(!timer) start(); return; }
+  if(!active) return;
+  if(e.key.toLowerCase()==='p'){ paused=!paused; showToast(paused? '一時停止' : '再開'); return; }
+  if(paused) return;
+  if(e.key==='ArrowLeft' && canMove(active.x-1, active.y)){ active.x--; renderActive(); }
+  else if(e.key==='ArrowRight' && canMove(active.x+1, active.y)){ active.x++; renderActive(); }
+  else if(e.key==='ArrowDown'){
+    if(!fast){ fast=true; restartTimer(speedMsFast); updateHUD(); }
+  }
+  else if(e.code==='Space'){
+    while(canMove(active.x, active.y+1)) active.y++;
+    renderActive(); lock();
+  }
+});
+
+document.addEventListener('keyup', (e)=>{
+  if(e.key==='ArrowDown'){
+    if(fast){ fast=false; restartTimer(speedMs); updateHUD(); }
+  }
+});
+
+// iPadタッチ
+let sx=0, sy=0, moved=false; const TH=24;
+boardWrap.addEventListener('touchstart', ev=>{ const t=ev.changedTouches[0]; sx=t.clientX; sy=t.clientY; moved=false; ensureAudio(); }, {passive:true});
+boardWrap.addEventListener('touchmove', ev=>{
+  if(!active||paused) return; const t=ev.changedTouches[0]; const dx=t.clientX-sx; const dy=t.clientY-sy;
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(Math.abs(dx)>TH){ if(dx>0&&canMove(active.x+1, active.y)) active.x++; else if(dx<0&&canMove(active.x-1, active.y)) active.x--; renderActive(); sx=t.clientX; sy=t.clientY; moved=true; }
+  } else {
+    if(dy>TH){ while(canMove(active.x, active.y+1)) active.y++; renderActive(); lock(); moved=true; }
+  }
+}, {passive:true});
+boardWrap.addEventListener('touchend', ()=>{ if(!active||paused) return; if(!moved){ fast=true; restartTimer(speedMsFast); setTimeout(()=>{ fast=false; restartTimer(speedMs); updateHUD(); }, 150); } });
+
+showToast('▶ スタートで開始（Z1〜20 / 4×10 / 周期表隣接or同一で3つ消去 & 連鎖）');
+</script>
+</body>
+</html>
