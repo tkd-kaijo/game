@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>水平投射ゲーム〜5球で10点取れ！〜</title>
+<title>水平投射ゲーム〜5球で10点取れ！〜（移動ターゲット版）</title>
 <style>
   :root{
     --bg:#0f1220; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1; --text:#e8edf2; --muted:#9aa7b3;
@@ -32,12 +32,7 @@
   #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
 
   /* ランク表示 */
-  .perfect{
-    color:#b7fffb;
-    font-weight:900;
-    margin-left:8px;
-    text-shadow:0 0 10px rgba(106,227,255,.55);
-  }
+  .perfect{ color:#b7fffb; font-weight:900; margin-left:8px; text-shadow:0 0 10px rgba(106,227,255,.55); }
   .excellent{ color:#8fffd6; font-weight:800; margin-left:8px }
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
@@ -56,45 +51,19 @@
     height:16px; background:#111528; border-radius:999px; overflow:hidden; position:relative;
     border:1px solid rgba(255,255,255,.08);
   }
-  .fill{
-    height:100%; width:0%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    transition: width .06s linear;
-    box-shadow: 0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3);
-  }
+  .fill{ height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .06s linear; box-shadow: 0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3); }
   .speed{font-variant-numeric: tabular-nums; font-weight:800; letter-spacing:.02em; min-width:8ch; text-align:right; font-size:18px}
 
   .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; justify-content:center}
-  button {
-    appearance:none; border:none; border-radius:12px;
-    padding:14px 20px;
-    font-weight:700; cursor:pointer;
-    font-size: clamp(22px, 3.8vw, 34px);
-    color:#03131a;
-    background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
-    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
-  }
-  @media (min-width: 820px) {
-    button { font-size: clamp(34px, 3.8vw, 53px); padding: 18px 28px; }
-  }
-  button.secondary{
-    background:linear-gradient(180deg, #d7e7ff, #b8cfff);
-    box-shadow: 0 8px 22px rgba(184,207,255,.28), inset 0 1px 0 rgba(255,255,255,.6);
-  }
+  button { appearance:none; border:none; border-radius:12px; padding:14px 20px; font-weight:700; cursor:pointer; font-size: clamp(22px, 3.8vw, 34px); color:#03131a; background:linear-gradient(180deg, #8ff2ff, #6ae3ff); box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6); }
+  @media (min-width: 820px) { button { font-size: clamp(34px, 3.8vw, 53px); padding: 18px 28px; } }
+  button.secondary{ background:linear-gradient(180deg, #d7e7ff, #b8cfff); box-shadow: 0 8px 22px rgba(184,207,255,.28), inset 0 1px 0 rgba(255,255,255,.6); }
   button:disabled{opacity:.5; cursor:not-allowed}
 
   /* プレイ領域レイアウト */
   .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
-  @media (orientation: portrait){
-    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
-    .scene{grid-area: scene}
-    .readouts{grid-area: readouts}
-  }
-  @media (orientation: landscape){
-    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
-    .scene{grid-area: scene}
-    .readouts{grid-area: readouts}
-  }
+  @media (orientation: portrait){ .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';} .scene{grid-area: scene} .readouts{grid-area: readouts} }
+  @media (orientation: landscape){ .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';} .scene{grid-area: scene} .readouts{grid-area: readouts} }
 
   /* アニメーション領域 */
   .scene{
@@ -108,12 +77,7 @@
   .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
 
   /* y<0 全域のサブグラウンド（茶色） */
-  .subground{
-    position:absolute; left:0; right:0;
-    background:linear-gradient(180deg, #8b5e3c, #5e3b23);
-    opacity:.55;
-    z-index:0;
-  }
+  .subground{ position:absolute; left:0; right:0; background:linear-gradient(180deg, #8b5e3c, #5e3b23); opacity:.55; z-index:0; }
 
   .grid{position:absolute; inset:0 0 8px 0; pointer-events:none; z-index:0}
   .hgridline,.vgridline,.zeroline{position:absolute; background:rgba(255,255,255,.22); opacity:.7}
@@ -126,49 +90,21 @@
 
   /* 建物（x<0 の領域） */
   .building{
-    position:absolute; left:0; right:auto;
-    background:linear-gradient(180deg, #8f95a3, #6f7482);
-    border:1px solid rgba(255,255,255,.1);
-    box-shadow: inset 0 6px 14px rgba(0,0,0,.25);
-    z-index:1;
+    position:absolute; left:0; right:auto; background:linear-gradient(180deg, #8f95a3, #6f7482); border:1px solid rgba(255,255,255,.1); box-shadow: inset 0 6px 14px rgba(0,0,0,.25); z-index:1;
   }
-  .building::after{
-    content:''; position:absolute; inset:10% 15% 10% 15%;
-    background: repeating-linear-gradient( to-bottom, rgba(255,255,255,.06), rgba(255,255,255,.06) 8px, transparent 8px, transparent 16px);
-  }
+  .building::after{ content:''; position:absolute; inset:10% 15% 10% 15%; background: repeating-linear-gradient( to-bottom, rgba(255,255,255,.06), rgba(255,255,255,.06) 8px, transparent 8px, transparent 16px); }
 
-  .ball{
-    position:absolute; width:18px; aspect-ratio:1; border-radius:50%;
-    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
-    box-shadow: 0 8px 24px rgba(106,227,255,.45); z-index:2;
-  }
+  .ball{ position:absolute; width:18px; aspect-ratio:1; border-radius:50%; background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%); box-shadow: 0 8px 24px rgba(106,227,255,.45); z-index:2; }
 
   /* 速度ベクトル */
-  .velvec{
-    position:absolute; height:3px; background:#8ff2ff;
-    box-shadow: 0 0 10px rgba(106,227,255,.6);
-    transform-origin: left center;
-    z-index:2;
-  }
-  .velvec::after{
-    content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%);
-    border-left:8px solid #8ff2ff; border-top:5px solid transparent; border-bottom:5px solid transparent;
-    filter: drop-shadow(0 0 6px rgba(106,227,255,.6));
-  }
+  .velvec{ position:absolute; height:3px; background:#8ff2ff; box-shadow: 0 0 10px rgba(106,227,255,.6); transform-origin: left center; z-index:2; }
+  .velvec::after{ content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%); border-left:8px solid #8ff2ff; border-top:5px solid transparent; border-bottom:5px solid transparent; filter: drop-shadow(0 0 6px rgba(106,227,255,.6)); }
 
   /* 軌跡キャンバス */
-  .trail{
-    position:absolute; inset:0 0 8px 0; z-index:1; pointer-events:none;
-  }
+  .trail{ position:absolute; inset:0 0 8px 0; z-index:1; pointer-events:none; }
 
-  .target{
-    position:absolute; width:14px; height:14px; border-radius:50%;
-    border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5);
-    transform:translate(-50%, 0%); z-index:2;
-  }
-  .target::after{
-    content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8);
-  }
+  .target{ position:absolute; width:14px; height:14px; border-radius:50%; border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5); transform:translate(-50%, 0%); z-index:2; }
+  .target::after{ content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8); }
 
   /* 右側の連続表示 */
   .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px}
@@ -218,18 +154,9 @@
 
   /* 小画面（iPhone想定）：アニメ＋readoutsを2列、ランキングはその下に全幅で表示 */
   @media (max-width: 640px){
-    .playgrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-areas: "scene readouts";
-      gap:10px;
-    }
+    .playgrid{ display:grid; grid-template-columns: 1fr 1fr; grid-template-areas: "scene readouts"; gap:10px; }
     .scene{ grid-area: scene; min-width:0; }
-    .readouts{
-      grid-area: readouts; 
-      min-width:0;
-      grid-template-columns:1fr;
-    }
+    .readouts{ grid-area: readouts;  min-width:0; grid-template-columns:1fr; }
     #leaderboardCard{ display:none; }
     #leaderboardCardMobile{ display:block; margin-top:10px; }
   }
@@ -264,32 +191,20 @@
       <div class="playgrid">
         <!-- アニメーション領域 -->
         <div class="scene" id="scene">
-          <!-- 重力表記は削除 -->
-
-          <!-- y<0 の茶色領域 -->
           <div class="subground" id="subground" aria-hidden="true"></div>
-
           <div class="grid" id="grid"></div>
-
-          <!-- 軌跡キャンバス -->
           <canvas class="trail" id="trail"></canvas>
-
-          <!-- 建物（x<0） -->
           <div class="building" id="building" aria-hidden="true"></div>
-
-          <!-- 球と速度ベクトル -->
           <div class="ball" id="ball"></div>
           <div class="velvec" id="velvec" aria-hidden="true"></div>
-
-          <!-- ターゲット（床面 y=0 に固定） -->
+          <!-- ターゲット（床面 y=0 に固定／左右に単振動） -->
           <div class="target" id="target"></div>
-
           <div class="ground"></div>
         </div>
 
         <!-- 右側の数値表示 -->
         <div class="readouts" id="readouts">
-          <div class="stat"><div class="label">現在位置 (x, y)</div><div class="value" id="posNow">0.00 m, 0.00 m</div></div>
+          <div class="stat"><div class="label">ターゲット点 X</div><div class="value" id="targetXVal">0.00 m</div></div>
           <div class="stat"><div class="label">飛行時間 T</div><div class="value" id="tVal">0.00 s</div></div>
           <div class="stat"><div class="label">着地点 xₗ</div><div class="value" id="xLandVal">0.00 m</div></div>
 
@@ -331,11 +246,16 @@
   const vMin=0, vMax=6, cycleSec=4;
   const Y_CANDIDATES = [4.9, 19.6, 44.1];
   const H_LINES = [4.9, 9.8, 14.7, 19.6, 24.5, 29.4, 34.3, 39.2, 44.1];
-  const TARGET_CANDIDATES = [1,2,3,4,5];
+  const TARGET_CENTER_CANDIDATES = [1,2,3,4]; // 要望: 1〜4 m のいずれか
   const X_GRID_MAX = 5;
 
+  // ターゲット単振動パラメータ（要望）
+  const TARGET_A = 0.5; // 振幅[m]
+  const TARGET_T = 1.0; // 周期[s]
+  const TARGET_OMEGA = 2*Math.PI/TARGET_T; // 角速度[rad/s]
+
   const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
-  let prevCombo = null;   // 直前の { y0, x } を保持
+  let prevCombo = null;   // 直前の { y0, xCenter } を保持
 
   // ====== DOM ======
   const fillEl=document.getElementById('fill');
@@ -354,7 +274,7 @@
   const targetEl=document.getElementById('target');
   const groundEl = document.querySelector('.ground');
 
-  const posNowEl=document.getElementById('posNow');
+  const targetXVal=document.getElementById('targetXVal');
   const tValEl=document.getElementById('tVal');
   const xLandVal=document.getElementById('xLandVal');
 
@@ -470,11 +390,11 @@
     scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
     bottomPadPx = BOTTOM_VISIBLE_M * scaleY;
     origin.y = groundOffsetPx + bottomPadPx;
-    groundEl.style.bottom = 0px;
+    groundEl.style.bottom = `0px`;
   }
   function layoutSubground(){
-    subgroundEl.style.bottom = ${toPxY(-BOTTOM_VISIBLE_M)}px;
-    subgroundEl.style.height = ${BOTTOM_VISIBLE_M * scaleY}px;
+    subgroundEl.style.bottom = `${toPxY(-BOTTOM_VISIBLE_M)}px`;
+    subgroundEl.style.height = `${BOTTOM_VISIBLE_M * scaleY}px`;
   }
 
   const DIST_LABEL_Y_M = -2.6;
@@ -489,7 +409,7 @@
       const lab = document.createElement('div');
       lab.className = 'gridlabel hlabel';
       lab.style.bottom = toPxY(ym) + 'px';
-      lab.textContent = ${ym} m;
+      lab.textContent = `${ym} m`;
       gridEl.appendChild(lab);
     }
     const zero = document.createElement('div');
@@ -513,7 +433,7 @@
       lab.className = 'gridlabel vlabel';
       lab.style.left = toPxX(xm) + 'px';
       lab.style.bottom = yLabelPx + 'px';
-      lab.textContent = ${xm} m;
+      lab.textContent = `${xm} m`;
       gridEl.appendChild(lab);
     }
   }
@@ -521,7 +441,7 @@
     const rightPx = origin.x;
     buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
     buildingEl.style.left = '0px';
-    buildingEl.style.bottom = ${toPxY(0)}px;
+    buildingEl.style.bottom = `${toPxY(0)}px`;
     buildingEl.style.height = (heightM * scaleY) + 'px';
   }
 
@@ -580,7 +500,7 @@
     velvec.style.width = len + 'px';
     velvec.style.left = centerX + 'px';
     velvec.style.bottom = (centerY - 1.5) + 'px';
-    velvec.style.transform = rotate(${angleRad}rad);
+    velvec.style.transform = `rotate(${angleRad}rad)`;
   }
 
   // ====== サウンド ======
@@ -600,9 +520,26 @@
     }catch(e){}
   }
   const okSound = ()=>beep(740,0.12);
-  const goodSound = ()=>{beep(880,0.12); setTimeout(()=>beep(1175,0.12),120);};
-  const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
-  const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
+  const goodSound = ()=>{beep(880,0.12); setTimeout(()=>beep(1175,0.12),120);};//
+  const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};//
+  const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};//
+
+  // ====== ターゲット（単振動） ======
+  let xTargetCenter = 3;           // 抽選された中心値（1,2,3,4のいずれか）
+  let t0RoundMs = performance.now(); // ラウンド開始時刻（ms）
+  let lastTargetX = xTargetCenter;  // 直近のターゲット位置（m）
+
+  function targetXAt(nowMs){
+    const t = (nowMs - t0RoundMs)/1000; // 秒
+    return xTargetCenter + TARGET_A * Math.sin(TARGET_OMEGA * t);
+  }
+  function updateTargetPosition(nowMs){
+    const x = targetXAt(nowMs);
+    lastTargetX = x;
+    targetEl.style.left = toPxX(x) + 'px';
+    targetEl.style.bottom = toPxY(0) + 'px';
+    if (targetXVal) targetXVal.textContent = x.toFixed(2) + ' m';
+  }
 
   // ====== ルーレット ======
   let running=true; let locked=false; let t0Roulette=performance.now();
@@ -612,6 +549,8 @@
     const v=vMin+((elapsed%cycleSec)/cycleSec)*(vMax-vMin);
     updateSpeedUI(v);
     updateVelocityVector(v, 0);
+    // ターゲットを随時更新
+    updateTargetPosition(now);
     requestAnimationFrame(rouletteLoop);
   }
   function updateSpeedUI(v){
@@ -623,7 +562,6 @@
 
   // ====== ラウンド状態 ======
   let y0 = 19.6;
-  let xTarget = 3;
   let tFlight = 0;
   let xLand = 0;
 
@@ -637,20 +575,22 @@
   }
 
   function setupRound(){
-    // 直前と同じ {y0, xTarget} を避けて抽選
+    // 直前と同じ {y0, xTargetCenter} を避けて抽選
     let y, x, safety = 32;
     do{
       y = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
-      x = TARGET_CANDIDATES[Math.floor(Math.random()*TARGET_CANDIDATES.length)];
+      x = TARGET_CENTER_CANDIDATES[Math.floor(Math.random()*TARGET_CENTER_CANDIDATES.length)];
     }while (prevCombo && prevCombo.y === y && prevCombo.x === x && --safety > 0);
 
     y0 = y;
-    xTarget = x;
-    prevCombo = { y: y0, x: xTarget };
+    xTargetCenter = x;
+    prevCombo = { y: y0, x: xTargetCenter };
+    t0RoundMs = performance.now();
 
-    challengeTextHUD.textContent = 初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！;
+    // 要望: 課題文を「ターゲットを狙え！」に変更
+    challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲットを狙え！`;
     resultTextHUD.textContent = '';
-    roundBadgeHUD.textContent = ラウンド${round}/${maxRounds};
+    roundBadgeHUD.textContent = `ラウンド${round}/${maxRounds}`;
 
     renderAllStatic();
 
@@ -658,12 +598,11 @@
     placeBallAt(0, y0);
     trailPts = [{x:0, y:y0}]; clearTrail();
 
-    // ターゲット：y=0
-    targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = toPxY(0) + 'px';
+    // ターゲット初期描画
+    updateTargetPosition(t0RoundMs);
 
     // 表示
-    posNowEl.textContent = 0.00 m, ${y0.toFixed(2)} m;
+    if (targetXVal) targetXVal.textContent = lastTargetX.toFixed(2) + ' m';
     tValEl.textContent = '0.00 s';
     xLandVal.textContent = '0.00 m';
 
@@ -695,9 +634,11 @@
       placeBallAt(x, y);
       updateVelocityVector(vx, vy);
 
-      posNowEl.textContent = ${x.toFixed(2)} m, ${y.toFixed(2)} m;
+      // ターゲットをリアルタイム更新
+      updateTargetPosition(now);
+
       tValEl.textContent   = tC.toFixed(2) + ' s';
-      xLandVal.textContent = xLand.toFixed(2) + ' m';
+      xLandVal.textContent = (v0 * tFlight).toFixed(2) + ' m';
 
       if(t < tFlight - 1e-3){
         requestAnimationFrame(step);
@@ -711,44 +652,43 @@
         trailPts.push(endp);
         drawTrailSegment(last2, endp);
 
+        // 着地瞬間のターゲット位置で採点
+        updateTargetPosition(performance.now());
         evaluateAndProceed();
       }
     }
     requestAnimationFrame(step);
   }
 
-  // ====== 採点（鉛直版に合わせて perfect 追加） ======
+  // ====== 採点（PERFECT などは従来どおり％基準） ======
   function evaluateAndProceed(){
-    const errPct = Math.abs(xLand - xTarget) / xTarget;
+    const targetAtHit = lastTargetX; // 着地瞬間のターゲット位置
+    const denom = Math.max(0.5, Math.abs(targetAtHit));
+    const errPct = Math.abs(xLand - targetAtHit) / denom;
     let gained = 0;
 
     if (errPct < 0.01) {                // PERFECT <1% → +5
       gained = 5; score += 5;
-      resultTextHUD.innerHTML =
-        <span class="perfect">PERFECT!!!!（誤差 ${(errPct*100).toFixed(2)}% / +${gained}点）</span>;
-      // ちょい豪華ファンファーレ
-      greatSound();
-      setTimeout(()=>beep(1760,0.10),110);
-      setTimeout(()=>beep(2093,0.14),230);
+      resultTextHUD.innerHTML = `<span class="perfect">PERFECT!!!!（誤差 ${(errPct*100).toFixed(2)}% / +${gained}点）</span>`;
+      greatSound(); setTimeout(()=>beep(1760,0.10),110); setTimeout(()=>beep(2093,0.14),230);
     } else if (errPct < 0.03) {         // Excellent <3% → +4
       gained = 4; score += 4;
-      resultTextHUD.innerHTML =
-        <span class="excellent">Excellent!!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      resultTextHUD.innerHTML = `<span class="excellent">Excellent!!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
       greatSound();
     } else if (errPct < 0.10){          // <10% → +3
       gained=3; score+=3;
-      resultTextHUD.innerHTML = <span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      resultTextHUD.innerHTML = `<span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
       greatSound();
     } else if (errPct < 0.20){          // <20% → +2
       gained=2; score+=2;
-      resultTextHUD.innerHTML = <span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      resultTextHUD.innerHTML = `<span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
       goodSound();
     } else if (errPct < 0.30){          // <30% → +1
       gained=1; score+=1;
-      resultTextHUD.innerHTML = <span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      resultTextHUD.innerHTML = `<span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>`;
       okSound();
     } else {
-      resultTextHUD.innerHTML = <span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>;
+      resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
       wrongSound();
     }
 
@@ -759,8 +699,8 @@
     if(round>=maxRounds){
       const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
       resultTextHUD.innerHTML =
-        <div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div> +
-        <div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>;
+        `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
+        `<div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>`;
       challengeTextHUD.textContent = finalMsg;
       retryBtn.style.display='none';
       resetBtn.style.display='inline-block';
@@ -809,19 +749,16 @@
     layoutBuilding(curY || y0);
     resizeTrailCanvas();
     placeBallAt(curX, curY || y0);
-    targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = toPxY(0) + 'px';
+    // 静的配置ではなく現在時刻でターゲット更新
+    updateTargetPosition(performance.now());
     const v=parseFloat(speedLabel.textContent.replace(' m/s',''))||0;
     updateVelocityVector(v, 0);
   }
   window.addEventListener('resize', ()=>{ handleResize(); });
   window.addEventListener('orientationchange', ()=>setTimeout(handleResize, 200));
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', ()=>{ setTimeout(handleResize, 50); });
-  }
+  if(window.visualViewport){ window.visualViewport.addEventListener('resize', ()=>{ setTimeout(handleResize, 50); }); }
 
   // === Leaderboard（CSV読み込み／トップ20・2列表示 & モバイル別枠） ===
-  // 公開CSVのURLに置き換えてください
   const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ10LcB0wupR7ip5mhf_WskxAZiQQIXytBQ45Sxyf2ej9R1xULe-iQbj7RU2TgNXOrjTrUVefFQOEIO/pub?gid=1366320045&single=true&output=csv";
 
   async function loadLeaderboard () {
@@ -908,16 +845,12 @@
   function renderTableHTML(items){
     if (!items.length) return 'まだランキングはありません。';
 
-    // 左(1–10)・右(11–20)
     const left  = items.slice(0, 10);
     const right = items.slice(10, 20);
 
-    const rows = Array.from({length: 10}, (_, i) => ({
-      L: left[i]  || {name:'', id:'', score:''},
-      R: right[i] || {name:'', id:'', score:''}
-    }));
+    const rows = Array.from({length: 10}, (_, i) => ({ L: left[i]  || {name:'', id:'', score:''}, R: right[i] || {name:'', id:'', score:''} }));
 
-    return 
+    return `
       <table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:14px; margin-bottom:8px">
         <colgroup>
           <col style="width:7%"><col style="width:33%"><col style="width:12%"><col style="width:18%">
@@ -938,7 +871,7 @@
           </tr>
         </thead>
         <tbody>
-          ${rows.map((r,i)=>
+          ${rows.map((r,i)=>`
             <tr>
               <td style="text-align:center; font-weight:700; font-variant-numeric: tabular-nums">${i+1}</td>
               <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escapeHTML(r.L.name || '—')}</td>
@@ -949,15 +882,13 @@
               <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escapeHTML(r.R.name || '—')}</td>
               <td style="text-align:center; font-variant-numeric: tabular-nums">${escapeHTML(r.R.id || '—')}</td>
               <td style="text-align:right;  font-variant-numeric: tabular-nums">${r.R.score ?? ''}</td>
-            </tr>).join('')}
+            </tr>`).join('')}
         </tbody>
-      </table>;
+      </table>`;
   }
 
   function escapeHTML (s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[c]));
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
   }
 
   // ====== 初期化 ======
