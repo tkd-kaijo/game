@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>水平投射ゲーム〜5球で10点取れ！〜</title>
+<style>
+  :root{
+    --bg:#0f1220; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1; --text:#e8edf2; --muted:#9aa7b3;
+    --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a;
+  }
+  *{box-sizing:border-box}
+  html, body{height:100%;}
+  body{
+    margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);
+    color:var(--text); display:flex; min-height:100svh; align-items:center; justify-content:center; padding:16px;
+  }
+  @supports (min-height: 100dvh){ body{ min-height:100dvh; } }
+
+  .app{width:min(980px,100%); display:grid; gap:12px}
+  .title{font-weight:700; letter-spacing:.02em; font-size:clamp(18px,3vw,28px); text-align:center}
+
+  /* 課題＆スコア（タイトル直下） */
+  .challengeBox{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;
+    padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04);
+  }
+  .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:14px; background:rgba(255,255,255,.08); color:var(--yellow)}
+  #challengeTextHUD{font-weight:700}
+  #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
+
+  /* ランク表示 */
+  .perfect{
+    color:#b7fffb;
+    font-weight:900;
+    margin-left:8px;
+    text-shadow:0 0 10px rgba(106,227,255,.55);
+  }
+  .excellent{ color:#8fffd6; font-weight:800; margin-left:8px }
+  .great{color:#a7ff6a; font-weight:800; margin-left:8px}
+  .good{color:var(--ok); font-weight:800; margin-left:8px}
+  .ok{color:#ffd36a; font-weight:800; margin-left:8px}
+  .bad{color:#ff9aa8; font-weight:800; margin-left:8px}
+
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.00));
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+
+  /* ルーレット */
+  .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center}
+  .bar{
+    height:16px; background:#111528; border-radius:999px; overflow:hidden; position:relative;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .fill{
+    height:100%; width:0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .06s linear;
+    box-shadow: 0 0 10px rgba(106,227,255,.6), inset 0 0 8px rgba(0,0,0,.3);
+  }
+  .speed{font-variant-numeric: tabular-nums; font-weight:800; letter-spacing:.02em; min-width:8ch; text-align:right; font-size:18px}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; justify-content:center}
+  button {
+    appearance:none; border:none; border-radius:12px;
+    padding:14px 20px;
+    font-weight:700; cursor:pointer;
+    font-size: clamp(22px, 3.8vw, 34px);
+    color:#03131a;
+    background:linear-gradient(180deg, #8ff2ff, #6ae3ff);
+    box-shadow: 0 8px 22px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  @media (min-width: 820px) {
+    button { font-size: clamp(34px, 3.8vw, 53px); padding: 18px 28px; }
+  }
+  button.secondary{
+    background:linear-gradient(180deg, #d7e7ff, #b8cfff);
+    box-shadow: 0 8px 22px rgba(184,207,255,.28), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  button:disabled{opacity:.5; cursor:not-allowed}
+
+  /* プレイ領域レイアウト */
+  .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
+  @media (orientation: portrait){
+    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
+    .scene{grid-area: scene}
+    .readouts{grid-area: readouts}
+  }
+  @media (orientation: landscape){
+    .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
+    .scene{grid-area: scene}
+    .readouts{grid-area: readouts}
+  }
+
+  /* アニメーション領域 */
+  .scene{
+    position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:10px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)),
+      radial-gradient(800px 260px at 50% 0%, rgba(106,227,255,.08), rgba(0,0,0,0) 60%),
+      #0b1022;
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .ground{position:absolute; inset:auto 0 0 0; height:8px; background:#1a2039; box-shadow: 0 -2px 0 rgba(255,255,255,.06) inset}
+
+  /* y<0 全域のサブグラウンド（茶色） */
+  .subground{
+    position:absolute; left:0; right:0;
+    background:linear-gradient(180deg, #8b5e3c, #5e3b23);
+    opacity:.55;
+    z-index:0;
+  }
+
+  .grid{position:absolute; inset:0 0 8px 0; pointer-events:none; z-index:0}
+  .hgridline,.vgridline,.zeroline{position:absolute; background:rgba(255,255,255,.22); opacity:.7}
+  .hgridline{left:8px; right:8px; height:1px;}
+  .vgridline{top:8px; bottom:8px; width:1px;}
+  .zeroline{left:8px; right:8px; height:2px; background:rgba(255,255,255,.28);}
+  .gridlabel{position:absolute; font-size:11px; color:var(--muted); background:rgba(0,0,0,.35); padding:1px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.12); z-index:1}
+  .hlabel{ right:10px; transform:translateY(-50%); }
+  .vlabel{ transform:translateX(-50%); }
+
+  /* 建物（x<0 の領域） */
+  .building{
+    position:absolute; left:0; right:auto;
+    background:linear-gradient(180deg, #8f95a3, #6f7482);
+    border:1px solid rgba(255,255,255,.1);
+    box-shadow: inset 0 6px 14px rgba(0,0,0,.25);
+    z-index:1;
+  }
+  .building::after{
+    content:''; position:absolute; inset:10% 15% 10% 15%;
+    background: repeating-linear-gradient( to-bottom, rgba(255,255,255,.06), rgba(255,255,255,.06) 8px, transparent 8px, transparent 16px);
+  }
+
+  .ball{
+    position:absolute; width:18px; aspect-ratio:1; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #bfeaff 30%, #6ae3ff 45%, #0aa3c0 70%, #067089 100%);
+    box-shadow: 0 8px 24px rgba(106,227,255,.45); z-index:2;
+  }
+
+  /* 速度ベクトル */
+  .velvec{
+    position:absolute; height:3px; background:#8ff2ff;
+    box-shadow: 0 0 10px rgba(106,227,255,.6);
+    transform-origin: left center;
+    z-index:2;
+  }
+  .velvec::after{
+    content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%);
+    border-left:8px solid #8ff2ff; border-top:5px solid transparent; border-bottom:5px solid transparent;
+    filter: drop-shadow(0 0 6px rgba(106,227,255,.6));
+  }
+
+  /* 軌跡キャンバス */
+  .trail{
+    position:absolute; inset:0 0 8px 0; z-index:1; pointer-events:none;
+  }
+
+  .target{
+    position:absolute; width:14px; height:14px; border-radius:50%;
+    border:2px solid #ffd36a; box-shadow:0 0 10px rgba(255,211,106,.5);
+    transform:translate(-50%, 0%); z-index:2;
+  }
+  .target::after{
+    content:''; position:absolute; inset:3px; border-radius:50%; border:2px solid rgba(255,211,106,.8);
+  }
+
+  /* 右側の連続表示 */
+  .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px}
+  @media (max-width: 980px){ .readouts{grid-template-columns:1fr 1fr} }
+  @media (orientation: portrait){ .readouts{grid-template-columns:1fr; align-content:start} }
+  .stat{background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px}
+  .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
+  .stat .value{font-variant-numeric: tabular-nums; font-weight:800; font-size:22px}
+
+  /* ====== デスクトップ/iPad用の強調（+20%） ====== */
+  @media (min-width: 820px) {
+    .title{ font-size: clamp(24px, 2.6vw, 36px); }
+    .challengeBox{ padding:12px 16px; gap:16px; }
+    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); }
+    #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }
+    .speed{ font-size: clamp(43px, 3.8vw, 53px); }
+    .bar{ height: 22px; }
+    .stat .label{ font-size: 16px; }
+    .stat .value{ font-size: clamp(30px, 2.6vw, 40px); }
+  }
+
+  /* iPad横向き微調整 */
+  @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
+    .title{ font-size: 20px; }
+    #challengeTextHUD{ font-size: 28px; }
+    #scoreHUD, .speed{ font-size: 34px; }
+    .stat .value{ font-size: 24px; }
+    .stat .label{ font-size: 14px; }
+    .bar{ height: 18px; }
+  }
+
+  /* 常に赤字に固定（鉛直版と合わせる） */
+  #challengeTextHUD, .speed { color:#ff5b5b !important; }
+
+  /* 提出フォーム */
+  .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
+  .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
+  .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .submitRow input[type="text"]{ flex:1; min-width:180px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:#0f1430; color:#fff; font-size:16px; }
+  .submitRow button{ padding:10px 14px; border-radius:10px; border:none; font-weight:700; cursor:pointer; color:#03131a; background:linear-gradient(180deg, #b1ffd1, #7affaf); box-shadow: 0 8px 22px rgba(122,255,175,.28); }
+  .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
+  .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
+
+  /* ランキングはreadoutsの横幅を全取り（デスクトップでも下に回る） */
+  #leaderboardCard{ grid-column: 1 / -1; }
+  #leaderboardCardMobile{ display:none; }
+
+  /* 小画面（iPhone想定）：アニメ＋readoutsを2列、ランキングはその下に全幅で表示 */
+  @media (max-width: 640px){
+    .playgrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: "scene readouts";
+      gap:10px;
+    }
+    .scene{ grid-area: scene; min-width:0; }
+    .readouts{
+      grid-area: readouts; 
+      min-width:0;
+      grid-template-columns:1fr;
+    }
+    #leaderboardCard{ display:none; }
+    #leaderboardCardMobile{ display:block; margin-top:10px; }
+  }
+</style>
+</head>
+<body>
+  <main class="app">
+    <div class="title">水平投射ゲーム〜5球で10点取れ！〜</div>
+
+    <!-- 課題＆スコア -->
+    <div class="challengeBox" id="challengeBox">
+      <span class="badge" id="roundBadgeHUD">ラウンド1/5</span>
+      <span id="challengeTextHUD">—</span>
+      <span id="resultTextHUD"></span>
+      <span>｜スコア <strong id="scoreHUD">0点</strong></span>
+    </div>
+
+    <section class="card" id="card">
+      <!-- ルーレット -->
+      <div class="roulette" aria-live="polite">
+        <div class="bar" aria-label="初速ルーレット（0〜6 m/s を4秒で周回）">
+          <div class="fill" id="fill"></div>
+        </div>
+        <div class="speed" id="speedLabel">0.00 m/s</div>
+      </div>
+      <div class="actions">
+        <button id="lockBtn">投射！(L)</button>
+        <button id="retryBtn" class="secondary" disabled>次のラウンド(N)</button>
+        <button id="resetBtn" class="secondary" style="display:none">もう一度</button>
+      </div>
+
+      <div class="playgrid">
+        <!-- アニメーション領域 -->
+        <div class="scene" id="scene">
+          <!-- 重力表記は削除 -->
+
+          <!-- y<0 の茶色領域 -->
+          <div class="subground" id="subground" aria-hidden="true"></div>
+
+          <div class="grid" id="grid"></div>
+
+          <!-- 軌跡キャンバス -->
+          <canvas class="trail" id="trail"></canvas>
+
+          <!-- 建物（x<0） -->
+          <div class="building" id="building" aria-hidden="true"></div>
+
+          <!-- 球と速度ベクトル -->
+          <div class="ball" id="ball"></div>
+          <div class="velvec" id="velvec" aria-hidden="true"></div>
+
+          <!-- ターゲット（床面 y=0 に固定） -->
+          <div class="target" id="target"></div>
+
+          <div class="ground"></div>
+        </div>
+
+        <!-- 右側の数値表示 -->
+        <div class="readouts" id="readouts">
+          <div class="stat"><div class="label">現在位置 (x, y)</div><div class="value" id="posNow">0.00 m, 0.00 m</div></div>
+          <div class="stat"><div class="label">飛行時間 T</div><div class="value" id="tVal">0.00 s</div></div>
+          <div class="stat"><div class="label">着地点 xₗ</div><div class="value" id="xLandVal">0.00 m</div></div>
+
+          <section class="card" id="leaderboardCard" aria-live="polite">
+            <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
+            <div id="leaderboard">読み込み中…</div>
+          </section>
+        </div>
+      </div>
+
+      <!-- モバイル専用ランキング -->
+      <section class="card" id="leaderboardCardMobile" aria-live="polite">
+        <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
+        <div id="leaderboardMobile">読み込み中…</div>
+      </section>
+    </section>
+  </main>
+
+  <!-- 提出フォーム（最後に表示） -->
+  <div class="submitBox" id="submitBox" style="display:none" aria-live="polite">
+    <h3>提出</h3>
+    <div class="submitRow">
+      <label for="studentId">4桁番号(年組番、半角)：</label>
+      <input id="studentId" type="text" placeholder="3143" inputmode="numeric" />
+    </div>
+    <div class="submitRow">
+      <label for="studentName">氏名：</label>
+      <input id="studentName" type="text" placeholder="海城太郎" />
+      <button id="submitBtn">送信</button>
+    </div>
+    <div class="helpText" id="submitHelp">10点以上で提出できます。</div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  // ====== 物理・ゲーム設定 ======
+  const g = 9.8; // m/s^2
+  const vMin=0, vMax=6, cycleSec=4;
+  const Y_CANDIDATES = [4.9, 19.6, 44.1];
+  const H_LINES = [4.9, 9.8, 14.7, 19.6, 24.5, 29.4, 34.3, 39.2, 44.1];
+  const TARGET_CANDIDATES = [1,2,3,4,5];
+  const X_GRID_MAX = 5;
+
+  const maxRounds=5; let round=1; let score=0; let lastGainedPoints=0;
+  let prevCombo = null;   // 直前の { y0, x } を保持
+
+  // ====== DOM ======
+  const fillEl=document.getElementById('fill');
+  const speedLabel=document.getElementById('speedLabel');
+  const lockBtn=document.getElementById('lockBtn');
+  const retryBtn=document.getElementById('retryBtn');
+  const resetBtn=document.getElementById('resetBtn');
+
+  const scene=document.getElementById('scene');
+  const gridEl=document.getElementById('grid');
+  const subgroundEl=document.getElementById('subground');
+  const buildingEl=document.getElementById('building');
+  const trailCanvas=document.getElementById('trail');
+  const ball=document.getElementById('ball');
+  const velvec=document.getElementById('velvec');
+  const targetEl=document.getElementById('target');
+  const groundEl = document.querySelector('.ground');
+
+  const posNowEl=document.getElementById('posNow');
+  const tValEl=document.getElementById('tVal');
+  const xLandVal=document.getElementById('xLandVal');
+
+  const roundBadgeHUD=document.getElementById('roundBadgeHUD');
+  const challengeTextHUD=document.getElementById('challengeTextHUD');
+  const resultTextHUD=document.getElementById('resultTextHUD');
+  const scoreHUD=document.getElementById('scoreHUD');
+
+  // ====== キーボード操作（L/N） ======
+  document.addEventListener('keydown', (e) => {
+    const ae = document.activeElement;
+    const tag = ae?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || ae?.isContentEditable) return;
+    if (e.repeat) return;
+    const k = (e.key || '').toLowerCase();
+
+    if (k === 'l' || e.code === 'KeyL') {
+      if (!lockBtn.disabled && !locked) {
+        lockBtn.click();
+        e.preventDefault();
+      }
+      return;
+    }
+    if (k === 'n' || e.code === 'KeyN') {
+      const hidden = retryBtn.style.display === 'none';
+      if (!retryBtn.disabled && !hidden) {
+        retryBtn.click();
+        e.preventDefault();
+      }
+    }
+  });
+
+  // ====== 提出設定（GAS） ======
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwSTP-158ZESDkgQiLwztHTNiG5dzYS91N-hy4uV0q_qegSuyVM_WfYj77DFyZbvpiB/exec';
+  const submitBox = document.getElementById('submitBox');
+  const submitBtn = document.getElementById('submitBtn');
+  const studentIdInput = document.getElementById('studentId');
+  const studentNameInput = document.getElementById('studentName');
+  const toast = document.getElementById('toast');
+  function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2000); }
+  function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
+  async function submitResult(){
+    if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
+    const studentId = studentIdInput.value.trim();
+    const studentName = studentNameInput.value.trim();
+    if(!/^\d{4}$/.test(studentId) || !studentName){
+      showToast('4桁番号(半角)と氏名を入力してください');
+      return;
+    }
+    try{
+      const params = new URLSearchParams({ studentId, studentName, totalScore: String(score) });
+      const res = await fetch(GAS_URL, { method: 'POST', body: params });
+      const json = await res.json().catch(()=>({}));
+      if(json.ok){
+        showToast('送信しました！');
+        submitBtn.disabled = true;
+        studentIdInput.disabled = true;
+        studentNameInput.disabled = true;
+        setTimeout(loadLeaderboard, 4000);
+      }else{
+        const msg = ({
+          'INVALID_STUDENT_ID':'学籍番号が正しくありません',
+          'EMPTY_NAME':'氏名を入力してください',
+          'INVALID_SCORE':'スコアが不正です',
+          'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
+          'RATE_LIMIT':'連投が早すぎます。少し待って再送してください',
+        })[json.error] || '送信に失敗しました…';
+        showToast(msg);
+      }
+    }catch(e){
+      console.error(e);
+      showToast('送信に失敗しました…');
+    }
+  }
+  if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
+
+  // ====== レイアウト・スケール ======
+  const BALL_DIAM = 18, BALL_R = BALL_DIAM/2;
+  const BOTTOM_VISIBLE_M = 3.2;
+  const TOP_PAD_PX = 0;
+  const Y_MAX_VISIBLE = 50;
+
+  const groundOffsetPx = 8;
+  let scaleY = 8;
+  let scaleX = 40;
+
+  const origin = { x: 30, y: groundOffsetPx };
+  let bottomPadPx = 0;
+
+  function toPxX(xm){ return origin.x + xm*scaleX; }
+  function toPxY(ym){ return origin.y + ym*scaleY; }
+  function toCanvasYCenter(ym){ return scene.clientHeight - (origin.y + ym*scaleY + BALL_R); }
+
+  let baselineTop = null;
+  function getVH(){
+    const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    return Math.min(window.innerHeight, vvh);
+  }
+  function fitSceneToViewport(){
+    const vh = getVH();
+    if(baselineTop === null){ baselineTop = scene.getBoundingClientRect().top; }
+    const margin = 12;
+    let desired = Math.floor(vh - baselineTop - margin);
+    desired = Math.max(240, Math.min(desired, vh - margin));
+    const prev = parseFloat(getComputedStyle(scene).height);
+    if(!isNaN(prev) && Math.abs(prev - desired) < 2){ return; }
+    scene.style.height = desired + 'px';
+  }
+  function fitScales(){
+    const usableH = scene.clientHeight;
+    scaleY = Math.max(4, (usableH - TOP_PAD_PX) / (Y_MAX_VISIBLE + BOTTOM_VISIBLE_M));
+    const usableW = scene.clientWidth - origin.x - 16;
+    scaleX = Math.max(24, Math.min(90, usableW / (X_GRID_MAX + 0.6)));
+    bottomPadPx = BOTTOM_VISIBLE_M * scaleY;
+    origin.y = groundOffsetPx + bottomPadPx;
+    groundEl.style.bottom = 0px;
+  }
+  function layoutSubground(){
+    subgroundEl.style.bottom = ${toPxY(-BOTTOM_VISIBLE_M)}px;
+    subgroundEl.style.height = ${BOTTOM_VISIBLE_M * scaleY}px;
+  }
+
+  const DIST_LABEL_Y_M = -2.6;
+  function renderGrid(){
+    gridEl.innerHTML = '';
+    for(const ym of [4.9,9.8,14.7,19.6,24.5,29.4,34.3,39.2,44.1]){
+      const line = document.createElement('div');
+      line.className = 'hgridline';
+      line.style.bottom = toPxY(ym) + 'px';
+      gridEl.appendChild(line);
+
+      const lab = document.createElement('div');
+      lab.className = 'gridlabel hlabel';
+      lab.style.bottom = toPxY(ym) + 'px';
+      lab.textContent = ${ym} m;
+      gridEl.appendChild(lab);
+    }
+    const zero = document.createElement('div');
+    zero.className = 'zeroline';
+    zero.style.bottom = toPxY(0) + 'px';
+    gridEl.appendChild(zero);
+    const lab0 = document.createElement('div');
+    lab0.className = 'gridlabel hlabel';
+    lab0.style.bottom = toPxY(0) + 'px';
+    lab0.textContent = '0 m';
+    gridEl.appendChild(lab0);
+
+    const yLabelPx = toPxY(DIST_LABEL_Y_M);
+    for(let xm=0; xm<=X_GRID_MAX; xm++){
+      const v = document.createElement('div');
+      v.className = 'vgridline';
+      v.style.left = toPxX(xm) + 'px';
+      gridEl.appendChild(v);
+
+      const lab = document.createElement('div');
+      lab.className = 'gridlabel vlabel';
+      lab.style.left = toPxX(xm) + 'px';
+      lab.style.bottom = yLabelPx + 'px';
+      lab.textContent = ${xm} m;
+      gridEl.appendChild(lab);
+    }
+  }
+  function layoutBuilding(heightM){
+    const rightPx = origin.x;
+    buildingEl.style.right = (scene.clientWidth - rightPx) + 'px';
+    buildingEl.style.left = '0px';
+    buildingEl.style.bottom = ${toPxY(0)}px;
+    buildingEl.style.height = (heightM * scaleY) + 'px';
+  }
+
+  // ====== キャンバス（軌跡） ======
+  function resizeTrailCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = scene.getBoundingClientRect();
+    trailCanvas.width  = Math.floor(rect.width * dpr);
+    trailCanvas.height = Math.floor((rect.height - 8) * dpr);
+    trailCanvas.style.width  = rect.width + 'px';
+    trailCanvas.style.height = (rect.height - 8) + 'px';
+    const ctx = trailCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redrawTrail();
+  }
+  function clearTrail(){
+    const ctx = trailCanvas.getContext('2d');
+    ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+  }
+  let trailPts = [];
+  function drawTrailSegment(from, to){
+    const ctx = trailCanvas.getContext('2d');
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#6ae3ff';
+    ctx.shadowColor = 'rgba(106,227,255,.6)';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(toPxX(from.x), toCanvasYCenter(from.y));
+    ctx.lineTo(toPxX(to.x),   toCanvasYCenter(to.y));
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  function redrawTrail(){
+    clearTrail();
+    for(let i=1;i<trailPts.length;i++){
+      drawTrailSegment(trailPts[i-1], trailPts[i]);
+    }
+  }
+
+  // ====== 位置＆速度ベクトル ======
+  const BALL_DIAM_PX = 18;
+  let curX = 0, curY = 0;
+  function placeBallAt(xm, ym){
+    curX = xm; curY = ym;
+    ball.style.left = (toPxX(xm) - BALL_DIAM_PX/2) + 'px';
+    ball.style.bottom = toPxY(ym) + 'px';
+  }
+  const velScalePxPerMs = 4;
+  const velMaxLenPx = 120;
+  function updateVelocityVector(vx, vy){
+    const centerX = toPxX(curX);
+    const centerY = toPxY(curY) + BALL_DIAM_PX/2;
+    const speed = Math.sqrt(vx*vx + vy*vy);
+    const len = Math.min(velMaxLenPx, speed * velScalePxPerMs);
+    const angleRad = Math.atan2(-vy * scaleY, vx * scaleX);
+    velvec.style.width = len + 'px';
+    velvec.style.left = centerX + 'px';
+    velvec.style.bottom = (centerY - 1.5) + 'px';
+    velvec.style.transform = rotate(${angleRad}rad);
+  }
+
+  // ====== サウンド ======
+  let audioCtx=null;
+  function beep(freq=880,duration=0.15,type='sine',gain=0.08){
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const t0=audioCtx.currentTime;
+      const osc=audioCtx.createOscillator();
+      const gnode=audioCtx.createGain();
+      osc.type=type; osc.frequency.value=freq; gnode.gain.value=gain;
+      osc.connect(gnode).connect(audioCtx.destination);
+      osc.start(t0);
+      gnode.gain.setValueAtTime(gain,t0);
+      gnode.gain.exponentialRampToValueAtTime(0.0001,t0+duration);
+      osc.stop(t0+duration+0.02);
+    }catch(e){}
+  }
+  const okSound = ()=>beep(740,0.12);
+  const goodSound = ()=>{beep(880,0.12); setTimeout(()=>beep(1175,0.12),120);};
+  const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
+  const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
+
+  // ====== ルーレット ======
+  let running=true; let locked=false; let t0Roulette=performance.now();
+  function rouletteLoop(now){
+    if(!running)return;
+    const elapsed=(now-t0Roulette)/1000;
+    const v=vMin+((elapsed%cycleSec)/cycleSec)*(vMax-vMin);
+    updateSpeedUI(v);
+    updateVelocityVector(v, 0);
+    requestAnimationFrame(rouletteLoop);
+  }
+  function updateSpeedUI(v){
+    const c=Math.max(vMin,Math.min(vMax,v));
+    const ratio=(c-vMin)/(vMax-vMin);
+    fillEl.style.width=(ratio*100).toFixed(2)+'%';
+    speedLabel.textContent=c.toFixed(2)+' m/s';
+  }
+
+  // ====== ラウンド状態 ======
+  let y0 = 19.6;
+  let xTarget = 3;
+  let tFlight = 0;
+  let xLand = 0;
+
+  function renderAllStatic(){
+    fitSceneToViewport();
+    fitScales();
+    layoutSubground();
+    renderGrid();
+    layoutBuilding(y0);
+    resizeTrailCanvas();
+  }
+
+  function setupRound(){
+    // 直前と同じ {y0, xTarget} を避けて抽選
+    let y, x, safety = 32;
+    do{
+      y = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
+      x = TARGET_CANDIDATES[Math.floor(Math.random()*TARGET_CANDIDATES.length)];
+    }while (prevCombo && prevCombo.y === y && prevCombo.x === x && --safety > 0);
+
+    y0 = y;
+    xTarget = x;
+    prevCombo = { y: y0, x: xTarget };
+
+    challengeTextHUD.textContent = 初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！;
+    resultTextHUD.textContent = '';
+    roundBadgeHUD.textContent = ラウンド${round}/${maxRounds};
+
+    renderAllStatic();
+
+    // 初期位置＆軌跡始点
+    placeBallAt(0, y0);
+    trailPts = [{x:0, y:y0}]; clearTrail();
+
+    // ターゲット：y=0
+    targetEl.style.left = toPxX(xTarget) + 'px';
+    targetEl.style.bottom = toPxY(0) + 'px';
+
+    // 表示
+    posNowEl.textContent = 0.00 m, ${y0.toFixed(2)} m;
+    tValEl.textContent = '0.00 s';
+    xLandVal.textContent = '0.00 m';
+
+    updateVelocityVector(0, 0);
+  }
+
+  // ====== アニメーション（水平投射） ======
+  function animateThrow(v0){
+    tFlight = Math.sqrt((2*y0)/g);
+    xLand = v0 * tFlight;
+
+    const start=performance.now();
+    function step(now){
+      const t  = Math.max(0, (now-start)/1000);
+      const tC = Math.min(tFlight, t);
+
+      const x = v0 * tC;
+      const y = Math.max(0, y0 - 0.5*g*tC*tC);
+
+      const vx = v0;
+      const vy = -g * tC;
+
+      // 軌跡
+      const last = trailPts[trailPts.length-1];
+      const cur  = {x, y};
+      trailPts.push(cur);
+      drawTrailSegment(last, cur);
+
+      placeBallAt(x, y);
+      updateVelocityVector(vx, vy);
+
+      posNowEl.textContent = ${x.toFixed(2)} m, ${y.toFixed(2)} m;
+      tValEl.textContent   = tC.toFixed(2) + ' s';
+      xLandVal.textContent = xLand.toFixed(2) + ' m';
+
+      if(t < tFlight - 1e-3){
+        requestAnimationFrame(step);
+      }else{
+        // y=0 にスナップ
+        placeBallAt(xLand, 0);
+        updateVelocityVector(v0, -g * tFlight);
+
+        const last2 = trailPts[trailPts.length-1];
+        const endp  = {x:xLand, y:0};
+        trailPts.push(endp);
+        drawTrailSegment(last2, endp);
+
+        evaluateAndProceed();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ====== 採点（鉛直版に合わせて perfect 追加） ======
+  function evaluateAndProceed(){
+    const errPct = Math.abs(xLand - xTarget) / xTarget;
+    let gained = 0;
+
+    if (errPct < 0.01) {                // PERFECT <1% → +5
+      gained = 5; score += 5;
+      resultTextHUD.innerHTML =
+        <span class="perfect">PERFECT!!!!（誤差 ${(errPct*100).toFixed(2)}% / +${gained}点）</span>;
+      // ちょい豪華ファンファーレ
+      greatSound();
+      setTimeout(()=>beep(1760,0.10),110);
+      setTimeout(()=>beep(2093,0.14),230);
+    } else if (errPct < 0.03) {         // Excellent <3% → +4
+      gained = 4; score += 4;
+      resultTextHUD.innerHTML =
+        <span class="excellent">Excellent!!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      greatSound();
+    } else if (errPct < 0.10){          // <10% → +3
+      gained=3; score+=3;
+      resultTextHUD.innerHTML = <span class="great">great!!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      greatSound();
+    } else if (errPct < 0.20){          // <20% → +2
+      gained=2; score+=2;
+      resultTextHUD.innerHTML = <span class="good">good!（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      goodSound();
+    } else if (errPct < 0.30){          // <30% → +1
+      gained=1; score+=1;
+      resultTextHUD.innerHTML = <span class="ok">ok（誤差 ${(errPct*100).toFixed(1)}% / +${gained}点）</span>;
+      okSound();
+    } else {
+      resultTextHUD.innerHTML = <span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>;
+      wrongSound();
+    }
+
+    scoreHUD.textContent = String(score) + '点';
+    lastGainedPoints = gained;
+    lockBtn.disabled=true; retryBtn.disabled=false;
+
+    if(round>=maxRounds){
+      const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
+      resultTextHUD.innerHTML =
+        <div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div> +
+        <div>全${maxRounds}回の合計スコア：<strong>${score}点</strong></div>;
+      challengeTextHUD.textContent = finalMsg;
+      retryBtn.style.display='none';
+      resetBtn.style.display='inline-block';
+      if (score >= 10) { showSubmitBox(); }
+      else { submitBox.style.display='none'; showToast('今回はスコアが10点未満のため提出できません'); }
+    }
+  }
+
+  // ====== 進行制御 ======
+  function setupNextRound(){
+    if(round<maxRounds){ round += 1; }
+    locked=false; running=true; t0Roulette=performance.now();
+    lockBtn.disabled=false; retryBtn.disabled=true;
+    setupRound();
+    requestAnimationFrame(rouletteLoop);
+  }
+  function resetGame(){
+    round=1; score=0; lastGainedPoints=0; scoreHUD.textContent='0点';
+    retryBtn.style.display='inline-block'; resetBtn.style.display='none';
+    submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
+    studentIdInput.value=''; studentNameInput.value='';
+    prevCombo = null;
+    locked=false; running=true; t0Roulette=performance.now();
+    lockBtn.disabled=false; retryBtn.disabled=true;
+    setupRound();
+    requestAnimationFrame(rouletteLoop);
+    window.scrollTo({top:0, behavior:'instant'});
+  }
+
+  lockBtn.addEventListener('click',()=>{
+    if(locked)return; locked=true; running=false;
+    const v=parseFloat(speedLabel.textContent.replace(' m/s',''));
+    lockBtn.disabled=true; retryBtn.disabled=true; animateThrow(v);
+  });
+  retryBtn.addEventListener('click', setupNextRound);
+  resetBtn.addEventListener('click', resetGame);
+  submitBtn.addEventListener('click', submitResult);
+
+  // ====== リサイズ対応 ======
+  function handleResize(){
+    baselineTop = null;
+    fitSceneToViewport();
+    fitScales();
+    layoutSubground();
+    renderGrid();
+    layoutBuilding(curY || y0);
+    resizeTrailCanvas();
+    placeBallAt(curX, curY || y0);
+    targetEl.style.left = toPxX(xTarget) + 'px';
+    targetEl.style.bottom = toPxY(0) + 'px';
+    const v=parseFloat(speedLabel.textContent.replace(' m/s',''))||0;
+    updateVelocityVector(v, 0);
+  }
+  window.addEventListener('resize', ()=>{ handleResize(); });
+  window.addEventListener('orientationchange', ()=>setTimeout(handleResize, 200));
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', ()=>{ setTimeout(handleResize, 50); });
+  }
+
+  // === Leaderboard（CSV読み込み／トップ20・2列表示 & モバイル別枠） ===
+  // 公開CSVのURLに置き換えてください
+  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ10LcB0wupR7ip5mhf_WskxAZiQQIXytBQ45Sxyf2ej9R1xULe-iQbj7RU2TgNXOrjTrUVefFQOEIO/pub?gid=1366320045&single=true&output=csv";
+
+  async function loadLeaderboard () {
+    const desktopBox = document.getElementById('leaderboard');
+    const mobileBox  = document.getElementById('leaderboardMobile');
+    if (!desktopBox && !mobileBox) return;
+
+    try {
+      const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+      const res = await fetch(url, { credentials: 'omit', cache: 'no-store' });
+      const text = await res.text();
+      const { cols, rows } = parseCSV(text);
+      renderFromRows(cols, rows);
+    } catch (e) {
+      console.error(e);
+      if (desktopBox) desktopBox.textContent = 'ランキングを読み込めませんでした…';
+      if (mobileBox) mobileBox.textContent = 'ランキングを読み込めませんでした…';
+    }
+
+    function renderFromRows (cols, rows) {
+      const idx = {
+        timestamp: findIndex(cols, /time|タイムスタンプ|timestamp/i, 0),
+        studentId: findIndex(cols, /番号|学籍|id/i, 1),
+        studentName: findIndex(cols, /氏名|名前|name/i, 2),
+        totalScore: findIndex(cols, /score|スコア|合計|点/i, 3)
+      };
+
+      let recs = rows.map(r => ({
+        timestamp: String(r[idx.timestamp] ?? ''),
+        id: String(r[idx.studentId] ?? '').trim(),
+        name: String(r[idx.studentName] ?? '').trim(),
+        score: Number(String(r[idx.totalScore] ?? '').replace(/[^\d.-]/g, ''))
+      }));
+
+      recs = recs.filter(x => Number.isFinite(x.score) && x.score >= 10);
+      recs = bestByKey(recs, x => x.id || x.name);
+      recs.sort((a, b) => b.score - a.score || (new Date(b.timestamp) - new Date(a.timestamp)));
+      recs = recs.slice(0, 20);
+
+      const html = renderTableHTML(recs);
+      if (desktopBox) desktopBox.innerHTML = html;
+      if (mobileBox)  mobileBox.innerHTML  = html;
+    }
+  }
+
+  function parseCSV (text) {
+    const rows = [];
+    let cur = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i], next = text[i+1];
+      if (inQ) {
+        if (ch === '"' && next === '"') { field += '"'; i++; }
+        else if (ch === '"') { inQ = false; }
+        else { field += ch; }
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === ',') { cur.push(field); field = ''; }
+        else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+        else if (ch === '\r') { /* ignore */ }
+        else { field += ch; }
+      }
+    }
+    if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+    const cols = rows.shift() || [];
+    return { cols, rows };
+  }
+
+  function findIndex (arr, regex, fallback = -1) {
+    const i = arr.findIndex(h => regex.test(String(h)));
+    return i >= 0 ? i : fallback;
+  }
+
+  function bestByKey (list, keyFn) {
+    const best = new Map();
+    for (const r of list) {
+      const k = keyFn(r);
+      if (!k) continue;
+      const cur = best.get(k);
+      if (!cur || r.score > cur.score) best.set(k, r);
+    }
+    return Array.from(best.values());
+  }
+
+  function renderTableHTML(items){
+    if (!items.length) return 'まだランキングはありません。';
+
+    // 左(1–10)・右(11–20)
+    const left  = items.slice(0, 10);
+    const right = items.slice(10, 20);
+
+    const rows = Array.from({length: 10}, (_, i) => ({
+      L: left[i]  || {name:'', id:'', score:''},
+      R: right[i] || {name:'', id:'', score:''}
+    }));
+
+    return 
+      <table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:14px; margin-bottom:8px">
+        <colgroup>
+          <col style="width:7%"><col style="width:33%"><col style="width:12%"><col style="width:18%">
+          <col style="width:4%">
+          <col style="width:7%"><col style="width:33%"><col style="width:12%"><col style="width:18%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
+            <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
+            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
+            <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
+            <th></th>
+            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">位</th>
+            <th style="text-align:left;   padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">氏名</th>
+            <th style="text-align:center; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">番号</th>
+            <th style="text-align:right;  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.12)">スコア</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r,i)=>
+            <tr>
+              <td style="text-align:center; font-weight:700; font-variant-numeric: tabular-nums">${i+1}</td>
+              <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escapeHTML(r.L.name || '—')}</td>
+              <td style="text-align:center; font-variant-numeric: tabular-nums">${escapeHTML(r.L.id || '—')}</td>
+              <td style="text-align:right;  font-variant-numeric: tabular-nums">${r.L.score ?? ''}</td>
+              <td></td>
+              <td style="text-align:center; font-weight:700; font-variant-numeric: tabular-nums">${i+11}</td>
+              <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${escapeHTML(r.R.name || '—')}</td>
+              <td style="text-align:center; font-variant-numeric: tabular-nums">${escapeHTML(r.R.id || '—')}</td>
+              <td style="text-align:right;  font-variant-numeric: tabular-nums">${r.R.score ?? ''}</td>
+            </tr>).join('')}
+        </tbody>
+      </table>;
+  }
+
+  function escapeHTML (s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  // ====== 初期化 ======
+  requestAnimationFrame(rouletteLoop);
+  setupRound();
+
+  loadLeaderboard();
+  setInterval(loadLeaderboard, 60000);
+})();
+</script>
+</body>
+</html>
