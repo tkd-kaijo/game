@@ -21,7 +21,6 @@
   .app{width:min(980px,100%); display:grid; gap:12px}
   .title{font-weight:700; letter-spacing:.02em; font-size:clamp(18px,3vw,28px); text-align:center}
 
-  /* 課題＆スコア（タイトル直下） */
   .challengeBox{
     display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;
     padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
@@ -31,10 +30,7 @@
   #challengeTextHUD{font-weight:700}
   #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
 
-  /* ランク表示 */
-  .perfect{
-    color:#b7fffb; font-weight:900; margin-left:8px; text-shadow:0 0 10px rgba(106,227,255,.55);
-  }
+  .perfect{color:#b7fffb; font-weight:900; margin-left:8px; text-shadow:0 0 10px rgba(106,227,255,.55);}
   .excellent{ color:#8fffd6; font-weight:800; margin-left:8px }
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
@@ -47,7 +43,6 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
   }
 
-  /* ルーレット */
   .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center}
   .bar{
     height:16px; background:#111528; border-radius:999px; overflow:hidden; position:relative;
@@ -78,7 +73,6 @@
   }
   button:disabled{opacity:.5; cursor:not-allowed}
 
-  /* プレイ領域レイアウト */
   .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
   @media (orientation: portrait){
     .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
@@ -91,7 +85,6 @@
     .readouts{grid-area: readouts}
   }
 
-  /* アニメーション領域 */
   .scene{
     position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:10px;
     background:
@@ -130,7 +123,6 @@
     box-shadow: 0 8px 24px rgba(106,227,255,.45); z-index:2;
   }
 
-  /* 速度ベクトル */
   .velvec{
     position:absolute; height:3px; background:#8ff2ff;
     box-shadow: 0 0 10px rgba(106,227,255,.6);
@@ -158,18 +150,16 @@
   .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
   .stat .value{font-variant-numeric: tabular-nums; font-weight:800; font-size:22px}
 
-  /* デスクトップ強調 */
   @media (min-width: 820px) {
     .title{ font-size: clamp(24px, 2.6vw, 36px); }
     .challengeBox{ padding:12px 16px; gap:16px; }
-    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); }
+    #challengeTextHUD{ fontサイズ: clamp(31px, 2.9vw, 43px); }
     #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }
     .speed{ font-size: clamp(43px, 3.8vw, 53px); }
     .bar{ height: 22px; }
     .stat .label{ font-size: 16px; }
     .stat .value{ font-size: clamp(30px, 2.6vw, 40px); }
   }
-  /* iPad横向き微調整 */
   @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
     .title{ font-size: 20px; }
     #challengeTextHUD{ font-size: 28px; }
@@ -179,10 +169,8 @@
     .bar{ height: 18px; }
   }
 
-  /* 常に赤字に固定（鉛直版と合わせる） */
   #challengeTextHUD, .speed { color:#ff5b5b !important; }
 
-  /* 提出フォーム */
   .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
   .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
   .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -191,7 +179,6 @@
   .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
   .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
 
-  /* ランキングはreadoutsの横幅を全取り */
   #leaderboardCard{ grid-column: 1 / -1; }
   #leaderboardCardMobile{ display:none; }
   @media (max-width: 640px){
@@ -207,7 +194,6 @@
   <main class="app">
     <div class="title">水平投射ゲーム〜5球で10点取れ！〜</div>
 
-    <!-- 課題＆スコア -->
     <div class="challengeBox" id="challengeBox">
       <span class="badge" id="roundBadgeHUD">ラウンド1/5</span>
       <span id="challengeTextHUD">—</span>
@@ -216,7 +202,6 @@
     </div>
 
     <section class="card" id="card">
-      <!-- ルーレット -->
       <div class="roulette" aria-live="polite">
         <div class="bar" aria-label="初速ルーレット（0〜6 m/s を4秒で周回）">
           <div class="fill" id="fill"></div>
@@ -230,7 +215,6 @@
       </div>
 
       <div class="playgrid">
-        <!-- アニメーション領域 -->
         <div class="scene" id="scene">
           <div class="subground" id="subground" aria-hidden="true"></div>
           <div class="grid" id="grid"></div>
@@ -242,7 +226,6 @@
           <div class="ground"></div>
         </div>
 
-        <!-- 右側の数値表示 -->
         <div class="readouts" id="readouts">
           <div class="stat"><div class="label">現在位置 (x, y)</div><div class="value" id="posNow">0.00 m, 0.00 m</div></div>
           <div class="stat"><div class="label">飛行時間 T</div><div class="value" id="tVal">0.00 s</div></div>
@@ -255,7 +238,6 @@
         </div>
       </div>
 
-      <!-- モバイル用ランキング -->
       <section class="card" id="leaderboardCardMobile" aria-live="polite">
         <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
         <div id="leaderboardMobile">読み込み中…</div>
@@ -263,7 +245,6 @@
     </section>
   </main>
 
-  <!-- 提出フォーム（最後に表示） -->
   <div class="submitBox" id="submitBox" style="display:none" aria-live="polite">
     <h3>提出</h3>
     <div class="submitRow">
@@ -281,22 +262,16 @@
 
 <script>
 (() => {
-  /* =========================
-     送信先（先生が置換）
-     ========================= */
-  const GAS_SESSION_URL = 'https://script.google.com/macros/s/AKfycbxN3b_UfWu3eVODNevD_ywylWA33SU_XrAt4jEOh32kpDNy-gIUJqRBteGTXU-MEgtc1w/exec?fn=session';
-  const GAS_SUBMIT_URL  = 'https://script.google.com/macros/s/AKfycbxN3b_UfWu3eVODNevD_ywylWA33SU_XrAt4jEOh32kpDNy-gIUJqRBteGTXU-MEgtc1w/exec?path=submit';
+  /* ========== 送信先（差し替え済みURLを使用） ========== */
+  const GAS_SESSION_URL = 'https://script.google.com/macros/s/AKfycbx0iUQkf3_knPDvwB2Jdn1UsLSk1-4zzGhC2gdF0XXmdGM6uEjbtxAo6l13DQMqAFSThQ/exec?fn=session';
+  const GAS_SUBMIT_URL  = 'https://script.google.com/macros/s/AKfycbx0iUQkf3_knPDvwB2Jdn1UsLSk1-4zzGhC2gdF0XXmdGM6uEjbtxAo6l13DQMqAFSThQ/exec?path=submit';
+  const GAS_LOCK_URL    = 'https://script.google.com/macros/s/AKfycbx0iUQkf3_knPDvwB2Jdn1UsLSk1-4zzGhC2gdF0XXmdGM6uEjbtxAo6l13DQMqAFSThQ/exec?path=lock';
   const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyOTJEBzV8JvxrNSIWYcyZLEvOXFJDwhXfOCPtACgvqaGwjRn70ZuJKQNLwqPS8_3YeTFt8gNpJrnM/pub?gid=1365907837&single=true&output=csv";
 
-  
-  
   /* ====== 物理・ルール ====== */
-  // サーバも同じ ruleVersion で採点する前提。フロント改変は無効化される。
   const RULE = {
-    version: 'hproj-v1.3', // 先生がGAS側と合わせる
-    g: 9.8,
-    vMin: 0, vMax: 6, cycleSec: 4,
-    rounds: 5,
+    version: 'hproj-v1.3',
+    g: 9.8, vMin: 0, vMax: 6, cycleSec: 4, rounds: 5,
     yCandidates: [4.9, 19.6, 44.1],
     xCandidates: [1,2,3,4,5],
     scoreBands: [
@@ -308,17 +283,16 @@
     ]
   };
 
-  /* ====== 乱数（ログ可能な軽量PRNG） ====== */
+  /* ====== 乱数 ====== */
   function xmur3(str){ for(var i=0,h=1779033703^str.length;i<str.length;i++) h=Math.imul(h^str.charCodeAt(i),3432918353),h=h<<13|h>>>19; return ()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return (h^h>>>16)>>>0}; }
   function mulberry32(a){ return function(){ var t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; }; }
 
-  /* ====== DOM参照 ====== */
+  /* ====== DOM ====== */
   const fillEl=document.getElementById('fill');
   const speedLabel=document.getElementById('speedLabel');
   const lockBtn=document.getElementById('lockBtn');
   const retryBtn=document.getElementById('retryBtn');
   const resetBtn=document.getElementById('resetBtn');
-
   const scene=document.getElementById('scene');
   const gridEl=document.getElementById('grid');
   const subgroundEl=document.getElementById('subground');
@@ -328,16 +302,13 @@
   const velvec=document.getElementById('velvec');
   const targetEl=document.getElementById('target');
   const groundEl = document.querySelector('.ground');
-
   const posNowEl=document.getElementById('posNow');
   const tValEl=document.getElementById('tVal');
   const xLandVal=document.getElementById('xLandVal');
-
   const roundBadgeHUD=document.getElementById('roundBadgeHUD');
   const challengeTextHUD=document.getElementById('challengeTextHUD');
   const resultTextHUD=document.getElementById('resultTextHUD');
   const scoreHUD=document.getElementById('scoreHUD');
-
   const submitBox = document.getElementById('submitBox');
   const submitBtn = document.getElementById('submitBtn');
   const studentIdInput = document.getElementById('studentId');
@@ -345,25 +316,40 @@
   const toast = document.getElementById('toast');
   function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2200); }
 
-  /* ====== セッション（GAS発行） ====== */
-  let session = { sessionId:'', nonce:'', issuedAt:0, serverG: RULE.g, ruleVersion: RULE.version };
+  /* ====== セッション＆時刻同期 ====== */
+  let session = {
+    sessionId:'', nonce:'', ruleVersion: RULE.version, serverG: RULE.g,
+    t0Ms:0, phiSec:0, ticketSig:'', offsetMs:0, rttMs:0
+  };
+
   async function fetchSession(){
     try{
-      const r = await fetch(GAS_SESSION_URL, { cache:'no-store', credentials:'omit' });
-      const j = await r.json().catch(()=>({}));
-      if(j && j.ok && j.sessionId && j.nonce){
+      const t1 = Date.now();
+      const r = await fetch(GAS_SESSION_URL + '&t1=' + t1, { cache:'no-store', credentials:'omit' });
+      const j = await r.json();
+      if(j && j.ok){
+        const t3 = Date.now();
+        const echoT1 = Number(j.echoT1 || t1);
+        const rtt = Math.max(0, t3 - echoT1);
+        const offset = Number(j.serverNow) - (echoT1 + rtt/2);
         session = {
           sessionId: String(j.sessionId),
           nonce: String(j.nonce),
-          issuedAt: Date.now(),
+          ruleVersion: String(j.ruleVersion || RULE.version),
           serverG: Number(j.g ?? RULE.g) || RULE.g,
-          ruleVersion: String(j.ruleVersion ?? RULE.version)
+          t0Ms: Number(j.t0Ms)||0,
+          phiSec: Number(j.phiSec)||0,
+          ticketSig: String(j.ticketSig||''),
+          offsetMs: offset,
+          rttMs: rtt
         };
       } else {
-        // 失敗時でもプレイはできるが提出は不可
-        session.sessionId = ''; session.nonce = '';
+        throw new Error('session failed');
       }
-    }catch(e){ console.warn('session fetch failed', e); }
+    }catch(e){
+      console.warn('session fetch failed', e);
+      showToast('サーバ接続に問題があります（提出不可の可能性）');
+    }
   }
 
   /* ====== レイアウト ====== */
@@ -488,7 +474,7 @@
   const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
   const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
 
-  /* ====== ルーレット ====== */
+  /* ====== ルーレット（見た目用） ====== */
   let running=true, locked=false, t0Roulette=performance.now();
   function rouletteLoop(now){
     if(!running)return;
@@ -505,20 +491,23 @@
     speedLabel.textContent=c.toFixed(2)+' m/s';
   }
 
-  /* ====== ラウンド状態・採点 ====== */
+  /* ====== ラウンド状態 ====== */
   let round=1, score=0, lastGainedPoints=0;
   let y0 = 19.6, xTarget = 3, tFlight = 0, xLand = 0;
   let prevCombo = null;
 
-  // 監査用ログ（サーバで再採点）
-  const roundLogs = [];
+  // サーバ発行のチケットを貯める（提出で使用）
+  const tickets = [];
+
+  // 任意ログ（参考用）
   const perfEpoch = performance.now();
+  let roundLogs = [];
 
   function renderAllStatic(){
     fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas();
   }
   function setupRound(){
-    // 同一 {y0, xTarget} を避けた抽選（セッション＋ラウンド番号でPRNGのシードを固定→再現性確保）
+    // 見た目用の課題（実際は /lock でサーバから y0,xTarget が来る）
     const seedBase = session.sessionId || (Date.now() + ':' + Math.random());
     const seedStr = `${RULE.version}|${seedBase}|r${round}`;
     const seed = xmur3(seedStr)(); const rnd = mulberry32(seed);
@@ -527,7 +516,6 @@
       y = RULE.yCandidates[Math.floor(rnd()*RULE.yCandidates.length)];
       x = RULE.xCandidates[Math.floor(rnd()*RULE.xCandidates.length)];
     }while (prevCombo && prevCombo.y === y && prevCombo.x === x && --safety > 0);
-
     y0 = y; xTarget = x; prevCombo = { y: y0, x: xTarget };
 
     challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
@@ -535,17 +523,13 @@
     roundBadgeHUD.textContent = `ラウンド${round}/${RULE.rounds}`;
 
     renderAllStatic();
-
     placeBallAt(0, y0);
     trailPts = [{x:0, y:y0}]; clearTrail();
-
     targetEl.style.left = toPxX(xTarget) + 'px';
     targetEl.style.bottom = toPxY(0) + 'px';
-
     posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
     tValEl.textContent = '0.00 s';
     xLandVal.textContent = '0.00 m';
-
     updateVelocityVector(0, 0);
   }
 
@@ -615,7 +599,7 @@
     lastGainedPoints = gained;
     lockBtn.disabled=true; retryBtn.disabled=false;
 
-    // ログ保存（サーバで再採点可能）
+    // ログ（任意）
     roundLogs.push({
       round, y0, xTarget, v0: +v0.toFixed(4),
       computed: { tFlight:+tFlight.toFixed(4), xLand:+xLand.toFixed(4), errPct:+errPct.toFixed(6), gained },
@@ -649,7 +633,8 @@
     submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
     studentIdInput.value=''; studentNameInput.value='';
     prevCombo = null;
-    roundLogs.length = 0;
+    roundLogs = [];
+    tickets.length = 0;
     locked=false; running=true; t0Roulette=performance.now();
     lockBtn.disabled=false; retryBtn.disabled=true;
     setupRound();
@@ -657,12 +642,54 @@
     window.scrollTo({top:0, behavior:'instant'});
   }
 
-  /* ====== 操作 ====== */
-  lockBtn.addEventListener('click',()=>{
-    if(locked)return; locked=true; running=false;
-    const v=parseFloat(speedLabel.textContent.replace(' m/s',''));
-    lockBtn.disabled=true; retryBtn.disabled=true; animateThrow(v);
+  /* ====== 投射（サーバ lock で v0 を取得） ====== */
+  lockBtn.addEventListener('click', async ()=>{
+    if(locked) return;
+    locked=true; running=false;
+    lockBtn.disabled=true; retryBtn.disabled=true;
+
+    try{
+      const tClick = Date.now();
+      const body = new URLSearchParams({
+        sessionId: session.sessionId,
+        nonce: session.nonce,
+        round: String(round),
+        tClick: String(tClick),
+        offsetMs: String(session.offsetMs),
+        rttMs: String(session.rttMs),
+        t0Ms: String(session.t0Ms),
+        phiSec: String(session.phiSec),
+        ticketSig: session.ticketSig
+      });
+      const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
+      const json = await res.json();
+
+      if(!json || !json.ok) throw new Error(json && json.error || 'LOCK_FAIL');
+
+      // サーバ決定値にUIを合わせる
+      y0 = Number(json.y0); xTarget = Number(json.xTarget);
+      challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
+      renderAllStatic(); placeBallAt(0, y0); trailPts=[{x:0,y:y0}]; clearTrail();
+      targetEl.style.left = toPxX(xTarget) + 'px'; targetEl.style.bottom = toPxY(0) + 'px';
+
+      // v0で投げる
+      const v0 = Number(json.v0);
+      animateThrow(v0);
+
+      // 提出用チケットを保存
+      tickets.push({
+        ...json.ticket, sig: json.sig,
+        t0Ms: session.t0Ms, phiSec: session.phiSec
+      });
+
+    }catch(err){
+      console.error(err);
+      showToast('サーバに接続できません（ロック失敗）');
+      locked=false; running=true; lockBtn.disabled=false; retryBtn.disabled=true;
+      requestAnimationFrame(rouletteLoop);
+    }
   });
+
   retryBtn.addEventListener('click', setupNextRound);
   resetBtn.addEventListener('click', resetGame);
 
@@ -682,46 +709,22 @@
     }
   });
 
-  /* ====== 提出（封緘＋監査用ログ同梱） ====== */
+  /* ====== 提出（チケット配列のみ送信） ====== */
   function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
-  async function sha256Hex(str){
-    const enc = new TextEncoder(); const buf = enc.encode(str);
-    const hash = await crypto.subtle.digest('SHA-256', buf);
-    const arr = Array.from(new Uint8Array(hash));
-    return arr.map(b=>b.toString(16).padStart(2,'0')).join('');
-  }
+
   async function submitResult(){
     if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
     const studentId = studentIdInput.value.trim();
     const studentName = studentNameInput.value.trim();
     if(!/^\d{4}$/.test(studentId) || !studentName){ showToast('4桁番号(半角)と氏名を入力してください'); return; }
-    if(!session.nonce || !session.sessionId){ showToast('セッション取得に失敗。ページ再読み込みを試してください'); return; }
-
-    const payload = {
-      ruleVersion: RULE.version,
-      sessionId: session.sessionId,
-      totalScore: score,
-      rounds: RULE.rounds,
-      logs: roundLogs,
-      client: {
-        userAgent: navigator.userAgent,
-        width: window.innerWidth, height: window.innerHeight,
-        tzOffset: new Date().getTimezoneOffset()
-      }
-    };
-    const message = JSON.stringify(payload);
-    // 「nonceで封緘」：payload と nonce を結合してハッシュを signature として送付
-    const signature = await sha256Hex(message + '|' + session.nonce);
+    if(!session.sessionId){ showToast('セッションが無効です。ページを再読み込みしてください'); return; }
+    if (tickets.length !== RULE.rounds){ showToast('データ不整合：最初からやり直してください'); return; }
 
     try{
       const body = new URLSearchParams({
         studentId, studentName,
         sessionId: session.sessionId,
-        nonce: session.nonce,
-        totalScore: String(score),
-        ruleVersion: RULE.version,
-        payload: message,
-        signature
+        tickets: JSON.stringify(tickets)
       });
       const res = await fetch(GAS_SUBMIT_URL, { method: 'POST', body, credentials:'omit' });
       const json = await res.json().catch(()=>({}));
@@ -733,12 +736,11 @@
         const msg = ({
           'INVALID_STUDENT_ID':'学籍番号が正しくありません',
           'EMPTY_NAME':'氏名を入力してください',
-          'INVALID_SCORE':'スコアが不正です',
+          'INVALID_TICKETS':'データ不正：やり直してください',
+          'RULE_VERSION_MISMATCH':'バージョン不一致（ページ更新）',
+          'BAD_TICKET':'改ざん検出（やり直してください）',
+          'TICKET_V_MISMATCH':'改ざん/時刻異常',
           'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
-          'BAD_SIGNATURE':'署名が一致しません（再読み込みしてやり直してください）',
-          'SESSION_EXPIRED':'セッション期限切れ。再読み込みしてください',
-          'RATE_LIMIT':'連投が早すぎます。少し待って再送してください',
-          'RESCORE_MISMATCH':'サーバ採点と一致しません（改変/エラー）',
         })[json.error] || '送信に失敗しました…';
         showToast(msg);
       }
@@ -766,7 +768,7 @@
     const mobileBox  = document.getElementById('leaderboardMobile');
     if (!desktopBox && !mobileBox) return;
     try {
-      if(!CSV_URL || /【/.test(CSV_URL)){ // 未設定
+      if(!CSV_URL || /【/.test(CSV_URL)){
         const html = 'ランキングのCSV URLが未設定です。';
         if (desktopBox) desktopBox.textContent = html;
         if (mobileBox)  mobileBox.textContent  = html;
@@ -864,9 +866,9 @@
 
   /* ====== 初期化 ====== */
   (async function init(){
-    await fetchSession();        // 提出時の封緘と監査用
-    requestAnimationFrame(rouletteLoop);
-    setupRound();
+    await fetchSession();                 // サーバ時間・位相を取得
+    requestAnimationFrame(rouletteLoop);  // 見た目のルーレット
+    setupRound();                         // UI初期表示（実際の課題は /lock で上書き）
     loadLeaderboard();
     setInterval(loadLeaderboard, 60000);
   })();
