@@ -202,11 +202,23 @@ let session = {
   sessionId:'', nonce:'', ruleVersion: RULE.version, serverG: RULE.g,
   t0Ms:0, phiSec:0, offsetMs:0, rttMs:0, ticketSig:''
 };
+// ★ セッションが空なら取り直す
+async function ensureSessionReady() {
+  if (session.sessionId && session.nonce) return true;
+  await fetchSession();
+  return !!(session.sessionId && session.nonce);
+}
 
 async function fetchSession(){
   try{
     const t1 = Date.now();
-    const r = await fetch(GAS_SESSION_URL + '&t1=' + t1, { cache:'no-store', credentials:'omit' });
+    const r = await fetch(GAS_SESSION_URL + '&t1=' + t1, {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'omit',
+      // GET でも明示しておくと GAS 側でチェックしているケースに効く
+      headers: { 'Accept': 'application/json' }
+    });
     const j = await r.json().catch(()=>null);
     if(!j || !j.ok) throw new Error('session_fail');
     const t3 = Date.now();
@@ -224,13 +236,14 @@ async function fetchSession(){
       offsetMs: offset,
       rttMs: rtt
     };
- RULE.version = session.ruleVersion;
-    
+    // サーバの ruleVersion をフロントにも反映
+    RULE.version = session.ruleVersion;
+    console.log('[session ok]', session);
   }catch(e){
-    console.error(e);
+    console.error('[session error]', e);
     showToast('セッション取得に失敗（提出不可の可能性）');
   }
- console.log('[ruleVersion] server=', session.ruleVersion, ' front=', RULE.version);
+  console.log('[ruleVersion] server=', session.ruleVersion, ' front=', RULE.version);
 }
 
 /* ========= サーバロック（open/close） ========= */
@@ -246,16 +259,23 @@ async function lockOpen(round){
     nonce: session.nonce,
     round: String(round),
     intent: 'open',
-    ruleVersion: String(session.ruleVersion || RULE.version)
-  
+    ruleVersion: String(session.ruleVersion || RULE.version),
   });
-  const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
-  const j = await res.json().catch(()=>null);
-  if(!j || !j.ok) throw new Error('lock_open_fail');
-  // open では課題のみ採用。v0 が来ても無視する。
+  const res = await fetch(GAS_LOCK_URL, {
+    method:'POST',
+    body,
+    credentials:'omit',
+    headers:{ 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8', 'Accept':'application/json' }
+  });
+  const text = await res.text();
+  let j = null;
+  try { j = JSON.parse(text); } catch { j = null; }
+  console.log('[lock/open] status=', res.status, 'resp=', text);
+  if(!j || !j.ok) throw new Error('lock_open_fail:' + (j && j.error || res.status));
   y0 = Number(j.y0); xTarget = Number(j.xTarget);
   return j;
 }
+
 async function lockClose(round, tClick){
   const body = new URLSearchParams({
     sessionId: session.sessionId,
@@ -268,14 +288,23 @@ async function lockClose(round, tClick){
     t0Ms: String(session.t0Ms),
     phiSec: String(session.phiSec),
     ticketSig: session.ticketSig,
-    ruleVersion: String(session.ruleVersion || RULE.version)
- 
+    ruleVersion: String(session.ruleVersion || RULE.version),
   });
-  const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
-  const j = await res.json().catch(()=>null);
-  if(!j || !j.ok) throw new Error(j && j.error || 'lock_close_fail');
+  const res = await fetch(GAS_LOCK_URL, {
+    method:'POST',
+    body,
+    credentials:'omit',
+    headers:{ 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8', 'Accept':'application/json' }
+  });
+  const text = await res.text();
+  let j = null;
+  try { j = JSON.parse(text); } catch { j = null; }
+  console.log('[lock/close] status=', res.status, 'resp=', text);
+  if(!j || !j.ok) throw new Error('lock_close_fail:' + (j && j.error || res.status));
   return j; // { ok, v0, ticket, sig }
 }
+
+  
 
 /* ========= ルーレット（端末時刻→表示） ========= */
 let running = true, locked = false;
@@ -382,6 +411,14 @@ let tFlight=0, xLand=0;
 
 function renderAllStatic(){ fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas(); }
 async function setupRound(){
+ const ready = await ensureSessionReady();
+  if (!ready) {
+    showToast('セッション未確立のため開始できません（再読み込み推奨）');
+    lockBtn.disabled = true;
+    retryBtn.disabled = false;
+    return;
+  }
+  
   // open: 課題だけ取得
   try{
     await lockOpen(currentRound);
