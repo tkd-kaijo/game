@@ -224,11 +224,20 @@ async function fetchSession(){
       offsetMs: offset,
       rttMs: rtt
     };
+ // ★ここを追加：サーバのルール版を採用
+    if (session.ruleVersion && RULE.version !== session.ruleVersion) {
+      console.log('[RULE.version] front=', RULE.version, ' -> server=', session.ruleVersion);
+      RULE.version = session.ruleVersion;
+    }
+    // （必要なら）重力なども合わせたい場合は下も有効化
+    // if (Number.isFinite(session.serverG) && session.serverG > 0) RULE.g = session.serverG;
+
+    
   }catch(e){
     console.error(e);
     showToast('セッション取得に失敗（提出不可の可能性）');
   }
-  console.log('[ruleVersion] server=', session.ruleVersion, ' front=', RULE.version);
+ 
 }
 
 /* ========= サーバロック（open/close） ========= */
@@ -243,7 +252,9 @@ async function lockOpen(round){
     sessionId: session.sessionId,
     nonce: session.nonce,
     round: String(round),
-    intent: 'open'
+    intent: 'open',
+    ruleVersion: String(session.ruleVersion || RULE.version)
+  
   });
   const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
   const j = await res.json().catch(()=>null);
@@ -263,7 +274,9 @@ async function lockClose(round, tClick){
     rttMs: String(session.rttMs),
     t0Ms: String(session.t0Ms),
     phiSec: String(session.phiSec),
-    ticketSig: session.ticketSig
+    ticketSig: session.ticketSig,
+    ruleVersion: String(session.ruleVersion || RULE.version)
+ 
   });
   const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
   const j = await res.json().catch(()=>null);
