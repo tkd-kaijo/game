@@ -228,6 +228,7 @@ async function fetchSession(){
     console.error(e);
     showToast('セッション取得に失敗（提出不可の可能性）');
   }
+  console.log('[ruleVersion] server=', session.ruleVersion, ' front=', RULE.version);
 }
 
 /* ========= サーバロック（open/close） ========= */
@@ -462,6 +463,7 @@ function resetGame(){
   retryBtn.style.display='inline-block'; resetBtn.style.display='none';
   submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
   studentIdInput.value=''; studentNameInput.value='';
+  tickets.length = 0;
   locked=false; running=true;
   tickets.length = 0;          // ← ここを追加
   setupRound(); requestAnimationFrame(rouletteLoop);
@@ -481,7 +483,8 @@ lockBtn.addEventListener('click', async ()=>{
     // サーバ返却の署名付きチケットを蓄積
     tickets.push({ ticket: j.ticket, sig: j.sig });
     // （必要なら最後の1件も保持しておく）
-    currentTicket = { ticket: j.ticket, sig: j.sig };
+    currentTicket = { ticket: j.ticket, sig: j.sig, round: currentRound  };
+    tickets.push(currentTicket);
     animateThrow(v0);
   }catch(e){
     console.error(e);
@@ -505,22 +508,39 @@ document.addEventListener('keydown',(e)=>{
 function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 async function submitResult(){
   if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
+
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
-  if(!/^\d{4}$/.test(studentId) || !studentName){ showToast('4桁番号(半角)と氏名を入力してください'); return; }
-// ラウンドぶんのチケットが揃っているか確認
-  if(tickets.length !== RULE.rounds){
-    showToast('提出データが不足しています（ラウンド数と提出チケット数が不一致）'); 
-    return; 
+  if(!/^\d{4}$/.test(studentId) || !studentName){
+    showToast('4桁番号(半角)と氏名を入力してください'); return;
   }
-  
+  if(!session.sessionId || !session.nonce){
+    showToast('セッション取得に失敗。ページ再読み込みを試してください'); return;
+  }
+
+  // ★サーバ想定のルールバージョンを採用（セッションから）
+  const ruleVersionToSend = session.ruleVersion || RULE.version;
+
+  // ★全ラウンド分のチケットが揃っているかチェック
+  if (tickets.length !== RULE.rounds) {
+    showToast(`提出データが不足しています（${tickets.length}/${RULE.rounds}）`); 
+    return;
+  }
+
   try{
     const body = new URLSearchParams({
-      studentId, studentName,
-      tickets: JSON.stringify(tickets) // ← 全ラウンド分を提出
+      studentId,
+      studentName,
+      // ★サーバ照合に必要なメタ
+      ruleVersion: String(ruleVersionToSend),
+      sessionId: String(session.sessionId),
+      // ★全チケットを送る
+      tickets: JSON.stringify(tickets),
     });
+
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
-    const json = await res.json().catch(()=>({}));
+    const json = await res.json().catch(()=> ({}));
+
     if(json && json.ok){
       showToast('送信しました！');
       submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
@@ -533,10 +553,14 @@ async function submitResult(){
         'RULE_VERSION_MISMATCH':'バージョンが異なります（再読み込みしてください）',
         'BAD_TICKET':'改ざん検出（再読み込みしてやり直してください）',
         'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
+        'SESSION_EXPIRED':'セッション期限切れ（再読み込みしてください）',
       })[json.error] || '送信に失敗しました…';
       showToast(msg);
     }
-  }catch(e){ console.error(e); showToast('送信に失敗しました…'); }
+  }catch(e){
+    console.error(e);
+    showToast('送信に失敗しました…');
+  }
 }
 if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
