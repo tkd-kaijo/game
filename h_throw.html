@@ -254,13 +254,15 @@ let currentTicket = null;   // close 時に受領
 const tickets = [];
 
 async function lockOpen(round){
+  const sig = String((session.ticketSig || '')).trim();
   const body = new URLSearchParams({
     sessionId: session.sessionId,
     nonce: session.nonce,
     round: String(round),
     intent: 'open',
     ruleVersion: String(session.ruleVersion || RULE.version),
-    ticketSig: session.ticketSig
+    ticketSig: sig,
+    sig: sig
   });
   const res = await fetch(GAS_LOCK_URL, {
     method:'POST',
@@ -271,7 +273,7 @@ async function lockOpen(round){
   const text = await res.text();
   let j = null;
   try { j = JSON.parse(text); } catch { j = null; }
-  console.log('[lock/open] status=', res.status, 'resp=', text);
+ console.log('[lock/open] status=', res.status, 'ticketSig.len=', sig.length, 'resp=', text);
   if(!j || !j.ok) throw new Error('lock_open_fail:' + (j && j.error || res.status));
   y0 = Number(j.y0); xTarget = Number(j.xTarget);
   return j;
