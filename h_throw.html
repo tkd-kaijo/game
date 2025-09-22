@@ -234,6 +234,7 @@ async function fetchSession(){
 let currentRound = 1;
 let y0 = 19.6, xTarget = 3; // open で確定
 let currentTicket = null;   // close 時に受領
+const tickets = [];
 
 async function lockOpen(round){
   const body = new URLSearchParams({
@@ -462,6 +463,7 @@ function resetGame(){
   submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
   studentIdInput.value=''; studentNameInput.value='';
   locked=false; running=true;
+  tickets.length = 0;          // ← ここを追加
   setupRound(); requestAnimationFrame(rouletteLoop);
   window.scrollTo({top:0, behavior:'instant'});
 }
@@ -476,6 +478,9 @@ lockBtn.addEventListener('click', async ()=>{
     const tClickLocal = Date.now();
     const j = await lockClose(currentRound, tClickLocal);
     const v0 = Number(j.v0);
+    // サーバ返却の署名付きチケットを蓄積
+    tickets.push({ ticket: j.ticket, sig: j.sig });
+    // （必要なら最後の1件も保持しておく）
     currentTicket = { ticket: j.ticket, sig: j.sig };
     animateThrow(v0);
   }catch(e){
@@ -503,11 +508,16 @@ async function submitResult(){
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
   if(!/^\d{4}$/.test(studentId) || !studentName){ showToast('4桁番号(半角)と氏名を入力してください'); return; }
-  if(!currentTicket){ showToast('提出データが不足しています'); return; } // 簡易チェック
+// ラウンドぶんのチケットが揃っているか確認
+  if(tickets.length !== RULE.rounds){
+    showToast('提出データが不足しています（ラウンド数と提出チケット数が不一致）'); 
+    return; 
+  }
+  
   try{
     const body = new URLSearchParams({
       studentId, studentName,
-      tickets: JSON.stringify([currentTicket]) // ←必要に応じて各ラウンド分を積む
+      tickets: JSON.stringify(tickets) // ← 全ラウンド分を提出
     });
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
     const json = await res.json().catch(()=>({}));
