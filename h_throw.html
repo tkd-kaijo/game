@@ -21,6 +21,7 @@
   .app{width:min(980px,100%); display:grid; gap:12px}
   .title{font-weight:700; letter-spacing:.02em; font-size:clamp(18px,3vw,28px); text-align:center}
 
+  /* 課題＆スコア（タイトル直下） */
   .challengeBox{
     display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;
     padding:8px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
@@ -30,7 +31,10 @@
   #challengeTextHUD{font-weight:700}
   #scoreHUD{font-variant-numeric: tabular-nums; font-weight:900}
 
-  .perfect{color:#b7fffb; font-weight:900; margin-left:8px; text-shadow:0 0 10px rgba(106,227,255,.55);}
+  /* ランク表示 */
+  .perfect{
+    color:#b7fffb; font-weight:900; margin-left:8px; text-shadow:0 0 10px rgba(106,227,255,.55);
+  }
   .excellent{ color:#8fffd6; font-weight:800; margin-left:8px }
   .great{color:#a7ff6a; font-weight:800; margin-left:8px}
   .good{color:var(--ok); font-weight:800; margin-left:8px}
@@ -43,6 +47,7 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
   }
 
+  /* ルーレット */
   .roulette{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center}
   .bar{
     height:16px; background:#111528; border-radius:999px; overflow:hidden; position:relative;
@@ -73,6 +78,7 @@
   }
   button:disabled{opacity:.5; cursor:not-allowed}
 
+  /* プレイ領域レイアウト */
   .playgrid{display:grid; grid-template-columns: 1fr; gap:10px; align-items:start}
   @media (orientation: portrait){
     .playgrid{grid-template-columns: 1fr 1fr; grid-template-areas: 'scene readouts';}
@@ -85,6 +91,7 @@
     .readouts{grid-area: readouts}
   }
 
+  /* アニメーション領域 */
   .scene{
     position:relative; height:420px; border-radius:14px; overflow:hidden; margin-top:10px;
     background:
@@ -123,6 +130,7 @@
     box-shadow: 0 8px 24px rgba(106,227,255,.45); z-index:2;
   }
 
+  /* 速度ベクトル */
   .velvec{
     position:absolute; height:3px; background:#8ff2ff;
     box-shadow: 0 0 10px rgba(106,227,255,.6);
@@ -150,16 +158,18 @@
   .stat .label{color:var(--muted); font-size:12px; letter-spacing:.02em}
   .stat .value{font-variant-numeric: tabular-nums; font-weight:800; font-size:22px}
 
+  /* デスクトップ強調 */
   @media (min-width: 820px) {
     .title{ font-size: clamp(24px, 2.6vw, 36px); }
     .challengeBox{ padding:12px 16px; gap:16px; }
-    #challengeTextHUD{ fontサイズ: clamp(31px, 2.9vw, 43px); }
+    #challengeTextHUD{ font-size: clamp(31px, 2.9vw, 43px); }
     #scoreHUD{ font-size: clamp(43px, 3.8vw, 53px); }
     .speed{ font-size: clamp(43px, 3.8vw, 53px); }
     .bar{ height: 22px; }
     .stat .label{ font-size: 16px; }
     .stat .value{ font-size: clamp(30px, 2.6vw, 40px); }
   }
+  /* iPad横向き微調整 */
   @media (orientation: landscape) and (min-width: 768px) and (max-width: 1180px) {
     .title{ font-size: 20px; }
     #challengeTextHUD{ font-size: 28px; }
@@ -169,8 +179,10 @@
     .bar{ height: 18px; }
   }
 
+  /* 常に赤字に固定（鉛直版と合わせる） */
   #challengeTextHUD, .speed { color:#ff5b5b !important; }
 
+  /* 提出フォーム */
   .submitBox{ display:none; margin-top:12px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); }
   .submitBox h3{ margin:0 0 8px 0; font-size:16px; }
   .submitRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -179,6 +191,7 @@
   .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
   .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
 
+  /* ランキングはreadoutsの横幅を全取り */
   #leaderboardCard{ grid-column: 1 / -1; }
   #leaderboardCardMobile{ display:none; }
   @media (max-width: 640px){
@@ -194,6 +207,7 @@
   <main class="app">
     <div class="title">水平投射ゲーム〜5球で10点取れ！〜</div>
 
+    <!-- 課題＆スコア -->
     <div class="challengeBox" id="challengeBox">
       <span class="badge" id="roundBadgeHUD">ラウンド1/5</span>
       <span id="challengeTextHUD">—</span>
@@ -202,8 +216,9 @@
     </div>
 
     <section class="card" id="card">
+      <!-- ルーレット -->
       <div class="roulette" aria-live="polite">
-        <div class="bar" aria-label="初速ルーレット（0〜6 m/s を4秒で周回）">
+        <div class="bar" aria-label="初速ルーレット（サーバ決定 v0 に追従）">
           <div class="fill" id="fill"></div>
         </div>
         <div class="speed" id="speedLabel">0.00 m/s</div>
@@ -215,6 +230,7 @@
       </div>
 
       <div class="playgrid">
+        <!-- アニメーション領域 -->
         <div class="scene" id="scene">
           <div class="subground" id="subground" aria-hidden="true"></div>
           <div class="grid" id="grid"></div>
@@ -226,6 +242,7 @@
           <div class="ground"></div>
         </div>
 
+        <!-- 右側の数値表示 -->
         <div class="readouts" id="readouts">
           <div class="stat"><div class="label">現在位置 (x, y)</div><div class="value" id="posNow">0.00 m, 0.00 m</div></div>
           <div class="stat"><div class="label">飛行時間 T</div><div class="value" id="tVal">0.00 s</div></div>
@@ -238,6 +255,7 @@
         </div>
       </div>
 
+      <!-- モバイル用ランキング -->
       <section class="card" id="leaderboardCardMobile" aria-live="polite">
         <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
         <div id="leaderboardMobile">読み込み中…</div>
@@ -245,6 +263,7 @@
     </section>
   </main>
 
+  <!-- 提出フォーム（最後に表示） -->
   <div class="submitBox" id="submitBox" style="display:none" aria-live="polite">
     <h3>提出</h3>
     <div class="submitRow">
@@ -262,36 +281,20 @@
 
 <script>
 (() => {
-  /* ========== 送信先（差し替え済みURLを使用） ========== */
+  /* =========================
+     送信先（先生が差し替え済み）
+     ========================= */
   const GAS_SESSION_URL = 'https://script.google.com/macros/s/AKfycbzg9lH91eFINQdILZxP-G66p5Pc4gTVlMvaBApb1Lg7A4UofX4m0TpNvoYeiQqnC3vcaQ/exec?fn=session';
   const GAS_SUBMIT_URL  = 'https://script.google.com/macros/s/AKfycbzg9lH91eFINQdILZxP-G66p5Pc4gTVlMvaBApb1Lg7A4UofX4m0TpNvoYeiQqnC3vcaQ/exec?path=submit';
   const GAS_LOCK_URL    = 'https://script.google.com/macros/s/AKfycbzg9lH91eFINQdILZxP-G66p5Pc4gTVlMvaBApb1Lg7A4UofX4m0TpNvoYeiQqnC3vcaQ/exec?path=lock';
   const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyOTJEBzV8JvxrNSIWYcyZLEvOXFJDwhXfOCPtACgvqaGwjRn70ZuJKQNLwqPS8_3YeTFt8gNpJrnM/pub?gid=1365907837&single=true&output=csv";
 
-// 送信用に tickets を貯める
-const collectedTickets = [];
-let currentLock = null; // { y0, xTarget, v0, ticket, sig }
-async function fetchLockForRound(round){
-  const body = new URLSearchParams({
-    sessionId: session.sessionId,
-    nonce: session.nonce,
-    round: String(round),
-  });
-  const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
-  const j = await res.json();
-  if(!(j && j.ok && j.ticket && j.sig)){
-    throw new Error('LOCK_FAILED');
-  }
-  return j; // { ok, y0, xTarget, v0, ticket, sig }
-}
-
-
-  
-  
   /* ====== 物理・ルール ====== */
   const RULE = {
-    version: 'hproj-v1.3',
-    g: 9.8, vMin: 0, vMax: 6, cycleSec: 4, rounds: 5,
+    version: 'hproj-v1.3', // GAS と合わせる
+    g: 9.8,
+    vMin: 0, vMax: 6, cycleSec: 4,
+    rounds: 5,
     yCandidates: [4.9, 19.6, 44.1],
     xCandidates: [1,2,3,4,5],
     scoreBands: [
@@ -303,16 +306,17 @@ async function fetchLockForRound(round){
     ]
   };
 
-  /* ====== 乱数 ====== */
+  /* ====== 乱数（UI用） ====== */
   function xmur3(str){ for(var i=0,h=1779033703^str.length;i<str.length;i++) h=Math.imul(h^str.charCodeAt(i),3432918353),h=h<<13|h>>>19; return ()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return (h^h>>>16)>>>0}; }
   function mulberry32(a){ return function(){ var t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; }; }
 
-  /* ====== DOM ====== */
+  /* ====== DOM参照 ====== */
   const fillEl=document.getElementById('fill');
   const speedLabel=document.getElementById('speedLabel');
   const lockBtn=document.getElementById('lockBtn');
   const retryBtn=document.getElementById('retryBtn');
   const resetBtn=document.getElementById('resetBtn');
+
   const scene=document.getElementById('scene');
   const gridEl=document.getElementById('grid');
   const subgroundEl=document.getElementById('subground');
@@ -322,13 +326,16 @@ async function fetchLockForRound(round){
   const velvec=document.getElementById('velvec');
   const targetEl=document.getElementById('target');
   const groundEl = document.querySelector('.ground');
+
   const posNowEl=document.getElementById('posNow');
   const tValEl=document.getElementById('tVal');
   const xLandVal=document.getElementById('xLandVal');
+
   const roundBadgeHUD=document.getElementById('roundBadgeHUD');
   const challengeTextHUD=document.getElementById('challengeTextHUD');
   const resultTextHUD=document.getElementById('resultTextHUD');
   const scoreHUD=document.getElementById('scoreHUD');
+
   const submitBox = document.getElementById('submitBox');
   const submitBtn = document.getElementById('submitBtn');
   const studentIdInput = document.getElementById('studentId');
@@ -336,32 +343,18 @@ async function fetchLockForRound(round){
   const toast = document.getElementById('toast');
   function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2200); }
 
-  /* ====== セッション＆時刻同期 ====== */
-  let session = {
-    sessionId:'', nonce:'', ruleVersion: RULE.version, serverG: RULE.g,
-    t0Ms:0, phiSec:0, ticketSig:'', offsetMs:0, rttMs:0
-  };
-
+  /* ====== セッション ====== */
+  let session = { sessionId:'', nonce:'', ruleVersion: RULE.version, serverG: RULE.g };
   async function fetchSession(){
     try{
-      const t1 = Date.now();
-      const r = await fetch(GAS_SESSION_URL + '&t1=' + t1, { cache:'no-store', credentials:'omit' });
-      const j = await r.json();
-      if(j && j.ok){
-        const t3 = Date.now();
-        const echoT1 = Number(j.echoT1 || t1);
-        const rtt = Math.max(0, t3 - echoT1);
-        const offset = Number(j.serverNow) - (echoT1 + rtt/2);
+      const r = await fetch(GAS_SESSION_URL, { cache:'no-store', credentials:'omit' });
+      const j = await r.json().catch(()=>({}));
+      if(j && j.ok && j.sessionId && j.nonce){
         session = {
           sessionId: String(j.sessionId),
           nonce: String(j.nonce),
-          ruleVersion: String(j.ruleVersion || RULE.version),
-          serverG: Number(j.g ?? RULE.g) || RULE.g,
-          t0Ms: Number(j.t0Ms)||0,
-          phiSec: Number(j.phiSec)||0,
-          ticketSig: String(j.ticketSig||''),
-          offsetMs: offset,
-          rttMs: rtt
+          ruleVersion: String(j.ruleVersion ?? RULE.version),
+          serverG: Number(j.g ?? RULE.g) || RULE.g
         };
       } else {
         throw new Error('session failed');
@@ -369,10 +362,27 @@ async function fetchLockForRound(round){
     }catch(e){
       console.warn('session fetch failed', e);
       showToast('サーバ接続に問題があります（提出不可の可能性）');
+      session.sessionId=''; session.nonce='';
     }
   }
 
-  /* ====== レイアウト ====== */
+  /* ====== サーバロックAPI：ラウンドの課題＆v0を取得 ====== */
+  let currentLock = null; // { y0, xTarget, v0, ticket, sig }
+  async function fetchLockForRound(round){
+    const body = new URLSearchParams({
+      sessionId: session.sessionId,
+      nonce: session.nonce,
+      round: String(round),
+    });
+    const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
+    const j = await res.json();
+    if(!(j && j.ok && typeof j.v0 !== 'undefined' && j.ticket && j.sig)){
+      throw new Error('LOCK_FAILED');
+    }
+    return j;
+  }
+
+  /* ====== レイアウト関数群 ====== */
   const BALL_DIAM = 18, BALL_R = BALL_DIAM/2;
   const BOTTOM_VISIBLE_M = 3.2;
   const TOP_PAD_PX = 0;
@@ -450,10 +460,7 @@ async function fetchLockForRound(round){
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     redrawTrail();
   }
-  function clearTrail(){
-    const ctx = trailCanvas.getContext('2d');
-    ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-  }
+  function clearTrail(){ const ctx = trailCanvas.getContext('2d'); ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height); }
   let trailPts = [];
   function drawTrailSegment(from, to){
     const ctx = trailCanvas.getContext('2d');
@@ -494,14 +501,24 @@ async function fetchLockForRound(round){
   const greatSound= ()=>{beep(1047,0.10); setTimeout(()=>beep(1319,0.10),110); setTimeout(()=>beep(1661,0.14),230);};
   const wrongSound= ()=>{beep(220,0.25,'square',0.06); setTimeout(()=>beep(175,0.25,'square',0.05),120);};
 
-  /* ====== ルーレット（見た目用） ====== */
-  let running=true, locked=false, t0Roulette=performance.now();
+  /* ====== ルーレット（サーバ v0 追従表示） ====== */
+  let running = true, locked = false;
+  let visualV = 0;      // 表示している速度
+  let desiredV = null;  // サーバ決定 v0 の目標表示値
   function rouletteLoop(now){
-    if(!running)return;
-    const elapsed=(now-t0Roulette)/1000;
-    const v=RULE.vMin+((elapsed%RULE.cycleSec)/RULE.cycleSec)*(RULE.vMax-RULE.vMin);
-    updateSpeedUI(v);
-    updateVelocityVector(v, 0);
+    if(!running) return;
+
+    const maxStep = 0.08; // 1フレームの最大追従量（調整可）
+    const target = (typeof desiredV === 'number') ? desiredV : visualV;
+    const dv = target - visualV;
+    const step = Math.abs(dv) > maxStep ? Math.sign(dv) * maxStep : dv;
+    visualV += step;
+
+    const wobble = 0.02 * Math.sin(now / 120); // ほんの少し揺らす
+    const shown = Math.min(RULE.vMax, Math.max(RULE.vMin, visualV + wobble));
+
+    updateSpeedUI(shown);
+    updateVelocityVector(shown, 0);
     requestAnimationFrame(rouletteLoop);
   }
   function updateSpeedUI(v){
@@ -514,55 +531,59 @@ async function fetchLockForRound(round){
   /* ====== ラウンド状態 ====== */
   let round=1, score=0, lastGainedPoints=0;
   let y0 = 19.6, xTarget = 3, tFlight = 0, xLand = 0;
-  let prevCombo = null;
 
+  // 提出用チケット（サーバ発行）を貯める
+  const collectedTickets = [];
 
-
-  // 任意ログ（参考用）
+  // 参考ログ（任意）
   const perfEpoch = performance.now();
   let roundLogs = [];
 
   function renderAllStatic(){
     fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas();
   }
+
   async function setupRound(){
-  // ラウンド用のチケットをサーバから先に取得
-  try{
-    currentLock = await fetchLockForRound(round);
-  }catch(e){
-    console.error(e);
-    showToast('サーバーに接続できません。(ロック取得失敗)');
-    // 失敗時はボタンを再試行できるように
-    lockBtn.disabled = false; retryBtn.disabled = true;
-    return;
+    // ラウンド用ロック（課題＆v0）を取得
+    try{
+      currentLock = await fetchLockForRound(round);
+    }catch(e){
+      console.error(e);
+      showToast('サーバーに接続できません。(ロック取得失敗)');
+      lockBtn.disabled = false; retryBtn.disabled = true;
+      return;
+    }
+
+    // サーバ決定の課題で表示
+    y0 = Number(currentLock.y0);
+    xTarget = Number(currentLock.xTarget);
+
+    challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
+    resultTextHUD.textContent = '';
+    roundBadgeHUD.textContent = `ラウンド${round}/${RULE.rounds}`;
+
+    renderAllStatic();
+    placeBallAt(0, y0);
+    trailPts = [{x:0, y:y0}]; clearTrail();
+
+    targetEl.style.left = toPxX(xTarget) + 'px';
+    targetEl.style.bottom = toPxY(0) + 'px';
+
+    posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
+    tValEl.textContent = '0.00 s';
+    xLandVal.textContent = '0.00 m';
+
+    updateVelocityVector(0, 0);
+
+    // ルーレット表示の目標をサーバ v0 に
+    desiredV = Number(currentLock.v0);
+    visualV = desiredV * 0.85; // 初期はやや近めから
+
+    // ボタン状態
+    locked=false; running=true;
+    lockBtn.disabled=false; retryBtn.disabled=true;
+    requestAnimationFrame(rouletteLoop);
   }
-
-  // サーバ決定の課題で表示を作る
-  y0 = Number(currentLock.y0);
-  xTarget = Number(currentLock.xTarget);
-
-  challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
-  resultTextHUD.textContent = '';
-  roundBadgeHUD.textContent = `ラウンド${round}/${RULE.rounds}`;
-
-  renderAllStatic();
-  placeBallAt(0, y0);
-  trailPts = [{x:0, y:y0}]; clearTrail();
-
-  targetEl.style.left = toPxX(xTarget) + 'px';
-  targetEl.style.bottom = toPxY(0) + 'px';
-
-  posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
-  tValEl.textContent = '0.00 s';
-  xLandVal.textContent = '0.00 m';
-
-  updateVelocityVector(0, 0);
-
-  // ルーレットは見た目だけ回しておく（実速度は lock で確定）
-  locked=false; running=true; t0Roulette=performance.now();
-  lockBtn.disabled=false; retryBtn.disabled=true;
-  requestAnimationFrame(rouletteLoop);
-}
 
   function animateThrow(v0){
     const tStart = Date.now();
@@ -651,55 +672,62 @@ async function fetchLockForRound(round){
   }
 
   /* ====== 進行制御 ====== */
-  function setupNextRound(){
-  if(round < RULE.rounds){ round += 1; }
-  // 次ラウンドのロックを取り直して UI 更新
-  setupRound(); // ← 非同期だが内部でボタン状態をセットする
-}
+  async function setupNextRound(){
+    if(round<RULE.rounds){ round += 1; }
+    await setupRound(); // 次ラウンドのロック取得とUIセット
+  }
   function resetGame(){
     round=1; score=0; lastGainedPoints=0; scoreHUD.textContent='0点';
     retryBtn.style.display='inline-block'; resetBtn.style.display='none';
     submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
     studentIdInput.value=''; studentNameInput.value='';
-    prevCombo = null;
     roundLogs = [];
-    collectedTickets.length = 0;   // ← ここを修正
-  currentLock = null;            // ← 追加
-    locked=false; running=true; t0Roulette=performance.now();
-    lockBtn.disabled=false; retryBtn.disabled=true;
+    collectedTickets.length = 0;
+    locked=false; running=true;
     setupRound();
     requestAnimationFrame(rouletteLoop);
     window.scrollTo({top:0, behavior:'instant'});
   }
 
-  /* ====== 投射（サーバ lock で v0 を取得） ====== */
-  /* ====== 投射（setupRound で取得済みの currentLock を使う） ====== */
-lockBtn.addEventListener('click', ()=>{
-  if (locked) return;
-  if (!currentLock) { showToast('サーバーロックがありません。再読み込みしてください'); return; }
+  /* ====== 投射（クリック時は表示をv0へ補間→投げる） ====== */
+  lockBtn.addEventListener('click', ()=>{
+    if(locked) return;
+    if(!currentLock){ showToast('サーバーロックがありません。再読み込みしてください'); return; }
 
-  locked = true; running = false;
-  lockBtn.disabled = true; retryBtn.disabled = true;
+    locked=true; running=false;
+    lockBtn.disabled=true; retryBtn.disabled=true;
 
-  // サーバ決定値でUIを同期（万一UIがズレてても上書き）
-  y0 = Number(currentLock.y0);
-  xTarget = Number(currentLock.xTarget);
-  challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
-  renderAllStatic(); placeBallAt(0, y0); trailPts=[{x:0,y:y0}]; clearTrail();
-  targetEl.style.left = toPxX(xTarget) + 'px'; targetEl.style.bottom = toPxY(0) + 'px';
+    // 念のためUIと課題をサーバ値で再同期
+    y0 = Number(currentLock.y0);
+    xTarget = Number(currentLock.xTarget);
+    challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
+    renderAllStatic(); placeBallAt(0, y0); trailPts=[{x:0,y:y0}]; clearTrail();
+    targetEl.style.left = toPxX(xTarget) + 'px'; targetEl.style.bottom = toPxY(0) + 'px';
 
-  // 見た目のスピード表示もサーバ v0 に合わせる（改ざん防止）
-  const v0 = Number(currentLock.v0);
-  updateSpeedUI(v0);
+    const v0 = Number(currentLock.v0);
 
-  // 提出用にチケットを収集（後で /submit にまとめて送る）
-  collectedTickets.push({ ticket: currentLock.ticket, sig: currentLock.sig });
-
-  // 投射アニメーション開始
-  animateThrow(v0);
-
-  // このラウンドの投射完了後、次のラウンドで再び lock を取るのは setupNextRound() 側でやる
-});
+    // 見た目値を v0 へ 120ms で補間 → 違和感をなくす
+    const startV = visualV;
+    const endV = v0;
+    const dur = 120;
+    const t0 = performance.now();
+    (function tween(now){
+      const t = Math.min(1, (now - t0) / dur);
+      const e = t*t*(3-2*t); // イージング
+      visualV = startV + (endV - startV) * e;
+      updateSpeedUI(visualV);
+      updateVelocityVector(visualV, 0);
+      if(t < 1) requestAnimationFrame(tween);
+      else {
+        visualV = v0; desiredV = v0;
+        updateSpeedUI(v0); updateVelocityVector(v0, 0);
+        // 投射開始
+        animateThrow(v0);
+        // 提出用チケット保存
+        collectedTickets.push({ ticket: currentLock.ticket, sig: currentLock.sig });
+      }
+    })(performance.now());
+  });
 
   retryBtn.addEventListener('click', setupNextRound);
   resetBtn.addEventListener('click', resetGame);
@@ -720,51 +748,46 @@ lockBtn.addEventListener('click', ()=>{
     }
   });
 
-  /* ====== 提出（チケット配列のみ送信） ====== */
+  /* ====== 提出（サーバ発行チケットのみ送信） ====== */
   function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 
   async function submitResult(){
-  if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
-  const studentId = studentIdInput.value.trim();
-  const studentName = studentNameInput.value.trim();
-  if(!/^\d{4}$/.test(studentId) || !studentName){
-    showToast('4桁番号(半角)と氏名を入力してください'); return;
-  }
-  if(!session.nonce || !session.sessionId){
-    showToast('セッション取得に失敗。ページ再読み込みを試してください'); return;
-  }
-  if(collectedTickets.length !== RULE.rounds){
-    showToast('提出データが不足しています（授業者に連絡してください）'); return;
-  }
+    if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
+    const studentId = studentIdInput.value.trim();
+    const studentName = studentNameInput.value.trim();
+    if(!/^\d{4}$/.test(studentId) || !studentName){ showToast('4桁番号(半角)と氏名を入力してください'); return; }
 
-  try{
-    const body = new URLSearchParams({
-      studentId, studentName,
-      // 新API：tickets を JSON で
-      tickets: JSON.stringify(collectedTickets),
-    });
-    const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
-    const json = await res.json().catch(()=>({}));
-    if(json && json.ok){
-      showToast('送信しました！');
-      submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
-      setTimeout(loadLeaderboard, 4000);
-    }else{
-      const msg = ({
-        'INVALID_STUDENT_ID':'学籍番号が正しくありません',
-        'EMPTY_NAME':'氏名を入力してください',
-        'INVALID_TICKETS':'提出データが不正です',
-        'RULE_VERSION_MISMATCH':'バージョンが異なります（再読み込みしてください）',
-        'BAD_TICKET':'改ざん検出（再読み込みしてやり直してください）',
-        'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
-      })[json.error] || '送信に失敗しました…';
-      showToast(msg);
+    if(collectedTickets.length !== RULE.rounds){
+      showToast('提出データが不足しています（授業者に連絡してください）'); return;
     }
-  }catch(e){
-    console.error(e);
-    showToast('送信に失敗しました…');
+
+    try{
+      const body = new URLSearchParams({
+        studentId, studentName,
+        tickets: JSON.stringify(collectedTickets),
+      });
+      const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
+      const json = await res.json().catch(()=>({}));
+      if(json && json.ok){
+        showToast('送信しました！');
+        submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+        setTimeout(loadLeaderboard, 4000);
+      }else{
+        const msg = ({
+          'INVALID_STUDENT_ID':'学籍番号が正しくありません',
+          'EMPTY_NAME':'氏名を入力してください',
+          'INVALID_TICKETS':'提出データが不正です',
+          'RULE_VERSION_MISMATCH':'バージョンが異なります（再読み込みしてください）',
+          'BAD_TICKET':'改ざん検出（再読み込みしてやり直してください）',
+          'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
+        })[json.error] || '送信に失敗しました…';
+        showToast(msg);
+      }
+    }catch(e){
+      console.error(e);
+      showToast('送信に失敗しました…');
+    }
   }
-}
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   /* ====== リサイズ対応 ====== */
@@ -772,7 +795,7 @@ lockBtn.addEventListener('click', ()=>{
     baselineTop = null; fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(curY || y0);
     resizeTrailCanvas(); placeBallAt(curX, curY || y0);
     targetEl.style.left = toPxX(xTarget) + 'px'; targetEl.style.bottom = toPxY(0) + 'px';
-    const v=parseFloat(speedLabel.textContent.replace(' m/s',''))||0; updateVelocityVector(v, 0);
+    updateVelocityVector(visualV, 0);
   }
   window.addEventListener('resize', ()=>{ handleResize(); });
   window.addEventListener('orientationchange', ()=>setTimeout(handleResize, 200));
@@ -784,7 +807,7 @@ lockBtn.addEventListener('click', ()=>{
     const mobileBox  = document.getElementById('leaderboardMobile');
     if (!desktopBox && !mobileBox) return;
     try {
-      if(!CSV_URL || /【/.test(CSV_URL)){
+      if(!CSV_URL || /【/.test(CSV_URL)){ // 未設定
         const html = 'ランキングのCSV URLが未設定です。';
         if (desktopBox) desktopBox.textContent = html;
         if (mobileBox)  mobileBox.textContent  = html;
@@ -882,9 +905,9 @@ lockBtn.addEventListener('click', ()=>{
 
   /* ====== 初期化 ====== */
   (async function init(){
-    await fetchSession();                 // サーバ時間・位相を取得
-    requestAnimationFrame(rouletteLoop);  // 見た目のルーレット
-    setupRound();                         // UI初期表示（実際の課題は /lock で上書き）
+    await fetchSession();                 // セッション取得（提出に必要）
+    requestAnimationFrame(rouletteLoop);  // 見た目のルーレット開始
+    await setupRound();                   // 1ラウンド目のロック＆UI
     loadLeaderboard();
     setInterval(loadLeaderboard, 60000);
   })();
