@@ -467,14 +467,13 @@ function resetGame(){
   tickets.length = 0;
   ticketsByRound.clear();
   locked=false; running=true;
-  tickets.length = 0;          // ← ここを追加
   setupRound(); requestAnimationFrame(rouletteLoop);
   window.scrollTo({top:0, behavior:'instant'});
 }
 
 /* クリック：tClick だけ送る（v0はサーバ計算） */
 lockBtn.addEventListener('click', async ()=>{
-  // ★ダブル送信の物理ガード（Lキーとクリック重複などを防止）
+  // ダブル送信の物理ガード（クリックとLキーの同時押し対策）
   if (locked || retryBtn.disabled === false) return;
 
   locked = true;
@@ -485,23 +484,28 @@ lockBtn.addEventListener('click', async ()=>{
   try{
     const tClickLocal = Date.now();
     const j = await lockClose(currentRound, tClickLocal);
+
+    // ★ここは1回だけ！
     const v0 = Number(j.v0);
-    // v0 で投げる
-const v0 = Number(j.v0);
 
-// 受領チケットを「ラウンドをキーに」1枚だけ保持（重複防止）
-currentTicket = { ticket: j.ticket, sig: j.sig, round: currentRound };
-ticketsByRound.set(currentRound, currentTicket);
+    // 受領チケットを「ラウンドをキーに」1枚だけ保持（重複防止）
+    currentTicket = { ticket: j.ticket, sig: j.sig, round: currentRound };
+    ticketsByRound.set(currentRound, currentTicket);
 
-animateThrow(v0);
+    // 投射アニメーション
+    animateThrow(v0);
 
   }catch(e){
     console.error(e);
     showToast('サーバに接続できません（ロック失敗）');
-    locked=false; running=true; lockBtn.disabled=false; retryBtn.disabled=true;
+    locked = false;
+    running = true;
+    lockBtn.disabled = false;
+    retryBtn.disabled = true;
     requestAnimationFrame(rouletteLoop);
   }
 });
+  
 retryBtn.addEventListener('click', nextRound);
 resetBtn.addEventListener('click', resetGame);
 document.addEventListener('keydown',(e)=>{
