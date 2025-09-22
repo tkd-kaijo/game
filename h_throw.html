@@ -260,6 +260,7 @@ async function lockOpen(round){
     round: String(round),
     intent: 'open',
     ruleVersion: String(session.ruleVersion || RULE.version),
+    ticketSig: session.ticketSig
   });
   const res = await fetch(GAS_LOCK_URL, {
     method:'POST',
@@ -412,6 +413,9 @@ let tFlight=0, xLand=0;
 function renderAllStatic(){ fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas(); }
 async function setupRound(){
  const ready = await ensureSessionReady();
+  if (!session.ticketSig) {         // ← 追加（保険）
+    await fetchSession();
+  }
   if (!ready) {
     showToast('セッション未確立のため開始できません（再読み込み推奨）');
     lockBtn.disabled = true;
