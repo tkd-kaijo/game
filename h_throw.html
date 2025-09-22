@@ -204,16 +204,7 @@ let session = {
 };
 // ★ セッションが空なら取り直す
 async function ensureSessionReady() {
-  if (!session.sessionId || !session.nonce || !session.ticketSig) {
-    await fetchSession();
-  }
-  const ok = !!(session.sessionId && session.nonce && session.ticketSig);
-  console.log('[ensureSessionReady]', {
-    hasSessionId: !!session.sessionId,
-    hasNonce: !!session.nonce,
-    ticketSigLen: (session.ticketSig||'').length
-  });
-  return ok;
+  return !!(session.sessionId && session.nonce && session.ticketSig);
 }
 
 async function fetchSession(){
@@ -267,6 +258,7 @@ async function lockOpen(round){
     round: String(round),
     intent: 'open',
     ruleVersion: String(session.ruleVersion || RULE.version),
+    ticketSig: String(session.ticketSig || ''),
   });
   const res = await fetch(GAS_LOCK_URL, {
     method:'POST',
@@ -420,16 +412,13 @@ let tFlight=0, xLand=0;
 function renderAllStatic(){ fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas(); }
 async function setupRound(){
  const ready = await ensureSessionReady();
-  if (!session.ticketSig) {         // ← 追加（保険）
-    await fetchSession();
-  }
   if (!ready) {
     showToast('セッション未確立のため開始できません（再読み込み推奨）');
     lockBtn.disabled = true;
     retryBtn.disabled = false;
     return;
   }
-  if (!session.ticketSig) { await fetchSession(); }
+
   if (isOpening) { console.warn('[setupRound] already opening; skip'); return; }
   isOpening = true;
   
