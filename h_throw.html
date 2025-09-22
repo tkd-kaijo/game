@@ -224,20 +224,13 @@ async function fetchSession(){
       offsetMs: offset,
       rttMs: rtt
     };
- // ★ここを追加：サーバのルール版を採用
-    if (session.ruleVersion && RULE.version !== session.ruleVersion) {
-      console.log('[RULE.version] front=', RULE.version, ' -> server=', session.ruleVersion);
-      RULE.version = session.ruleVersion;
-    }
-    // （必要なら）重力なども合わせたい場合は下も有効化
-    // if (Number.isFinite(session.serverG) && session.serverG > 0) RULE.g = session.serverG;
-
+ RULE.version = session.ruleVersion;
     
   }catch(e){
     console.error(e);
     showToast('セッション取得に失敗（提出不可の可能性）');
   }
- 
+ console.log('[ruleVersion] server=', session.ruleVersion, ' front=', RULE.version);
 }
 
 /* ========= サーバロック（open/close） ========= */
@@ -394,6 +387,11 @@ async function setupRound(){
     await lockOpen(currentRound);
   }catch(e){
     console.error(e); showToast('サーバーに接続できません。(課題取得失敗)');
+   // 取得失敗時：ボタン状態を「投射不可・次へ不可」にし、再試行待ち
+   lockBtn.disabled = true;
+   retryBtn.disabled = false; // いったん次へは押せる（授業運用次第で true にしてもOK）
+   return; // ← ここで抜けておく
+    
   }
   // 課題表示
   challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
@@ -486,8 +484,7 @@ function resetGame(){
 
 /* クリック：tClick だけ送る（v0はサーバ計算） */
 lockBtn.addEventListener('click', async ()=>{
-  // ダブル送信の物理ガード（クリックとLキーの同時押し対策）
-  if (locked || retryBtn.disabled === false) return;
+  if (locked) return;
 
   locked = true;
   running = false;
@@ -545,15 +542,15 @@ async function submitResult(){
   }
 
  // サーバ基準の ruleVersion を使用
-  const ruleVersionToSend = session.ruleVersion || RULE.version;
-
+  
+const ruleVersionToSend = String(session.ruleVersion || RULE.version);
   // ★ マップから配列を構築（ラウンド重複なし）
-  const tickets = Array.from(ticketsByRound.values());
+  const allTickets = Array.from(ticketsByRound.values());
 
 
   // ★全ラウンド分のチケットが揃っているかチェック
-  if (tickets.length !== RULE.rounds) {
-    showToast(`提出データが不足しています（${tickets.length}/${RULE.rounds}）`); 
+  if (allTickets.length !== RULE.rounds) {
+   showToast(`提出データが不足しています（${allTickets.length}/${RULE.rounds}）`);
     return;
   }
 
@@ -565,7 +562,7 @@ async function submitResult(){
       ruleVersion: String(ruleVersionToSend),
       sessionId: String(session.sessionId),
       // ★全チケットを送る
-      tickets: JSON.stringify(tickets),
+      tickets: JSON.stringify(allTickets),
     });
 
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
