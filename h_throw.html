@@ -268,7 +268,25 @@
   const GAS_LOCK_URL    = 'https://script.google.com/macros/s/AKfycbzg9lH91eFINQdILZxP-G66p5Pc4gTVlMvaBApb1Lg7A4UofX4m0TpNvoYeiQqnC3vcaQ/exec?path=lock';
   const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyOTJEBzV8JvxrNSIWYcyZLEvOXFJDwhXfOCPtACgvqaGwjRn70ZuJKQNLwqPS8_3YeTFt8gNpJrnM/pub?gid=1365907837&single=true&output=csv";
 
+// 送信用に tickets を貯める
+const collectedTickets = [];
+let currentLock = null; // { y0, xTarget, v0, ticket, sig }
+async function fetchLockForRound(round){
+  const body = new URLSearchParams({
+    sessionId: session.sessionId,
+    nonce: session.nonce,
+    round: String(round),
+  });
+  const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
+  const j = await res.json();
+  if(!(j && j.ok && j.ticket && j.sig)){
+    throw new Error('LOCK_FAILED');
+  }
+  return j; // { ok, y0, xTarget, v0, ticket, sig }
+}
 
+
+  
   
   /* ====== 物理・ルール ====== */
   const RULE = {
@@ -498,8 +516,7 @@
   let y0 = 19.6, xTarget = 3, tFlight = 0, xLand = 0;
   let prevCombo = null;
 
-  // サーバ発行のチケットを貯める（提出で使用）
-  const tickets = [];
+
 
   // 任意ログ（参考用）
   const perfEpoch = performance.now();
@@ -508,32 +525,44 @@
   function renderAllStatic(){
     fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas();
   }
-  function setupRound(){
-    // 見た目用の課題（実際は /lock でサーバから y0,xTarget が来る）
-    const seedBase = session.sessionId || (Date.now() + ':' + Math.random());
-    const seedStr = `${RULE.version}|${seedBase}|r${round}`;
-    const seed = xmur3(seedStr)(); const rnd = mulberry32(seed);
-    let y, x, safety = 32;
-    do{
-      y = RULE.yCandidates[Math.floor(rnd()*RULE.yCandidates.length)];
-      x = RULE.xCandidates[Math.floor(rnd()*RULE.xCandidates.length)];
-    }while (prevCombo && prevCombo.y === y && prevCombo.x === x && --safety > 0);
-    y0 = y; xTarget = x; prevCombo = { y: y0, x: xTarget };
-
-    challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
-    resultTextHUD.textContent = '';
-    roundBadgeHUD.textContent = `ラウンド${round}/${RULE.rounds}`;
-
-    renderAllStatic();
-    placeBallAt(0, y0);
-    trailPts = [{x:0, y:y0}]; clearTrail();
-    targetEl.style.left = toPxX(xTarget) + 'px';
-    targetEl.style.bottom = toPxY(0) + 'px';
-    posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
-    tValEl.textContent = '0.00 s';
-    xLandVal.textContent = '0.00 m';
-    updateVelocityVector(0, 0);
+  async function setupRound(){
+  // ラウンド用のチケットをサーバから先に取得
+  try{
+    currentLock = await fetchLockForRound(round);
+  }catch(e){
+    console.error(e);
+    showToast('サーバーに接続できません。(ロック取得失敗)');
+    // 失敗時はボタンを再試行できるように
+    lockBtn.disabled = false; retryBtn.disabled = true;
+    return;
   }
+
+  // サーバ決定の課題で表示を作る
+  y0 = Number(currentLock.y0);
+  xTarget = Number(currentLock.xTarget);
+
+  challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
+  resultTextHUD.textContent = '';
+  roundBadgeHUD.textContent = `ラウンド${round}/${RULE.rounds}`;
+
+  renderAllStatic();
+  placeBallAt(0, y0);
+  trailPts = [{x:0, y:y0}]; clearTrail();
+
+  targetEl.style.left = toPxX(xTarget) + 'px';
+  targetEl.style.bottom = toPxY(0) + 'px';
+
+  posNowEl.textContent = `0.00 m, ${y0.toFixed(2)} m`;
+  tValEl.textContent = '0.00 s';
+  xLandVal.textContent = '0.00 m';
+
+  updateVelocityVector(0, 0);
+
+  // ルーレットは見た目だけ回しておく（実速度は lock で確定）
+  locked=false; running=true; t0Roulette=performance.now();
+  lockBtn.disabled=false; retryBtn.disabled=true;
+  requestAnimationFrame(rouletteLoop);
+}
 
   function animateThrow(v0){
     const tStart = Date.now();
@@ -623,12 +652,10 @@
 
   /* ====== 進行制御 ====== */
   function setupNextRound(){
-    if(round<RULE.rounds){ round += 1; }
-    locked=false; running=true; t0Roulette=performance.now();
-    lockBtn.disabled=false; retryBtn.disabled=true;
-    setupRound();
-    requestAnimationFrame(rouletteLoop);
-  }
+  if(round < RULE.rounds){ round += 1; }
+  // 次ラウンドのロックを取り直して UI 更新
+  setupRound(); // ← 非同期だが内部でボタン状態をセットする
+}
   function resetGame(){
     round=1; score=0; lastGainedPoints=0; scoreHUD.textContent='0点';
     retryBtn.style.display='inline-block'; resetBtn.style.display='none';
@@ -636,7 +663,8 @@
     studentIdInput.value=''; studentNameInput.value='';
     prevCombo = null;
     roundLogs = [];
-    tickets.length = 0;
+    collectedTickets.length = 0;   // ← ここを修正
+  currentLock = null;            // ← 追加
     locked=false; running=true; t0Roulette=performance.now();
     lockBtn.disabled=false; retryBtn.disabled=true;
     setupRound();
@@ -645,52 +673,33 @@
   }
 
   /* ====== 投射（サーバ lock で v0 を取得） ====== */
-  lockBtn.addEventListener('click', async ()=>{
-    if(locked) return;
-    locked=true; running=false;
-    lockBtn.disabled=true; retryBtn.disabled=true;
+  /* ====== 投射（setupRound で取得済みの currentLock を使う） ====== */
+lockBtn.addEventListener('click', ()=>{
+  if (locked) return;
+  if (!currentLock) { showToast('サーバーロックがありません。再読み込みしてください'); return; }
 
-    try{
-      const tClick = Date.now();
-      const body = new URLSearchParams({
-        sessionId: session.sessionId,
-        nonce: session.nonce,
-        round: String(round),
-        tClick: String(tClick),
-        offsetMs: String(session.offsetMs),
-        rttMs: String(session.rttMs),
-        t0Ms: String(session.t0Ms),
-        phiSec: String(session.phiSec),
-        ticketSig: session.ticketSig
-      });
-      const res = await fetch(GAS_LOCK_URL, { method:'POST', body, credentials:'omit' });
-      const json = await res.json();
+  locked = true; running = false;
+  lockBtn.disabled = true; retryBtn.disabled = true;
 
-      if(!json || !json.ok) throw new Error(json && json.error || 'LOCK_FAIL');
+  // サーバ決定値でUIを同期（万一UIがズレてても上書き）
+  y0 = Number(currentLock.y0);
+  xTarget = Number(currentLock.xTarget);
+  challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
+  renderAllStatic(); placeBallAt(0, y0); trailPts=[{x:0,y:y0}]; clearTrail();
+  targetEl.style.left = toPxX(xTarget) + 'px'; targetEl.style.bottom = toPxY(0) + 'px';
 
-      // サーバ決定値にUIを合わせる
-      y0 = Number(json.y0); xTarget = Number(json.xTarget);
-      challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
-      renderAllStatic(); placeBallAt(0, y0); trailPts=[{x:0,y:y0}]; clearTrail();
-      targetEl.style.left = toPxX(xTarget) + 'px'; targetEl.style.bottom = toPxY(0) + 'px';
+  // 見た目のスピード表示もサーバ v0 に合わせる（改ざん防止）
+  const v0 = Number(currentLock.v0);
+  updateSpeedUI(v0);
 
-      // v0で投げる
-      const v0 = Number(json.v0);
-      animateThrow(v0);
+  // 提出用にチケットを収集（後で /submit にまとめて送る）
+  collectedTickets.push({ ticket: currentLock.ticket, sig: currentLock.sig });
 
-      // 提出用チケットを保存
-      tickets.push({
-        ...json.ticket, sig: json.sig,
-        t0Ms: session.t0Ms, phiSec: session.phiSec
-      });
+  // 投射アニメーション開始
+  animateThrow(v0);
 
-    }catch(err){
-      console.error(err);
-      showToast('サーバに接続できません（ロック失敗）');
-      locked=false; running=true; lockBtn.disabled=false; retryBtn.disabled=true;
-      requestAnimationFrame(rouletteLoop);
-    }
-  });
+  // このラウンドの投射完了後、次のラウンドで再び lock を取るのは setupNextRound() 側でやる
+});
 
   retryBtn.addEventListener('click', setupNextRound);
   resetBtn.addEventListener('click', resetGame);
@@ -715,42 +724,47 @@
   function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 
   async function submitResult(){
-    if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
-    const studentId = studentIdInput.value.trim();
-    const studentName = studentNameInput.value.trim();
-    if(!/^\d{4}$/.test(studentId) || !studentName){ showToast('4桁番号(半角)と氏名を入力してください'); return; }
-    if(!session.sessionId){ showToast('セッションが無効です。ページを再読み込みしてください'); return; }
-    if (tickets.length !== RULE.rounds){ showToast('データ不整合：最初からやり直してください'); return; }
-
-    try{
-      const body = new URLSearchParams({
-        studentId, studentName,
-        sessionId: session.sessionId,
-        tickets: JSON.stringify(tickets)
-      });
-      const res = await fetch(GAS_SUBMIT_URL, { method: 'POST', body, credentials:'omit' });
-      const json = await res.json().catch(()=>({}));
-      if(json && json.ok){
-        showToast('送信しました！');
-        submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
-        setTimeout(loadLeaderboard, 4000);
-      }else{
-        const msg = ({
-          'INVALID_STUDENT_ID':'学籍番号が正しくありません',
-          'EMPTY_NAME':'氏名を入力してください',
-          'INVALID_TICKETS':'データ不正：やり直してください',
-          'RULE_VERSION_MISMATCH':'バージョン不一致（ページ更新）',
-          'BAD_TICKET':'改ざん検出（やり直してください）',
-          'TICKET_V_MISMATCH':'改ざん/時刻異常',
-          'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
-        })[json.error] || '送信に失敗しました…';
-        showToast(msg);
-      }
-    }catch(e){
-      console.error(e);
-      showToast('送信に失敗しました…');
-    }
+  if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
+  const studentId = studentIdInput.value.trim();
+  const studentName = studentNameInput.value.trim();
+  if(!/^\d{4}$/.test(studentId) || !studentName){
+    showToast('4桁番号(半角)と氏名を入力してください'); return;
   }
+  if(!session.nonce || !session.sessionId){
+    showToast('セッション取得に失敗。ページ再読み込みを試してください'); return;
+  }
+  if(collectedTickets.length !== RULE.rounds){
+    showToast('提出データが不足しています（授業者に連絡してください）'); return;
+  }
+
+  try{
+    const body = new URLSearchParams({
+      studentId, studentName,
+      // 新API：tickets を JSON で
+      tickets: JSON.stringify(collectedTickets),
+    });
+    const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
+    const json = await res.json().catch(()=>({}));
+    if(json && json.ok){
+      showToast('送信しました！');
+      submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+      setTimeout(loadLeaderboard, 4000);
+    }else{
+      const msg = ({
+        'INVALID_STUDENT_ID':'学籍番号が正しくありません',
+        'EMPTY_NAME':'氏名を入力してください',
+        'INVALID_TICKETS':'提出データが不正です',
+        'RULE_VERSION_MISMATCH':'バージョンが異なります（再読み込みしてください）',
+        'BAD_TICKET':'改ざん検出（再読み込みしてやり直してください）',
+        'SCORE_BELOW_THRESHOLD':'10点未満は提出できません',
+      })[json.error] || '送信に失敗しました…';
+      showToast(msg);
+    }
+  }catch(e){
+    console.error(e);
+    showToast('送信に失敗しました…');
+  }
+}
   if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
   /* ====== リサイズ対応 ====== */
