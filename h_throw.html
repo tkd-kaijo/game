@@ -204,9 +204,16 @@ let session = {
 };
 // ★ セッションが空なら取り直す
 async function ensureSessionReady() {
-  if (session.sessionId && session.nonce) return true;
-  await fetchSession();
-  return !!(session.sessionId && session.nonce);
+  if (!session.sessionId || !session.nonce || !session.ticketSig) {
+    await fetchSession();
+  }
+  const ok = !!(session.sessionId && session.nonce && session.ticketSig);
+  console.log('[ensureSessionReady]', {
+    hasSessionId: !!session.sessionId,
+    hasNonce: !!session.nonce,
+    ticketSigLen: (session.ticketSig||'').length
+  });
+  return ok;
 }
 
 async function fetchSession(){
@@ -232,7 +239,7 @@ async function fetchSession(){
       serverG: Number(j.g ?? RULE.g) || RULE.g,
       t0Ms: Number(j.t0Ms||0),
       phiSec: Number(j.phiSec||0),
-      ticketSig: String(j.ticketSig||'').trim(),
+      ticketSig: String(j.ticketSig||''),
       offsetMs: offset,
       rttMs: rtt
     };
@@ -261,8 +268,7 @@ async function lockOpen(round){
     round: String(round),
     intent: 'open',
     ruleVersion: String(session.ruleVersion || RULE.version),
-    ticketSig: sig,
-    sig: sig
+    ticketSig: String(session.ticketSig||'')
   });
   const res = await fetch(GAS_LOCK_URL, {
     method:'POST',
@@ -273,7 +279,9 @@ async function lockOpen(round){
   const text = await res.text();
   let j = null;
   try { j = JSON.parse(text); } catch { j = null; }
- console.log('[lock/open] status=', res.status, 'ticketSig.len=', sig.length, 'resp=', text);
+ console.log('[lock/open] status=', res.status,
+              'send.ticketSig.len=', String(session.ticketSig||'').length,
+              'resp=', text);
   if(!j || !j.ok) throw new Error('lock_open_fail:' + (j && j.error || res.status));
   y0 = Number(j.y0); xTarget = Number(j.xTarget);
   return j;
@@ -290,8 +298,7 @@ async function lockClose(round, tClick){
     rttMs: String(session.rttMs),
     t0Ms: String(session.t0Ms),
     phiSec: String(session.phiSec),
-    ticketSig: String(session.ticketSig||'').trim(),
-    sig: String(session.ticketSig||'').trim(),
+    ticketSig: String(session.ticketSig||''),
     ruleVersion: String(session.ruleVersion || RULE.version),
   });
   const res = await fetch(GAS_LOCK_URL, {
@@ -312,7 +319,7 @@ async function lockClose(round, tClick){
 
 /* ========= ルーレット（端末時刻→表示） ========= */
 let running = true, locked = false;
-  let isOpening = false;
+let isOpening = false;
 let visualV = 0;
 
 function vFromNowMs(nowMs){
