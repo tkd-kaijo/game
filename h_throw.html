@@ -235,6 +235,7 @@ async function fetchSession(){
 let currentRound = 1;
 let y0 = 19.6, xTarget = 3; // open で確定
 let currentTicket = null;   // close 時に受領
+  const ticketsByRound = new Map();  // round -> { ticket, sig, round }
 const tickets = [];
 
 async function lockOpen(round){
@@ -464,6 +465,7 @@ function resetGame(){
   submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
   studentIdInput.value=''; studentNameInput.value='';
   tickets.length = 0;
+  ticketsByRound.clear();
   locked=false; running=true;
   tickets.length = 0;          // ← ここを追加
   setupRound(); requestAnimationFrame(rouletteLoop);
@@ -472,20 +474,27 @@ function resetGame(){
 
 /* クリック：tClick だけ送る（v0はサーバ計算） */
 lockBtn.addEventListener('click', async ()=>{
-  if(locked) return;
-  locked=true; running=false;
-  lockBtn.disabled=true; retryBtn.disabled=true;
+  // ★ダブル送信の物理ガード（Lキーとクリック重複などを防止）
+  if (locked || retryBtn.disabled === false) return;
+
+  locked = true;
+  running = false;
+  lockBtn.disabled = true;
+  retryBtn.disabled = true;
 
   try{
     const tClickLocal = Date.now();
     const j = await lockClose(currentRound, tClickLocal);
     const v0 = Number(j.v0);
-    // サーバ返却の署名付きチケットを蓄積
-    tickets.push({ ticket: j.ticket, sig: j.sig });
-    // （必要なら最後の1件も保持しておく）
-    currentTicket = { ticket: j.ticket, sig: j.sig, round: currentRound  };
-    tickets.push(currentTicket);
-    animateThrow(v0);
+    // v0 で投げる
+const v0 = Number(j.v0);
+
+// 受領チケットを「ラウンドをキーに」1枚だけ保持（重複防止）
+currentTicket = { ticket: j.ticket, sig: j.sig, round: currentRound };
+ticketsByRound.set(currentRound, currentTicket);
+
+animateThrow(v0);
+
   }catch(e){
     console.error(e);
     showToast('サーバに接続できません（ロック失敗）');
@@ -518,8 +527,12 @@ async function submitResult(){
     showToast('セッション取得に失敗。ページ再読み込みを試してください'); return;
   }
 
-  // ★サーバ想定のルールバージョンを採用（セッションから）
+ // サーバ基準の ruleVersion を使用
   const ruleVersionToSend = session.ruleVersion || RULE.version;
+
+  // ★ マップから配列を構築（ラウンド重複なし）
+  const tickets = Array.from(ticketsByRound.values());
+
 
   // ★全ラウンド分のチケットが揃っているかチェック
   if (tickets.length !== RULE.rounds) {
