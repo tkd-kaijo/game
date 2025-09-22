@@ -232,13 +232,13 @@ async function fetchSession(){
       serverG: Number(j.g ?? RULE.g) || RULE.g,
       t0Ms: Number(j.t0Ms||0),
       phiSec: Number(j.phiSec||0),
-      ticketSig: String(j.ticketSig||''),
+      ticketSig: String(j.ticketSig||'').trim(),
       offsetMs: offset,
       rttMs: rtt
     };
     // サーバの ruleVersion をフロントにも反映
     RULE.version = session.ruleVersion;
-    console.log('[session ok]', session);
+    console.log('[session ok] ver=', RULE.version, 'ticketSig.len=', session.ticketSig.length);
   }catch(e){
     console.error('[session error]', e);
     showToast('セッション取得に失敗（提出不可の可能性）');
@@ -290,7 +290,8 @@ async function lockClose(round, tClick){
     rttMs: String(session.rttMs),
     t0Ms: String(session.t0Ms),
     phiSec: String(session.phiSec),
-    ticketSig: session.ticketSig,
+    ticketSig: String(session.ticketSig||'').trim(),
+    sig: String(session.ticketSig||'').trim(),
     ruleVersion: String(session.ruleVersion || RULE.version),
   });
   const res = await fetch(GAS_LOCK_URL, {
@@ -311,6 +312,7 @@ async function lockClose(round, tClick){
 
 /* ========= ルーレット（端末時刻→表示） ========= */
 let running = true, locked = false;
+  let isOpening = false;
 let visualV = 0;
 
 function vFromNowMs(nowMs){
@@ -424,6 +426,9 @@ async function setupRound(){
     retryBtn.disabled = false;
     return;
   }
+  if (!session.ticketSig) { await fetchSession(); }
+  if (isOpening) { console.warn('[setupRound] already opening; skip'); return; }
+  isOpening = true;
   
   // open: 課題だけ取得
   try{
@@ -433,9 +438,11 @@ async function setupRound(){
    // 取得失敗時：ボタン状態を「投射不可・次へ不可」にし、再試行待ち
    lockBtn.disabled = true;
    retryBtn.disabled = false; // いったん次へは押せる（授業運用次第で true にしてもOK）
+    isOpening = false;
    return; // ← ここで抜けておく
     
   }
+  isOpening = false;
   // 課題表示
   challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
   resultTextHUD.textContent = '';
