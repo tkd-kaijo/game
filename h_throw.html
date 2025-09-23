@@ -574,6 +574,43 @@ document.addEventListener('keydown',(e)=>{
   if(k==='n'||e.code==='KeyN'){ const hidden=retryBtn.style.display==='none'; if(!retryBtn.disabled && !hidden){ retryBtn.click(); e.preventDefault(); } }
 });
 
+
+
+
+function serverLikeTotal(tickets){
+  const RULE_SERVER = { g: 9.8, vMin: 0, vMax: 6, phiSec: 4,
+    scoreBands: [{lt:0.01,pts:5},{lt:0.03,pts:4},{lt:0.10,pts:3},{lt:0.20,pts:2},{lt:0.30,pts:1}]
+  };
+  let total = 0, details=[];
+  for(const t of tickets){
+    const { tClickAdj, y0, xTarget } = t;
+    const norm = ((Number(tClickAdj))/(RULE_SERVER.phiSec*1000)) % 1;
+    const n = norm < 0 ? norm + 1 : norm;
+    const v0 = RULE_SERVER.vMin + n*(RULE_SERVER.vMax - RULE_SERVER.vMin);
+    const tFlight = Math.sqrt((2*y0)/RULE_SERVER.g);
+    const xLand   = v0 * tFlight;
+    const errPct  = Math.abs(xLand - xTarget) / xTarget;
+    let gained=0;
+    for(const b of RULE_SERVER.scoreBands){ if(errPct < b.lt){ gained=b.pts; break; } }
+    total += gained;
+    details.push({round:t.round, y0, xTarget, v0: +v0.toFixed(6), xLand: +xLand.toFixed(6), errPct: +errPct.toFixed(6), gained});
+  }
+  return { total, details };
+}
+
+// ← submitResult() の送信直前に追加
+const allTickets = Array.from(ticketsByRound.values());
+const check = serverLikeTotal(allTickets);
+console.log('[pre-submit self-check]', check);
+
+// ここで check.total が 10 未満なら、サーバ判定どおり（=フロント表示の14点とズレている原因を details で特定）。
+// 10 以上ならサーバ返却とズレているので、その旨を console に出す。
+
+
+  
+
+  
+
 /* 提出：サンプル（必要なら close 返却の ticket を配列で貯めて送る実装に変更可） */
 function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 async function submitResult(){
