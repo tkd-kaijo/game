@@ -546,7 +546,7 @@ lockBtn.addEventListener('click', async ()=>{
     const v0 = Number(j.v0);
 
     // 受領チケットを「ラウンドをキーに」1枚だけ保持（重複防止）
-    currentTicket = { ticket: j.ticket, sig: j.sig, round: currentRound };
+    currentTicket = { ...j.ticket, sig: j.sig }; // ← j.ticket を展開し、sig を添える
     ticketsByRound.set(currentRound, currentTicket);
 
     // 投射アニメーション
@@ -606,7 +606,7 @@ const ruleVersionToSend = String(session.ruleVersion || RULE.version);
       studentId,
       studentName,
       // ★サーバ照合に必要なメタ
-      ruleVersion: String(ruleVersionToSend),
+      
       sessionId: String(session.sessionId),
       // ★全チケットを送る
       tickets: JSON.stringify(allTickets),
