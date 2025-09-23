@@ -479,13 +479,23 @@ function animateThrow(v0, ticket){
       placeBallAt(xLand,0); updateVelocityVector(v0,-RULE.g*tFlight);
       const last2 = trailPts[trailPts.length-1]; const endp={x:xLand,y:0};
       trailPts.push(endp); drawTrailSegment(last2,endp);
-      evaluateAndProceedServerLike(ticket);
+      evaluateAndProceedServerLike(v0, ticket);
     }
   }
   requestAnimationFrame(step);
 }
 
 function evaluateAndProceed(v0){
+
+console.log('[diag]', {
+  y0: Number(ticket.y0),
+  xTarget: Number(ticket.xTarget),
+  v0FromServer,
+  tFlight: Math.sqrt((2*Number(ticket.y0))/9.8),
+  xLand: v0FromServer * Math.sqrt((2*Number(ticket.y0))/9.8),
+  errPct: Math.abs( (v0FromServer * Math.sqrt((2*Number(ticket.y0))/9.8)) - Number(ticket.xTarget) ) / Number(ticket.xTarget)
+});
+  
   const errPct = Math.abs(xLand - xTarget) / xTarget;
   let gained=0, band=null;
   for(const b of RULE.scoreBands){ if(errPct < b.lt){ gained=b.pts; band=b; break; } }
@@ -618,8 +628,17 @@ function serverLikeTotal(tickets){
 
 
 
-  function evaluateAndProceedServerLike(ticket){
-  const r = serverLikeSingle(ticket); // サーバ式で確定
+  function evaluateAndProceedServerLike(v0FromServer, ticket){
+  const RULE_SERVER = { g: 9.8 };
+  const { y0, xTarget } = ticket;
+
+  // サーバ返りの v0 をそのまま使う
+  const tFlight = Math.sqrt((2 * Number(y0)) / RULE_SERVER.g);
+  const xLand   = Number(v0FromServer) * tFlight;
+
+  const errPct  = Math.abs(xLand - Number(xTarget)) / Number(xTarget);
+
+  // 以下はこれまで通り（UI表示の文言/色づけだけ）
   const bandsUI = [
     { lt: 0.01, pts: 5, label: 'PERFECT!!!!', cls:'perfect',  decimals:2 },
     { lt: 0.03, pts: 4, label: 'Excellent!!!', cls:'excellent',decimals:1 },
@@ -627,20 +646,20 @@ function serverLikeTotal(tickets){
     { lt: 0.20, pts: 2, label: 'good!',        cls:'good',     decimals:1 },
     { lt: 0.30, pts: 1, label: 'ok',           cls:'ok',       decimals:1 },
   ];
-  let band = null;
-  for (const b of bandsUI){ if (r.errPct < b.lt){ band = b; break; } }
+  let band = null, gained = 0;
+  for (const b of bandsUI){ if (errPct < b.lt){ band = b; gained = b.pts; break; } }
 
-  if (r.gained > 0){
-    score += r.gained;
-    const pct = (r.errPct*100).toFixed(band.decimals);
-    resultTextHUD.innerHTML = `<span class="${band.cls}">${band.label}（誤差 ${pct}% / +${r.gained}点）</span>`;
-    (r.gained>=3 ? greatSound : goodSound)();
+  if (gained > 0){
+    score += gained;
+    const pct = (errPct*100).toFixed(band.decimals);
+    resultTextHUD.innerHTML = `<span class="${band.cls}">${band.label}（誤差 ${pct}% / +${gained}点）</span>`;
+    (gained>=3 ? greatSound : goodSound)();
   }else{
-    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(r.errPct*100).toFixed(1)}%）</span>`;
+    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
     wrongSound();
   }
   scoreHUD.textContent = String(score) + '点';
-  lastGainedPoints = r.gained;
+  lastGainedPoints = gained;
   lockBtn.disabled=true; retryBtn.disabled=false;
 
   if(currentRound>=RULE.rounds){
