@@ -260,6 +260,10 @@ async function lockOpen(round){
     ruleVersion: String(session.ruleVersion || RULE.version),
     ticketSig: String(session.ticketSig || ''),
   });
+
+ console.log('[lockOpen FormData]');
+  console.table(Array.from(body.entries()));
+  
   const res = await fetch(GAS_LOCK_URL, {
     method:'POST',
     body,
