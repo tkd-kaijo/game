@@ -459,7 +459,7 @@ async function setupRound(){
   requestAnimationFrame(rouletteLoop);
 }
 
-function animateThrow(v0){
+function animateThrow(v0, ticket){
   const tStart = performance.now();
   tFlight = Math.sqrt((2*y0)/RULE.g);
   xLand   = v0 * tFlight;
@@ -479,7 +479,7 @@ function animateThrow(v0){
       placeBallAt(xLand,0); updateVelocityVector(v0,-RULE.g*tFlight);
       const last2 = trailPts[trailPts.length-1]; const endp={x:xLand,y:0};
       trailPts.push(endp); drawTrailSegment(last2,endp);
-      evaluateAndProceed(v0);
+      evaluateAndProceedServerLike(ticket);
     }
   }
   requestAnimationFrame(step);
@@ -550,7 +550,7 @@ lockBtn.addEventListener('click', async ()=>{
     ticketsByRound.set(currentRound, currentTicket);
 
     // 投射アニメーション
-    animateThrow(v0);
+    animateThrow(v0, currentTicket);
 
   }catch(e){
     console.error(e);
@@ -598,6 +598,66 @@ function serverLikeTotal(tickets){
   return { total, details };
 }
 
+
+  function serverLikeSingle(t){
+  const RULE_SERVER = { g: 9.8, vMin: 0, vMax: 6, phiSec: 4,
+    scoreBands: [{lt:0.01,pts:5},{lt:0.03,pts:4},{lt:0.10,pts:3},{lt:0.20,pts:2},{lt:0.30,pts:1}]
+  };
+  const { tClickAdj, y0, xTarget, round } = t;
+  const n = ((Number(tClickAdj)/(RULE_SERVER.phiSec*1000)) % 1 + 1) % 1; // 0..1 に正規化
+  const v0 = RULE_SERVER.vMin + n*(RULE_SERVER.vMax - RULE_SERVER.vMin);
+  const tFlight = Math.sqrt((2*y0)/RULE_SERVER.g);
+  const xLand   = v0 * tFlight;
+  const errPct  = Math.abs(xLand - xTarget) / xTarget;
+
+  let gained=0;
+  for (const b of RULE_SERVER.scoreBands){ if (errPct < b.lt){ gained=b.pts; break; } }
+
+  return { round, y0, xTarget, v0, tFlight, xLand, errPct, gained };
+}
+
+
+
+  function evaluateAndProceedServerLike(ticket){
+  const r = serverLikeSingle(ticket); // サーバ式で確定
+  const bandsUI = [
+    { lt: 0.01, pts: 5, label: 'PERFECT!!!!', cls:'perfect',  decimals:2 },
+    { lt: 0.03, pts: 4, label: 'Excellent!!!', cls:'excellent',decimals:1 },
+    { lt: 0.10, pts: 3, label: 'great!!',      cls:'great',    decimals:1 },
+    { lt: 0.20, pts: 2, label: 'good!',        cls:'good',     decimals:1 },
+    { lt: 0.30, pts: 1, label: 'ok',           cls:'ok',       decimals:1 },
+  ];
+  let band = null;
+  for (const b of bandsUI){ if (r.errPct < b.lt){ band = b; break; } }
+
+  if (r.gained > 0){
+    score += r.gained;
+    const pct = (r.errPct*100).toFixed(band.decimals);
+    resultTextHUD.innerHTML = `<span class="${band.cls}">${band.label}（誤差 ${pct}% / +${r.gained}点）</span>`;
+    (r.gained>=3 ? greatSound : goodSound)();
+  }else{
+    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(r.errPct*100).toFixed(1)}%）</span>`;
+    wrongSound();
+  }
+  scoreHUD.textContent = String(score) + '点';
+  lastGainedPoints = r.gained;
+  lockBtn.disabled=true; retryBtn.disabled=false;
+
+  if(currentRound>=RULE.rounds){
+    const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
+    resultTextHUD.innerHTML =
+      `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
+      `<div>全${RULE.rounds}回の合計スコア：<strong>${score}点</strong></div>`;
+    challengeTextHUD.textContent = finalMsg;
+    retryBtn.style.display='none';
+    resetBtn.style.display='inline-block';
+    if (score >= 10) { showSubmitBox(); }
+    else { submitBox.style.display='none'; showToast('今回はスコアが10点未満のため提出できません'); }
+  }
+}
+
+  
+
 // ← submitResult() の送信直前に追加
 const allTickets = Array.from(ticketsByRound.values());
 const check = serverLikeTotal(allTickets);
@@ -622,7 +682,16 @@ if (check.total < 10) {
 /* 提出：サンプル（必要なら close 返却の ticket を配列で貯めて送る実装に変更可） */
 function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 async function submitResult(){
-  if (score < 10) { showToast('スコアが10点未満のため提出できません'); return; }
+ const allTickets = Array.from(ticketsByRound.values());
+  const check = serverLikeTotal(allTickets);
+  // UIと提出の完全一致：UIをサーバ式合計に合わせる
+  score = check.total;
+  scoreHUD.textContent = String(score) + '点';
+  if (check.total < 10) {
+    showToast(`サーバ式で ${check.total} 点 → 10点未満のため提出できません`);
+    console.table(check.details);
+    return;
+  }
 
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
