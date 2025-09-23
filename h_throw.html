@@ -698,7 +698,17 @@ function serverLikeTotal(tickets){
 /* 提出：サンプル（必要なら close 返却の ticket を配列で貯めて送る実装に変更可） */
 function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 async function submitResult(){
- 
+  // サーバ式で UI と完全一致させる
+  const allTickets = Array.from(ticketsByRound.values());
+  const check = serverLikeTotal(allTickets);
+  score = check.total;
+  scoreHUD.textContent = score + '点';
+
+  if (check.total < 10) {
+    showToast(`サーバ式で ${check.total} 点 → 10点未満のため提出できません`);
+    console.table(check.details);
+    return;
+  }
 
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
@@ -709,15 +719,11 @@ async function submitResult(){
     showToast('セッション取得に失敗。ページ再読み込みを試してください'); return;
   }
 
- // サーバ基準の ruleVersion を使用
-  
-const ruleVersionToSend = String(session.ruleVersion || RULE.version);
+  const ruleVersionToSend = String(session.ruleVersion || RULE.version);
 
-
-
-  // ★全ラウンド分のチケットが揃っているかチェック
+  // 全ラウンド分そろっているか
   if (allTickets.length !== RULE.rounds) {
-   showToast(`提出データが不足しています（${allTickets.length}/${RULE.rounds}）`);
+    showToast(`提出データが不足しています（${allTickets.length}/${RULE.rounds}）`);
     return;
   }
 
@@ -725,11 +731,9 @@ const ruleVersionToSend = String(session.ruleVersion || RULE.version);
     const body = new URLSearchParams({
       studentId,
       studentName,
-      // ★サーバ照合に必要なメタ
-      
       sessionId: String(session.sessionId),
-      // ★全チケットを送る
       tickets: JSON.stringify(allTickets),
+      // ruleVersion は tickets 内で検証されるので送信用パラメータとしては不要
     });
 
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
