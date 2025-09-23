@@ -629,7 +629,15 @@ function serverLikeTotal(tickets){
 
 
   function evaluateAndProceedServerLike(v0FromServer, ticket){
-  const RULE_SERVER = { g: 9.8 };
+  console.log('[round result(server-like)]', {
+  round: ticket.round,
+  y0: ticket.y0,
+  xTarget: ticket.xTarget,
+  tClickAdj: ticket.tClickAdj,
+  ...serverLikeSingle(ticket)
+});
+    
+    const RULE_SERVER = { g: 9.8 };
   const { y0, xTarget } = ticket;
 
   // サーバ返りの v0 をそのまま使う
@@ -690,16 +698,7 @@ function serverLikeTotal(tickets){
 /* 提出：サンプル（必要なら close 返却の ticket を配列で貯めて送る実装に変更可） */
 function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
 async function submitResult(){
- const allTickets = Array.from(ticketsByRound.values());
-  const check = serverLikeTotal(allTickets);
-  // UIと提出の完全一致：UIをサーバ式合計に合わせる
-  score = check.total;
-  scoreHUD.textContent = String(score) + '点';
-  if (check.total < 10) {
-    showToast(`サーバ式で ${check.total} 点 → 10点未満のため提出できません`);
-    console.table(check.details);
-    return;
-  }
+ 
 
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
