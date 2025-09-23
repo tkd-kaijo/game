@@ -658,18 +658,7 @@ function serverLikeTotal(tickets){
 
   
 
-// ← submitResult() の送信直前に追加
-const allTickets = Array.from(ticketsByRound.values());
-const check = serverLikeTotal(allTickets);
 
-  console.log('[pre-submit] uiScore=', score, ' serverLikeTotal=', check.total);
-console.table(check.details);
-
-// ★ 送信の合否判定は UI ではなくサーバ式で（ここがズレの直接原因になりやすい）
-if (check.total < 10) {
-  showToast(`サーバ式で ${check.total} 点 → 10点未満のため提出不可`);
-  return;
-}
 
 // ここで check.total が 10 未満なら、サーバ判定どおり（=フロント表示の14点とズレている原因を details で特定）。
 // 10 以上ならサーバ返却とズレているので、その旨を console に出す。
@@ -705,8 +694,7 @@ async function submitResult(){
  // サーバ基準の ruleVersion を使用
   
 const ruleVersionToSend = String(session.ruleVersion || RULE.version);
-  // ★ マップから配列を構築（ラウンド重複なし）
-  const allTickets = Array.from(ticketsByRound.values());
+
 
 
   // ★全ラウンド分のチケットが揃っているかチェック
