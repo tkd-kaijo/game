@@ -252,15 +252,13 @@ let currentTicket = null;   // close 時に受領
 const tickets = [];
 
 async function lockOpen(round){
-  const body = new URLSearchParams({
-    sessionId: session.sessionId,
-    nonce: session.nonce,
-    round: String(round),
-    intent: 'open',
-      t0Ms: String(session.t0Ms),
-   phiSec: String(session.phiSec),
-   ticketSig: String(session.ticketSig || ''),
-  });
+ const body = new URLSearchParams({
+  studentId, studentName,
+  sessionId: String(session.sessionId),
+ ruleVersion: String(session.ruleVersion || RULE.version),
+  ticketSig: String(session.ticketSig || ''),
+ tickets: JSON.stringify(all.map(x => ({ ticket: x.ticket, sig: x.sig })))
+});
 
  console.log('[lockOpen FormData]');
   console.table(Array.from(body.entries()));
@@ -518,8 +516,9 @@ lockBtn.addEventListener('click', async ()=>{
     const v0 = Number(j.v0);
 
     // 受領チケットを「ラウンドをキーに」1枚だけ保持（重複防止）
-   currentTicket = { ...j.ticket, sig: j.sig, v0: Number(j.v0) };
-    ticketsByRound.set(currentRound, currentTicket);
+const received = { ticket: j.ticket, sig: j.sig, v0: Number(j.v0) };
+ ticketsByRound.set(currentRound, received);
+    
 
     // 投射アニメーション
     animateThrow(v0, currentTicket);
@@ -714,8 +713,9 @@ function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(
     submitBtn.disabled = true;
   // 1) 送る前に Map → 配列化（round 昇順）＆型ゆらぎを数値に正規化
 
-const allTickets = Array.from(ticketsByRound.values())
-    .sort((a,b) => Number(a.round) - Number(b.round));
+const all = Array.from(ticketsByRound.values())
+   .sort((a,b) => Number(a.ticket.round) - Number(b.ticket.round));
+
     
 
   // 2) 基本チェック
@@ -726,7 +726,8 @@ const allTickets = Array.from(ticketsByRound.values())
     return;
   }
   // round が 1..RULE.rounds の連番か軽く検証
-  const roundsOK = allTickets.every((t,i)=> t.round === i+1);
+const roundsOK = all.every((t,i)=> Number(t.ticket.round) === i+1);
+
   if (!roundsOK) {
     showToast('提出データのラウンド順が不正です（再試行してください）');
     return;
@@ -735,13 +736,13 @@ const allTickets = Array.from(ticketsByRound.values())
   // 3) “サーバ式”でローカル再計算（提出データは触らない！）
 let check;
 try{
- const normalized = allTickets.map(t => ({
-      round:      Number(t.round),
-      tClickAdj:  Number(t.tClickAdj),
-      y0:         Number(t.y0),
-      xTarget:    Number(t.xTarget),
-      v0:         Number(t.v0),     // サーバ返却が最優先。無ければ serverLikeTotal 内で復元
-    }));
+ const normalized = all.map(x => ({
+   round:     Number(x.ticket.round),
+   tClickAdj: Number(x.ticket.tClickAdj),
+   y0:        Number(x.ticket.y0),
+   xTarget:   Number(x.ticket.xTarget),
+   v0:        Number(x.v0),            // サーバ返却 v0 を優先（無ければ復元）
+ }));
     check = serverLikeTotal(normalized);
   console.log('[submit] serverLikeTotal.total =', check.total);
   console.table(check.details);
@@ -773,7 +774,7 @@ try{
       studentName,
       sessionId: String(session.sessionId),
       ticketSig: String(session.ticketSig || ''), // ★追加（GASが参照している場合に備え）
-      tickets: JSON.stringify(allTickets)         // ★“生”チケットのまま
+      tickets: JSON.stringify(all.map(x => ({ ticket: x.ticket, sig: x.sig })))         // ★“生”チケットのまま
     });
 
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
