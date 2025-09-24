@@ -204,6 +204,31 @@ let session = {
   sessionId:'', nonce:'', ruleVersion: RULE.version, serverG: RULE.g,
   t0Ms:0, phiSec:0, offsetMs:0, rttMs:0, ticketSig:''
 };
+
+// -------------------------------
+// クライアント固有トークン管理（localStorage）
+// -------------------------------
+const CLIENT_TOKEN_KEY = 'hproj_client_token';
+function getClientToken(){
+  try{
+    let tk = localStorage.getItem(CLIENT_TOKEN_KEY);
+    if(!tk){
+      // ブラウザが対応していれば crypto.randomUUID()、無ければ簡易生成
+      tk = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID()
+         : 'ct-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
+      localStorage.setItem(CLIENT_TOKEN_KEY, tk);
+      console.log('[clientToken] created');
+    }
+    return tk;
+  }catch(e){
+    console.warn('[clientToken] localStorage unavailable', e);
+    return ''; // 取得不可なら空文字
+  }
+}
+// すぐ確保（初回ロード時）
+const clientToken = getClientToken();
+console.log('[clientToken] value=', clientToken);
+  
 // ★ セッションが空なら取り直す
 async function ensureSessionReady() {
   return !!(session.sessionId && session.nonce && session.ticketSig);
@@ -856,12 +881,15 @@ console.groupEnd();
       ruleVersion: String(session.ruleVersion || RULE.version),
       t0Ms: String(session.t0Ms),                               
       phiSec: String(session.phiSec), 
+      clientToken: String(clientToken || ''),
       tickets: JSON.stringify(payloadTickets)
     });
+    
 
     // ── ワンライナー診断（送る中身の目視用） ──
     console.log('[submit body]');
 console.table(Array.from(body.entries()));
+    console.log('[clientToken sending]', clientToken);
 
 const res = await fetch(GAS_SUBMIT_URL, {
      method:'POST',
