@@ -803,8 +803,10 @@ try{
       studentName,
       sessionId: String(session.sessionId),
       nonce: String(session.nonce),
-      ticketSig: String(session.ticketSig || ''), // ★追加（GASが参照している場合に備え）
-      ruleVersion: String(session.ruleVersion || RULE.version), // ★これを追加
+      ticketSig: String(session.ticketSig || ''), 
+      ruleVersion: String(session.ruleVersion || RULE.version),
+      t0Ms: String(session.t0Ms),                               
+      phiSec: String(session.phiSec), 
       tickets: JSON.stringify(all.map(x => ({ ...x.ticket, sig: x.sig })))
     });
 
