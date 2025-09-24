@@ -824,6 +824,9 @@ const res = await fetch(GAS_SUBMIT_URL, {
     
     const json = await res.json().catch(()=> ({}));
 
+    // ★ここでサーバ返答を丸ごと表示
+console.log('[submit response]', json);
+
     if(json && json.ok){
       showToast('送信しました！');
       submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
