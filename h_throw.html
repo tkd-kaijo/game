@@ -792,15 +792,7 @@ try{
  }
 
     
-// 5) 送信前チェック（全部 v1.3 か？）
- const allRuleOK = all.every(x => String(x.ticket?.ruleVersion) === String(session.ruleVersion));
- if (!allRuleOK) {
-   console.warn('[submit] ruleVersion mismatch in tickets',
-     { sessionRule: session.ruleVersion, rounds: all.map(a => a.ticket?.ruleVersion) });
-   showToast('内部データのバージョン不一致です。ページ再読み込み後にやり直してください');
-   submitBtn.disabled = false;
-   return;
- }
+
 
 
     
