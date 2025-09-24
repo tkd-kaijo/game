@@ -247,16 +247,20 @@ async function fetchSession(){
 }
 
 /* ========= サーバロック（open/close） ========= */
-  let finished = false;     // 5投をやり切ったら true（以降は lock 禁止）
-let attemptId = null;     // この5投（1セット）を識別するID
+let finished = false;           // 5投をやり切ったら true（以降は lock 禁止）
+let attemptId = null;           // この5投（1セット）を識別するID
+
+// ラウンド状態（グローバルに置く）
+let currentRound = 1;
+let y0 = 19.6, xTarget = 3;     // open で確定
+let currentTicket = null;       // close 時に受領
+const ticketsByRound = new Map();  // round -> { ticket, sig, v0 }
+
+// 1セット開始時に呼ぶ：ID更新＆前回の記録クリア
 function newAttempt(){
   attemptId = 'a-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
-  ticketsByRound.clear(); // このセット分だけ保持
-let currentRound = 1;
-let y0 = 19.6, xTarget = 3; // open で確定
-let currentTicket = null;   // close 時に受領
-  const ticketsByRound = new Map();  // round -> { ticket, sig, round }
-const tickets = [];
+  ticketsByRound.clear();
+}
 
 async function lockOpen(round){
  const body = new URLSearchParams({
