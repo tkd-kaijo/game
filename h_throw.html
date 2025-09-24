@@ -73,6 +73,20 @@ button:disabled{opacity:.5;cursor:not-allowed}
 #leaderboardCard{grid-column:1 / -1}
 #leaderboardCardMobile{display:none}
 @media (max-width:640px){.playgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"scene readouts";gap:10px}.scene{grid-area:scene;min-width:0}.readouts{grid-area:readouts;min-width:0;grid-template-columns:1fr}#leaderboardCard{display:none}#leaderboardCardMobile{display:block;margin-top:10px}}
+.challengeBox {
+  display: flex;
+  flex-wrap: nowrap;       /* ← 折り返さず1行に並べる */
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start; /* ← 左寄せ */
+}
+
+#roundBadgeHUD {
+  flex-shrink: 0;          /* ← 常に表示。潰れない */
+}
+#challengeTextHUD {
+  flex-grow: 1;            /* ← 残りスペースを使って課題文を表示 */
+}
 </style>
 </head>
 <body>
