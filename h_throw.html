@@ -628,25 +628,25 @@ function serverLikeTotal(tickets){
 
 
 
-  function evaluateAndProceedServerLike(v0FromServer, ticket){
+// サーバ式で採点 → UI反映・加点・終了処理
+function evaluateAndProceedServerLike(ticket){
+  // サーバ判定と同じ式で再計算
+  const r = serverLikeSingle(ticket);
+
+  // デバッグ（各ラウンドの詳細を見たいとき用）
   console.log('[round result(server-like)]', {
-  round: ticket.round,
-  y0: ticket.y0,
-  xTarget: ticket.xTarget,
-  tClickAdj: ticket.tClickAdj,
-  ...serverLikeSingle(ticket)
-});
-    
-    const RULE_SERVER = { g: 9.8 };
-  const { y0, xTarget } = ticket;
+    round: ticket.round,
+    y0: ticket.y0,
+    xTarget: ticket.xTarget,
+    tClickAdj: ticket.tClickAdj,
+    v0: r.v0,
+    tFlight: r.tFlight,
+    xLand: r.xLand,
+    errPct: r.errPct,
+    gained: r.gained
+  });
 
-  // サーバ返りの v0 をそのまま使う
-  const tFlight = Math.sqrt((2 * Number(y0)) / RULE_SERVER.g);
-  const xLand   = Number(v0FromServer) * tFlight;
-
-  const errPct  = Math.abs(xLand - Number(xTarget)) / Number(xTarget);
-
-  // 以下はこれまで通り（UI表示の文言/色づけだけ）
+  // 表示用バンド（UIの表示テキスト／色）
   const bandsUI = [
     { lt: 0.01, pts: 5, label: 'PERFECT!!!!', cls:'perfect',  decimals:2 },
     { lt: 0.03, pts: 4, label: 'Excellent!!!', cls:'excellent',decimals:1 },
@@ -654,23 +654,28 @@ function serverLikeTotal(tickets){
     { lt: 0.20, pts: 2, label: 'good!',        cls:'good',     decimals:1 },
     { lt: 0.30, pts: 1, label: 'ok',           cls:'ok',       decimals:1 },
   ];
-  let band = null, gained = 0;
-  for (const b of bandsUI){ if (errPct < b.lt){ band = b; gained = b.pts; break; } }
+  let band = null;
+  for (const b of bandsUI){ if (r.errPct < b.lt){ band = b; break; } }
 
-  if (gained > 0){
-    score += gained;
-    const pct = (errPct*100).toFixed(band.decimals);
-    resultTextHUD.innerHTML = `<span class="${band.cls}">${band.label}（誤差 ${pct}% / +${gained}点）</span>`;
-    (gained>=3 ? greatSound : goodSound)();
+  // UI反映・サウンド
+  if (r.gained > 0 && band){
+    score += r.gained;
+    const pct = (r.errPct*100).toFixed(band.decimals);
+    resultTextHUD.innerHTML = `<span class="${band.cls}">${band.label}（誤差 ${pct}% / +${r.gained}点）</span>`;
+    (r.gained>=3 ? greatSound : goodSound)();
   }else{
-    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
+    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(r.errPct*100).toFixed(1)}%）</span>`;
     wrongSound();
   }
   scoreHUD.textContent = String(score) + '点';
-  lastGainedPoints = gained;
-  lockBtn.disabled=true; retryBtn.disabled=false;
 
-  if(currentRound>=RULE.rounds){
+  // 次アクション
+  lastGainedPoints = r.gained;
+  lockBtn.disabled = true;
+  retryBtn.disabled = false;
+
+  // 最終ラウンド処理
+  if (currentRound >= RULE.rounds){
     const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
     resultTextHUD.innerHTML =
       `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
@@ -697,43 +702,68 @@ function serverLikeTotal(tickets){
 
 /* 提出：サンプル（必要なら close 返却の ticket を配列で貯めて送る実装に変更可） */
 function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(); }
-async function submitResult(){
-  // サーバ式で UI と完全一致させる
-  const allTickets = Array.from(ticketsByRound.values());
+
+
+  async function submitResult(){
+  // 1) 送る前に Map → 配列化（round 昇順）＆型ゆらぎを数値に正規化
+  const allTicketsRaw = Array.from(ticketsByRound.values());
+  const allTickets = allTicketsRaw
+    .map(t => ({
+      sessionId: String(t.sessionId || ''),
+      round: Number(t.round ?? 0),
+      tClickAdj: Number(t.tClickAdj ?? 0),
+      y0: Number(t.y0 ?? 0),
+      xTarget: Number(t.xTarget ?? 0),
+      ruleVersion: String(t.ruleVersion || ''),
+      sig: String(t.sig || '')
+    }))
+    .sort((a,b) => a.round - b.round);
+
+  // 2) 基本チェック
+  console.log('[submit] ticketsByRound.size =', ticketsByRound.size, ' / RULE.rounds =', RULE.rounds);
+  console.table(allTickets);
+  if (allTickets.length !== RULE.rounds) {
+    showToast(`提出データが不足しています（${allTickets.length}/${RULE.rounds}）`);
+    return;
+  }
+  // round が 1..RULE.rounds の連番か軽く検証
+  const roundsOK = allTickets.every((t,i)=> t.round === i+1);
+  if (!roundsOK) {
+    showToast('提出データのラウンド順が不正です（再試行してください）');
+    return;
+  }
+
+  // 3) “サーバ式”で合計を再計算し、UI と完全一致させる
   const check = serverLikeTotal(allTickets);
+  console.log('[submit] serverLikeTotal.total =', check.total);
+  console.table(check.details); // 各ラウンドの v0/xLand/errPct/gained を確認できる
   score = check.total;
   scoreHUD.textContent = score + '点';
 
   if (check.total < 10) {
     showToast(`サーバ式で ${check.total} 点 → 10点未満のため提出できません`);
-    console.table(check.details);
     return;
   }
 
+  // 4) 入力チェック
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
   if(!/^\d{4}$/.test(studentId) || !studentName){
-    showToast('4桁番号(半角)と氏名を入力してください'); return;
+    showToast('4桁番号(半角)と氏名を入力してください');
+    return;
   }
   if(!session.sessionId || !session.nonce){
-    showToast('セッション取得に失敗。ページ再読み込みを試してください'); return;
-  }
-
-  const ruleVersionToSend = String(session.ruleVersion || RULE.version);
-
-  // 全ラウンド分そろっているか
-  if (allTickets.length !== RULE.rounds) {
-    showToast(`提出データが不足しています（${allTickets.length}/${RULE.rounds}）`);
+    showToast('セッション取得に失敗。ページ再読み込みを試してください');
     return;
   }
 
+  // 5) 送信（チケットは正規化済み allTickets をそのまま JSON 化）
   try{
     const body = new URLSearchParams({
       studentId,
       studentName,
       sessionId: String(session.sessionId),
-      tickets: JSON.stringify(allTickets),
-      // ruleVersion は tickets 内で検証されるので送信用パラメータとしては不要
+      tickets: JSON.stringify(allTickets)
     });
 
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
@@ -760,6 +790,9 @@ async function submitResult(){
     showToast('送信に失敗しました…');
   }
 }
+
+
+  
 if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
 /* ランキング（元のまま） */
