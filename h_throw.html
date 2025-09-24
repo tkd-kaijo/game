@@ -711,20 +711,12 @@ function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(
 
 
   async function submitResult(){
+    submitBtn.disabled = true;
   // 1) 送る前に Map → 配列化（round 昇順）＆型ゆらぎを数値に正規化
-  const allTicketsRaw = Array.from(ticketsByRound.values());
-  const allTickets = allTicketsRaw
-    .map(t => ({
-      sessionId: String(t.sessionId || ''),
-      round: Number(t.round ?? 0),
-      tClickAdj: Number(t.tClickAdj ?? 0),
-      y0: Number(t.y0 ?? 0),
-      xTarget: Number(t.xTarget ?? 0),
-      ruleVersion: String(t.ruleVersion || ''),
-      sig: String(t.sig || ''),
-      v0: Number(t.v0 ?? NaN),
-    }))
-    .sort((a,b) => a.round - b.round);
+
+const allTickets = Array.from(ticketsByRound.values())
+    .sort((a,b) => Number(a.round) - Number(b.round));
+    
 
   // 2) 基本チェック
   console.log('[submit] ticketsByRound.size =', ticketsByRound.size, ' / RULE.rounds =', RULE.rounds);
@@ -740,10 +732,17 @@ function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(
     return;
   }
 
-  // 3) “サーバ式”で合計を再計算（失敗しても送信処理は継続）
+  // 3) “サーバ式”でローカル再計算（提出データは触らない！）
 let check;
 try{
-  check = serverLikeTotal(allTickets);
+ const normalized = allTickets.map(t => ({
+      round:      Number(t.round),
+      tClickAdj:  Number(t.tClickAdj),
+      y0:         Number(t.y0),
+      xTarget:    Number(t.xTarget),
+      v0:         Number(t.v0),     // サーバ返却が最優先。無ければ serverLikeTotal 内で復元
+    }));
+    check = serverLikeTotal(normalized);
   console.log('[submit] serverLikeTotal.total =', check.total);
   console.table(check.details);
   score = check.total;
@@ -773,7 +772,8 @@ try{
       studentId,
       studentName,
       sessionId: String(session.sessionId),
-      tickets: JSON.stringify(allTickets)
+      ticketSig: String(session.ticketSig || ''), // ★追加（GASが参照している場合に備え）
+      tickets: JSON.stringify(allTickets)         // ★“生”チケットのまま
     });
 
     const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
@@ -794,10 +794,12 @@ try{
         'SESSION_EXPIRED':'セッション期限切れ（再読み込みしてください）',
       })[json.error] || '送信に失敗しました…';
       showToast(msg);
+      submitBtn.disabled = false; // 失敗時は再トライ可
     }
   }catch(e){
     console.error(e);
     showToast('送信に失敗しました…');
+    submitBtn.disabled = false;
   }
 }
 
