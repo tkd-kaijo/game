@@ -592,18 +592,33 @@ function serverLikeTotal(tickets){
     scoreBands: [{lt:0.01,pts:5},{lt:0.03,pts:4},{lt:0.10,pts:3},{lt:0.20,pts:2},{lt:0.30,pts:1}]
   };
   let total = 0, details=[];
-  for(const t of tickets){
-    const { tClickAdj, y0, xTarget } = t;
-    // サーバと同じ正規化（負値でもOKな 0..1 への畳み込み）
-    const n = ((Number(tClickAdj)/(RULE_SERVER.phiSec*1000)) % 1 + 1) % 1;
+  for(const t0 of tickets){
+    // 型矯正
+    const tClickAdj = Number(t0.tClickAdj ?? 0);
+    const y0 = Number(t0.y0 ?? 0);
+    const xTarget = Number(t0.xTarget ?? 0);
+    const round = Number(t0.round ?? 0);
+
+    // 0..1 に正規化（負値もOK）
+    const n = ((tClickAdj / (RULE_SERVER.phiSec*1000)) % 1 + 1) % 1;
     const v0 = RULE_SERVER.vMin + n*(RULE_SERVER.vMax - RULE_SERVER.vMin);
+
     const tFlight = Math.sqrt((2*y0)/RULE_SERVER.g);
     const xLand   = v0 * tFlight;
     const errPct  = Math.abs(xLand - xTarget) / xTarget;
+
     let gained=0;
-    for(const b of RULE_SERVER.scoreBands){ if(errPct < b.lt){ gained=b.pts; break; } }
+    for (const b of RULE_SERVER.scoreBands){ if (errPct < b.lt){ gained=b.pts; break; } }
     total += gained;
-    details.push({round:t.round, y0, xTarget, v0: +v0.toFixed(6), xLand: +xLand.toFixed(6), errPct: +errPct.toFixed(6), gained});
+
+    details.push({
+      round, y0, xTarget,
+      v0: +v0.toFixed(6),
+      tFlight: +tFlight.toFixed(6),
+      xLand: +xLand.toFixed(6),
+      errPct: +errPct.toFixed(6),
+      gained
+    });
   }
   return { total, details };
 }
