@@ -485,45 +485,7 @@ function animateThrow(v0, ticket){
   requestAnimationFrame(step);
 }
 
-function evaluateAndProceed(v0){
 
-console.log('[diag]', {
-  y0: Number(ticket.y0),
-  xTarget: Number(ticket.xTarget),
-  v0FromServer,
-  tFlight: Math.sqrt((2*Number(ticket.y0))/9.8),
-  xLand: v0FromServer * Math.sqrt((2*Number(ticket.y0))/9.8),
-  errPct: Math.abs( (v0FromServer * Math.sqrt((2*Number(ticket.y0))/9.8)) - Number(ticket.xTarget) ) / Number(ticket.xTarget)
-});
-  
-  const errPct = Math.abs(xLand - xTarget) / xTarget;
-  let gained=0, band=null;
-  for(const b of RULE.scoreBands){ if(errPct < b.lt){ gained=b.pts; band=b; break; } }
-  if(gained>0){
-    score += gained;
-    const pct=(errPct*100).toFixed(band.decimals);
-    resultTextHUD.innerHTML = `<span class="${band.cls}">${band.label}（誤差 ${pct}% / +${gained}点）</span>`;
-    (gained>=3 ? greatSound : goodSound)();
-  }else{
-    resultTextHUD.innerHTML = `<span class="bad">miss…（誤差 ${(errPct*100).toFixed(1)}%）</span>`;
-    wrongSound();
-  }
-  scoreHUD.textContent = String(score) + '点';
-  lastGainedPoints = gained;
-  lockBtn.disabled=true; retryBtn.disabled=false;
-
-  if(currentRound>=RULE.rounds){
-    const finalMsg = (score >= 10) ? '課題クリア！' : '10点目指してもう1度頑張ろう！';
-    resultTextHUD.innerHTML =
-      `<div>5回目の得点：<strong>+${lastGainedPoints}点</strong></div>` +
-      `<div>全${RULE.rounds}回の合計スコア：<strong>${score}点</strong></div>`;
-    challengeTextHUD.textContent = finalMsg;
-    retryBtn.style.display='none';
-    resetBtn.style.display='inline-block';
-    if (score >= 10) { showSubmitBox(); }
-    else { submitBox.style.display='none'; showToast('今回はスコアが10点未満のため提出できません'); }
-  }
-}
 
 /* 進行 */
 function nextRound(){ if(currentRound < RULE.rounds){ currentRound += 1; } setupRound(); }
@@ -588,36 +550,39 @@ document.addEventListener('keydown',(e)=>{
 
 
 function serverLikeTotal(tickets){
-  const RULE_SERVER = { g: 9.8, vMin: 0, vMax: 6 };
- const PERIOD_MS = (Number(RULE.cycleSec) || 4) * 1000; // 周期は4秒固定
+  // 定数（ローカル）
+  const G = 9.8, VMIN = 0, VMAX = 6;
+  const PERIOD_MS = (Number(RULE.cycleSec) || 4) * 1000; // 周期4秒
+  const SCORE_BANDS = [
+    {lt:0.01,pts:5},{lt:0.03,pts:4},{lt:0.10,pts:3},{lt:0.20,pts:2},{lt:0.30,pts:1}
+  ];
 
-  let total = 0, details=[];
-  for(const t0 of tickets){
-    // 型矯正
-    const tClickAdj = Number(t0.tClickAdj ?? 0);
-    const y0 = Number(t0.y0 ?? 0);
-    const xTarget = Number(t0.xTarget ?? 0);
-    const round = Number(t0.round ?? 0);
+  let total = 0, details = [];
+  for (const t0 of tickets){
+    // 型正規化
+    const tClickAdj = Number(t0.tClickAdj ?? NaN);
+    const y0 = Number(t0.y0 ?? NaN);
+    const xTarget = Number(t0.xTarget ?? NaN);
+    const round = Number(t0.round ?? NaN);
 
-    // v0 はサーバ返却を最優先。なければ tClickAdj から周期4秒で復元
-   let v0 = Number(t0.v0);
-   if (!Number.isFinite(v0)) {
-     const n = ((tClickAdj / PERIOD_MS) % 1 + 1) % 1; // 0..1
-     v0 = RULE_SERVER.vMin + n*(6 - 0);
-   }
+    // v0 は「サーバ返却を最優先」。なければ周期から復元
+    let v0 = Number(t0.v0);
+    if (!Number.isFinite(v0)) {
+      const n = ((tClickAdj / PERIOD_MS) % 1 + 1) % 1; // 0..1
+      v0 = VMIN + n * (VMAX - VMIN);
+    }
 
-   if (!Number.isFinite(y0) || !Number.isFinite(xTarget) || xTarget <= 0) {
-     details.push({ round, y0, xTarget, v0, tFlight:NaN, xLand:NaN, errPct:Infinity, gained:0 });
-     continue;
-   }
+    if (!Number.isFinite(y0) || !Number.isFinite(xTarget) || xTarget <= 0) {
+      details.push({ round, y0, xTarget, v0, tFlight:NaN, xLand:NaN, errPct:Infinity, gained:0 });
+      continue;
+    }
 
-    
-    const tFlight = Math.sqrt((2*y0)/RULE_SERVER.g);
+    const tFlight = Math.sqrt((2*y0)/G);
     const xLand   = v0 * tFlight;
     const errPct  = Math.abs(xLand - xTarget) / xTarget;
 
-    let gained=0;
-    for (const b of RULE_SERVER.scoreBands){ if (errPct < b.lt){ gained=b.pts; break; } }
+    let gained = 0;
+    for (const b of SCORE_BANDS){ if (errPct < b.lt){ gained = b.pts; break; } }
     total += gained;
 
     details.push({
@@ -633,24 +598,30 @@ function serverLikeTotal(tickets){
 }
 
 
-  function serverLikeSingle(t){
-  const RULE_SERVER = { g: 9.8, vMin: 0, vMax: 6 };
- const PERIOD_MS = (Number(RULE.cycleSec) || 4) * 1000;
-const round   = Number(t.round ?? NaN);
- const y0      = Number(t.y0 ?? NaN);
- const xTarget = Number(t.xTarget ?? NaN);
- const tClickAdj = Number(t.tClickAdj ?? NaN);
- let v0 = Number(t.v0);
- if (!Number.isFinite(v0)) {
-   const n = ((tClickAdj / PERIOD_MS) % 1 + 1) % 1;
-   v0 = RULE_SERVER.vMin + n*(6 - 0);
- }
-   const tFlight = Math.sqrt((2*y0)/RULE_SERVER.g);
+ function serverLikeSingle(t){
+  const G = 9.8, VMIN = 0, VMAX = 6;
+  const PERIOD_MS = (Number(RULE.cycleSec) || 4) * 1000;
+  const SCORE_BANDS = [
+    {lt:0.01,pts:5},{lt:0.03,pts:4},{lt:0.10,pts:3},{lt:0.20,pts:2},{lt:0.30,pts:1}
+  ];
+
+  const round    = Number(t.round ?? NaN);
+  const y0       = Number(t.y0 ?? NaN);
+  const xTarget  = Number(t.xTarget ?? NaN);
+  const tClickAdj= Number(t.tClickAdj ?? NaN);
+
+  let v0 = Number(t.v0);
+  if (!Number.isFinite(v0)) {
+    const n = ((tClickAdj / PERIOD_MS) % 1 + 1) % 1;
+    v0 = VMIN + n*(VMAX - VMIN);
+  }
+
+  const tFlight = Math.sqrt((2*y0)/G);
   const xLand   = v0 * tFlight;
   const errPct  = Math.abs(xLand - xTarget) / xTarget;
 
-  let gained=0;
-  for (const b of RULE_SERVER.scoreBands){ if (errPct < b.lt){ gained=b.pts; break; } }
+  let gained = 0;
+  for (const b of SCORE_BANDS){ if (errPct < b.lt){ gained = b.pts; break; } }
 
   return { round, y0, xTarget, v0, tFlight, xLand, errPct, gained };
 }
@@ -769,12 +740,18 @@ function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(
     return;
   }
 
-  // 3) “サーバ式”で合計を再計算し、UI と完全一致させる
-  const check = serverLikeTotal(allTickets);
+  // 3) “サーバ式”で合計を再計算（失敗しても送信処理は継続）
+let check;
+try{
+  check = serverLikeTotal(allTickets);
   console.log('[submit] serverLikeTotal.total =', check.total);
-  console.table(check.details); // 各ラウンドの v0/xLand/errPct/gained を確認できる
+  console.table(check.details);
   score = check.total;
   scoreHUD.textContent = score + '点';
+}catch(e){
+  console.error('[submit] local serverLike scoring failed', e);
+  showToast('内部エラー（ローカル採点）。提出は継続します。');
+}
 
  
 
