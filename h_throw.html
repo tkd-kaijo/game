@@ -797,6 +797,31 @@ try{
 
     
   // 5) 送信（チケットは正規化済み allTickets をそのまま JSON 化）
+const payloadTickets = all.map(x => ({
+  ...x.ticket,          // round / tClickAdj / y0 / xTarget / ruleVersion / (サーバが入れてるなら v0 も)
+  v0: x.v0,             // もし提出に v0 も含める運用なら残す（サーバで無視するなら削ってOK）
+  sig: x.sig            // サーバからの署名
+}));
+
+// 可視化（table + JSON）
+console.groupCollapsed('[will-submit] tickets[]');
+console.table(payloadTickets.map(t => ({
+  round: t.round, y0: t.y0, xTarget: t.xTarget,
+  tClickAdj: t.tClickAdj, v0: t.v0,
+  sig_head: String(t.sig||'').slice(0,12)+'…'
+})));
+console.log('payloadTickets (JSON):\n', JSON.stringify(payloadTickets, null, 2));
+
+// “送る配列”でローカル再採点して最終確認（任意）
+try{
+  const recap = serverLikeTotal(payloadTickets);
+  console.log('[will-submit] local total from payloadTickets =', recap.total);
+  console.table(recap.details);
+}catch(e){
+  console.warn('[will-submit] local scoring from payloadTickets failed', e);
+}
+console.groupEnd();
+    
   try{
     const body = new URLSearchParams({
       studentId,
@@ -807,7 +832,7 @@ try{
       ruleVersion: String(session.ruleVersion || RULE.version),
       t0Ms: String(session.t0Ms),                               
       phiSec: String(session.phiSec), 
-      tickets: JSON.stringify(all.map(x => ({ ...x.ticket, sig: x.sig })))
+      tickets: JSON.stringify(payloadTickets)
     });
 
     // ── ワンライナー診断（送る中身の目視用） ──
