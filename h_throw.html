@@ -776,6 +776,7 @@ try{
       studentName,
       sessionId: String(session.sessionId),
       ticketSig: String(session.ticketSig || ''), // ★追加（GASが参照している場合に備え）
+      ruleVersion: String(session.ruleVersion || RULE.version), // ★これを追加
       tickets: JSON.stringify(all.map(x => ({ ticket: x.ticket, sig: x.sig })))         // ★“生”チケットのまま
     });
 
