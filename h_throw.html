@@ -259,7 +259,8 @@ async function lockOpen(round){
    intent: 'open',
    t0Ms: String(session.t0Ms),
    phiSec: String(session.phiSec),
-   ticketSig: String(session.ticketSig || '')
+   ticketSig: String(session.ticketSig || ''),
+   ruleVersion: String(session.ruleVersion || RULE.version)
 });
 
  console.log('[lockOpen FormData]');
@@ -651,6 +652,8 @@ function evaluateAndProceedServerLike(v0FromServer, ticket){
     gained: r.gained
   });
 
+
+  
   // 表示用バンド（UIの表示テキスト／色）
   const bandsUI = [
     { lt: 0.01, pts: 5, label: 'PERFECT!!!!', cls:'perfect',  decimals:2 },
@@ -769,18 +772,43 @@ try{
     return;
   }
 
+    
+// 5) 送信前チェック（全部 v1.3 か？）
+ const allRuleOK = all.every(x => String(x.ticket?.ruleVersion) === String(session.ruleVersion));
+ if (!allRuleOK) {
+   console.warn('[submit] ruleVersion mismatch in tickets',
+     { sessionRule: session.ruleVersion, rounds: all.map(a => a.ticket?.ruleVersion) });
+   showToast('内部データのバージョン不一致です。ページ再読み込み後にやり直してください');
+   submitBtn.disabled = false;
+   return;
+ }
+
+
+    
   // 5) 送信（チケットは正規化済み allTickets をそのまま JSON 化）
   try{
     const body = new URLSearchParams({
       studentId,
       studentName,
       sessionId: String(session.sessionId),
+      nonce: String(session.nonce),
       ticketSig: String(session.ticketSig || ''), // ★追加（GASが参照している場合に備え）
       ruleVersion: String(session.ruleVersion || RULE.version), // ★これを追加
       tickets: JSON.stringify(all.map(x => ({ ticket: x.ticket, sig: x.sig })))         // ★“生”チケットのまま
     });
 
-    const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, credentials:'omit' });
+    // ── ワンライナー診断（送る中身の目視用） ──
+    console.log('[submit body]');
+console.table(Array.from(body.entries()));
+
+const res = await fetch(GAS_SUBMIT_URL, {
+     method:'POST',
+     body,
+     credentials:'omit',
+     headers:{ 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
+               'Accept':'application/json' }
+   });
+    
     const json = await res.json().catch(()=> ({}));
 
     if(json && json.ok){
