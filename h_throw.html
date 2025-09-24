@@ -1036,6 +1036,18 @@ window.addEventListener('resize', handleResize);
 window.addEventListener('orientationchange', ()=>setTimeout(handleResize,200));
 if(window.visualViewport){ window.visualViewport.addEventListener('resize', ()=>setTimeout(handleResize,50)); }
 
+  const challengeBox = document.getElementById('challengeBox');
+if ('ResizeObserver' in window && challengeBox) {
+  const ro = new ResizeObserver(() => {
+    fitSceneToViewport();
+    fitScales();
+    layoutSubground();
+    renderGrid();
+    layoutBuilding(curY || y0);
+    resizeTrailCanvas();
+  });
+  ro.observe(challengeBox);
+}
 /* 初期化 */
 (async function init(){
   await fetchSession();              // サーバ時刻合わせ
