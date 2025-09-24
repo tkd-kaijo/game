@@ -388,7 +388,14 @@ function toPxY(ym){ return origin.y + ym*scaleY; }
 function toCanvasYCenter(ym){ return scene.clientHeight - (origin.y + ym*scaleY + BALL_R); }
 let baselineTop = null;
 function getVH(){ const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight; return Math.min(window.innerHeight, vvh); }
-function fitSceneToViewport(){ const vh=getVH(); if(baselineTop===null){baselineTop=scene.getBoundingClientRect().top} const margin=12; let desired=Math.floor(vh-baselineTop-margin); desired=Math.max(240,Math.min(desired,vh-margin)); const prev=parseFloat(getComputedStyle(scene).height); if(!isNaN(prev)&&Math.abs(prev-desired)<2)return; scene.style.height=desired+'px'; }
+function fitSceneToViewport(){
+   const vh = getVH();
+   const margin = 12;
+   // ← 毎回いまの位置で再計測
+   const topNow = scene.getBoundingClientRect().top;
+   let desired = Math.floor(vh - topNow - margin);
+  
+  desired=Math.max(240,Math.min(desired,vh-margin)); const prev=parseFloat(getComputedStyle(scene).height); if(!isNaN(prev)&&Math.abs(prev-desired)<2)return; scene.style.height=desired+'px'; }
 function fitScales(){ const usableH=scene.clientHeight; scaleY=Math.max(4,(usableH-TOP_PAD_PX)/(Y_MAX_VISIBLE+BOTTOM_VISIBLE_M)); const usableW=scene.clientWidth - origin.x - 16; scaleX=Math.max(24,Math.min(90,usableW/(5+0.6))); bottomPadPx=BOTTOM_VISIBLE_M*scaleY; origin.y=groundOffsetPx+bottomPadPx; groundEl.style.bottom=`0px`; }
 function layoutSubground(){ subgroundEl.style.bottom = `${toPxY(-BOTTOM_VISIBLE_M)}px`; subgroundEl.style.height = `${BOTTOM_VISIBLE_M * scaleY}px`; }
 function renderGrid(){
@@ -482,7 +489,13 @@ async function setupRound(){
   challengeTextHUD.textContent = `初期高さ y₀ = ${y0} m｜ターゲット x = ${xTarget} m を狙え！`;
   resultTextHUD.textContent = '';
   roundBadgeHUD.textContent = `ラウンド${currentRound}/${RULE.rounds}`;
-
+// 課題文で高さが変わるので即リレイアウト
+ fitSceneToViewport();
+ fitScales();
+ layoutSubground();
+ renderGrid();
+ layoutBuilding(y0);
+ resizeTrailCanvas();
   renderAllStatic();
   placeBallAt(0, y0);
   trailPts=[{x:0,y:y0}]; clearTrail();
