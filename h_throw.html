@@ -479,7 +479,7 @@ function animateThrow(v0, ticket){
       placeBallAt(xLand,0); updateVelocityVector(v0,-RULE.g*tFlight);
       const last2 = trailPts[trailPts.length-1]; const endp={x:xLand,y:0};
       trailPts.push(endp); drawTrailSegment(last2,endp);
-      evaluateAndProceedServerLike(v0, ticket);
+      evaluateAndProceedServerLike(ticket);
     }
   }
   requestAnimationFrame(step);
