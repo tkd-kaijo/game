@@ -253,11 +253,13 @@ const tickets = [];
 
 async function lockOpen(round){
  const body = new URLSearchParams({
-  studentId, studentName,
-  sessionId: String(session.sessionId),
- ruleVersion: String(session.ruleVersion || RULE.version),
-  ticketSig: String(session.ticketSig || ''),
- tickets: JSON.stringify(all.map(x => ({ ticket: x.ticket, sig: x.sig })))
+   sessionId: String(session.sessionId),
+   nonce: String(session.nonce),
+   round: String(round),
+   intent: 'open',
+   t0Ms: String(session.t0Ms),
+   phiSec: String(session.phiSec),
+   ticketSig: String(session.ticketSig || '')
 });
 
  console.log('[lockOpen FormData]');
@@ -515,13 +517,11 @@ lockBtn.addEventListener('click', async ()=>{
     // ★ここは1回だけ！
     const v0 = Number(j.v0);
 
-    // 受領チケットを「ラウンドをキーに」1枚だけ保持（重複防止）
-const received = { ticket: j.ticket, sig: j.sig, v0: Number(j.v0) };
+const received = { ticket: j.ticket, sig: j.sig, v0: v0 };
  ticketsByRound.set(currentRound, received);
-    
-
-    // 投射アニメーション
-    animateThrow(v0, currentTicket);
+ currentTicket = j.ticket; // ← これをセット
+ // 投射アニメーション
+ animateThrow(v0, currentTicket); // もしくは animateThrow(v0, j.ticket)
 
   }catch(e){
     console.error(e);
@@ -720,9 +720,11 @@ const all = Array.from(ticketsByRound.values())
 
   // 2) 基本チェック
   console.log('[submit] ticketsByRound.size =', ticketsByRound.size, ' / RULE.rounds =', RULE.rounds);
-  console.table(allTickets);
-  if (allTickets.length !== RULE.rounds) {
-    showToast(`提出データが不足しています（${allTickets.length}/${RULE.rounds}）`);
+  console.table(all);
+ if (all.length !== RULE.rounds) {
+   showToast(`提出データが不足しています（${all.length}/${RULE.rounds}）`);
+
+    
     return;
   }
   // round が 1..RULE.rounds の連番か軽く検証
