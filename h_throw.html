@@ -652,7 +652,6 @@ function evaluateAndProceedServerLike(v0FromServer, ticket){
     gained: r.gained
   });
 
-
   
   // 表示用バンド（UIの表示テキスト／色）
   const bandsUI = [
@@ -772,6 +771,26 @@ try{
     return;
   }
 
+    // 4.5) 提出直前のセッション再取得（サーバ側が更新されていないか確認）
+ try {
+   await fetchSession(); // ここで server 側の最新 ruleVersion / ticketSig を取得
+ } catch (e) {
+   console.warn('[submit] re-fetchSession failed', e);
+   showToast('セッション再取得に失敗しました。ページを再読み込みしてください');
+   submitBtn.disabled = false;
+   return;
+ }
+
+ // サーバ最新版と「ラウンドのチケット内 ruleVersion」が揃っているか再チェック
+ const allRuleOK = all.every(x => String(x.ticket?.ruleVersion) === String(session.ruleVersion));
+ if (!allRuleOK) {
+   console.warn('[submit] ruleVersion mismatch just before submit',
+     { sessionRule: session.ruleVersion, rounds: all.map(a => a.ticket?.ruleVersion) });
+   showToast('サーバのバージョンが更新されました。ページを再読み込みして最初から実行してください');
+   submitBtn.disabled = false;
+   return;
+ }
+
     
 // 5) 送信前チェック（全部 v1.3 か？）
  const allRuleOK = all.every(x => String(x.ticket?.ruleVersion) === String(session.ruleVersion));
@@ -794,7 +813,7 @@ try{
       nonce: String(session.nonce),
       ticketSig: String(session.ticketSig || ''), // ★追加（GASが参照している場合に備え）
       ruleVersion: String(session.ruleVersion || RULE.version), // ★これを追加
-      tickets: JSON.stringify(all.map(x => ({ ticket: x.ticket, sig: x.sig })))         // ★“生”チケットのまま
+      tickets: JSON.stringify(all.map(x => ({ ...x.ticket, sig: x.sig })))
     });
 
     // ── ワンライナー診断（送る中身の目視用） ──
