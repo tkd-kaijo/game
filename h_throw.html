@@ -245,6 +245,11 @@ async function fetchSession(){
 }
 
 /* ========= サーバロック（open/close） ========= */
+  let finished = false;     // 5投をやり切ったら true（以降は lock 禁止）
+let attemptId = null;     // この5投（1セット）を識別するID
+function newAttempt(){
+  attemptId = 'a-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
+  ticketsByRound.clear(); // このセット分だけ保持
 let currentRound = 1;
 let y0 = 19.6, xTarget = 3; // open で確定
 let currentTicket = null;   // close 時に受領
@@ -417,6 +422,7 @@ let tFlight=0, xLand=0;
 
 function renderAllStatic(){ fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(y0); resizeTrailCanvas(); }
 async function setupRound(){
+  if (currentRound === 1 && !attemptId) newAttempt();
  const ready = await ensureSessionReady();
   if (!ready) {
     showToast('セッション未確立のため開始できません（再読み込み推奨）');
@@ -489,14 +495,18 @@ function animateThrow(v0, ticket){
 
 
 /* 進行 */
-function nextRound(){ if(currentRound < RULE.rounds){ currentRound += 1; } setupRound(); }
+function nextRound(){ 
+  if (finished) { showToast('5投が終わりました。提出かリセットをしてください'); return; }
+  if(currentRound < RULE.rounds){ currentRound += 1; } 
+  setupRound(); }
 function resetGame(){
   currentRound=1; score=0; lastGainedPoints=0; scoreHUD.textContent='0点';
+  finished = false;
+  newAttempt();
   retryBtn.style.display='inline-block'; resetBtn.style.display='none';
   submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
   studentIdInput.value=''; studentNameInput.value='';
-  tickets.length = 0;
-  ticketsByRound.clear();
+  tickets.length = 0;      // 使っていない配列なら削除可
   locked=false; running=true;
   setupRound(); requestAnimationFrame(rouletteLoop);
   window.scrollTo({top:0, behavior:'instant'});
@@ -504,7 +514,9 @@ function resetGame(){
 
 /* クリック：tClick だけ送る（v0はサーバ計算） */
 lockBtn.addEventListener('click', async ()=>{
+  if (finished) { showToast('5投が終わりました。提出かリセットをしてください'); return; }
   if (locked) return;
+  if (ticketsByRound.has(currentRound)) { showToast('このラウンドは記録済みです'); return; }
 
   locked = true;
   running = false;
@@ -518,7 +530,7 @@ lockBtn.addEventListener('click', async ()=>{
     // ★ここは1回だけ！
     const v0 = Number(j.v0);
 
-const received = { ticket: j.ticket, sig: j.sig, v0: v0 };
+const received = { ticket: { ...j.ticket, attemptId }, sig: j.sig, v0 };
  ticketsByRound.set(currentRound, received);
  currentTicket = j.ticket; // ← これをセット
  // 投射アニメーション
@@ -689,7 +701,11 @@ function evaluateAndProceedServerLike(v0FromServer, ticket){
       `<div>全${RULE.rounds}回の合計スコア：<strong>${score}点</strong></div>`;
     challengeTextHUD.textContent = finalMsg;
     retryBtn.style.display='none';
-    resetBtn.style.display='inline-block';
+  resetBtn.style.display='inline-block';
+  finished = true;         // ← 終了フラグ
+  locked = true;           // 念のため
+  running = false;         // ルーレットも止める
+    
     if (score >= 10) { showSubmitBox(); }
     else { submitBox.style.display='none'; showToast('今回はスコアが10点未満のため提出できません'); }
   }
@@ -731,9 +747,11 @@ const all = Array.from(ticketsByRound.values())
   }
   // round が 1..RULE.rounds の連番か軽く検証
 const roundsOK = all.every((t,i)=> Number(t.ticket.round) === i+1);
+    const attemptOK = all.every(t => t.ticket.attemptId === attemptId);
 
-  if (!roundsOK) {
-    showToast('提出データのラウンド順が不正です（再試行してください）');
+
+  if (!roundsOK || !attemptOK) {
+  showToast('提出データが「直近の5投」だけになっていません（リセット→やり直し推奨）');
     return;
   }
 
