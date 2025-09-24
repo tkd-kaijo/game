@@ -479,7 +479,7 @@ function animateThrow(v0, ticket){
       placeBallAt(xLand,0); updateVelocityVector(v0,-RULE.g*tFlight);
       const last2 = trailPts[trailPts.length-1]; const endp={x:xLand,y:0};
       trailPts.push(endp); drawTrailSegment(last2,endp);
-      evaluateAndProceedServerLike(ticket);
+      evaluateAndProceedServerLike(v0, ticket);
     }
   }
   requestAnimationFrame(step);
@@ -644,9 +644,15 @@ function serverLikeTotal(tickets){
 
 
 // サーバ式で採点 → UI反映・加点・終了処理
-function evaluateAndProceedServerLike(ticket){
-  // サーバ判定と同じ式で再計算
-  const r = serverLikeSingle(ticket);
+function evaluateAndProceedServerLike(v0FromServer, ticket){
+   const y0 = Number(ticket.y0);
+   const xTarget = Number(ticket.xTarget);
+   const tFlight = Math.sqrt((2*y0)/RULE.g);
+   const xLand   = v0FromServer * tFlight;
+   const errPct  = Math.abs(xLand - xTarget) / xTarget;
+   const r = { v0: v0FromServer, tFlight, xLand, errPct,
+              gained: (errPct<0.01?5:errPct<0.03?4:errPct<0.10?3:errPct<0.20?2:errPct<0.30?1:0) };
+   
 
   // デバッグ（各ラウンドの詳細を見たいとき用）
   console.log('[round result(server-like)]', {
