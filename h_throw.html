@@ -531,13 +531,16 @@ function nextRound(){
   if(currentRound < RULE.rounds){ currentRound += 1; } 
   setupRound(); }
 function resetGame(){
-  currentRound=1; score=0; lastGainedPoints=0; scoreHUD.textContent='0点';
+
   finished = false;
-  newAttempt();
+  currentRound = 1;
+  score = 0;
+  lastGainedPoints = 0;
+  scoreHUD.textContent = '0点';
+  newAttempt();                  // ← ここで attemptId 更新＆ Map クリア
   retryBtn.style.display='inline-block'; resetBtn.style.display='none';
   submitBox.style.display='none'; submitBtn.disabled=false; studentIdInput.disabled=false; studentNameInput.disabled=false;
   studentIdInput.value=''; studentNameInput.value='';
-  tickets.length = 0;      // 使っていない配列なら削除可
   locked=false; running=true;
   setupRound(); requestAnimationFrame(rouletteLoop);
   window.scrollTo({top:0, behavior:'instant'});
@@ -759,6 +762,10 @@ function showSubmitBox(){ submitBox.style.display='block'; studentIdInput.focus(
 
 
   async function submitResult(){
+    if (ticketsByRound.size !== RULE.rounds) {
+  showToast(`提出データが不足しています（${ticketsByRound.size}/${RULE.rounds}）`);
+  return;
+}
     submitBtn.disabled = true;
   // 1) 送る前に Map → 配列化（round 昇順）＆型ゆらぎを数値に正規化
 
