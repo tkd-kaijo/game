@@ -190,7 +190,7 @@ const RULE = {
   cycleSec: 4,
   heights: [4.9, 19.6, 44.1],
   Ls: [3,4,5,6],
-  apexSafeRatio: 1.5,
+  apexSafeRatio: 2.0,
   widthCoef0: 0.5,
   widthCoefDecay: 0.9,
   vertV: {min:0, max:40},  // 鉛直
@@ -383,7 +383,7 @@ function rouletteLoop(){
 }
 
 // ======= 判定 =======
-function checkVertical(v0y, h, g=9.8, apexRatio=1.5){
+function checkVertical(v0y, h, g=9.8, apexRatio=2.0){
   const ymax = v0y*v0y/(2*g);
   const okReach = (v0y*v0y >= 2*g*h);
   const okSafe  = (ymax <= apexRatio*h);
@@ -453,12 +453,12 @@ async function previewVertical(){
   // ← 追加：loop2以降でパン
   xPan = (loopIndex >= 1) ? curX : 0;
   renderGrid();
-+ placeBall(curX, curY); // ★ パン反映後に球も再配置（これが抜けていると球だけ動かない）
+ placeBall(curX, curY); // ★ パン反映後に球も再配置（これが抜けていると球だけ動かない）
 
   const j = await lockOpen('vert', loopIndex); // ← close ではなく open
   h = Number(j.yPlatform);
   // HUD（鉛直は目標を出す）
-  challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.5h を超えると板割れ）`;
+  challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 2.0h を超えると板割れ）`;
   statusText.textContent = '';
   // シーンに先出し
   setPlatform(h, curX);
@@ -603,9 +603,9 @@ function refreshHUD(){
   if(stage==='vert'){
     // 鉛直は目標高さを出す（ご要望どおり）
     if(h==null){
-      challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 1.5h を超えると板割れ）`;
+      challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 2.0h を超えると板割れ）`;
     }else{
-      challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.5h を超えると板割れ）`;
+      challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 2.0h を超えると板割れ）`;
     }
     statusText.textContent = '';
   }else{
@@ -729,20 +729,50 @@ function endGame(){
   submitBox.style.display='block';
 }
 async function resetAll(){
-  loopIndex=0; stage='vert'; h=null; coef=RULE.widthCoef0; finished=false;
-  keepPrevTarget=false;
-  stepsTickets.length=0;
-  clearTarget(); clearPlatform();
-  curX=0; curY=0; placeBall(curX,curY);
-  submitBox.style.display='none';
-  studentIdInput.value=''; studentNameInput.value='';
-  statusText.textContent='';
-  refreshHUD();
-  // ここで鉛直プレビューを実行（→目標高さと床がすぐ見える）
-  try{ await previewVertical(); }catch(e){ console.warn('preview failed', e); }
-  lockBtn.disabled=false;
-}
+  // 進行状態
+  loopIndex = 0;
+  stage = 'vert';
+  h = null;
+  coef = RULE.widthCoef0;
+  finished = false;
+  keepPrevTarget = false;
+  pendingL = null;
+  pendingCoef = null;
 
+  // 表示・座標
+  xPan = 0;                 // ★ 画面パンを初期化
+  curX = 0; 
+  curY = 0;
+
+  // UIクリア
+  stepsTickets.length = 0;
+  clearTarget();
+  clearPlatform();
+  hidePlatformHole();       // ★ 割れ穴を非表示
+  platformEl.classList.remove('broken');
+  floorBand.style.display = 'none';
+  submitBox.style.display = 'none';
+  studentIdInput.value = '';
+  studentNameInput.value = '';
+  statusText.textContent = '';
+
+  // グリッド再描画 → 球の再配置（パンの反映もここで効く）
+  renderGrid();
+  placeBall(curX, curY);
+
+  // HUD
+  refreshHUD();
+
+  // 事前表示（鉛直：目標板を出す）
+  try { await previewVertical(); } catch(e){ console.warn('preview failed', e); }
+
+  // ルーレットを再開
+  running = true;
+  requestAnimationFrame(rouletteLoop);
+
+  // ボタン操作を可能に
+  lockBtn.disabled = false;
+}
 // ======= 提出 =======
 async function submitResult(){
   const studentId = studentIdInput.value.trim();
