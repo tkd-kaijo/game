@@ -333,23 +333,43 @@ function clearTarget(){
 }
 
 // グリッド他
+// ======= 置換：renderGrid() 全文 =======
 function renderGrid(){
   gridEl.innerHTML='';
-  const ys=[0,4.9,9.8,14.7,19.6,24.5,29.4,34.3,39.2,44.1];
+
+  // --- 水平グリッド（y） ---
+  const ys = [0,4.9,9.8,14.7,19.6,24.5,29.4,34.3,39.2,44.1];
   ys.forEach(v=>{
-    const l=document.createElement('div');
-    l.className = v===0 ? 'zeroline':'hgridline';
-    l.style.bottom = toPxY(v)+'px';
-    gridEl.appendChild(l);
-    const lab=document.createElement('div');
-    lab.className='gridlabel hlabel';
-    lab.style.bottom=toPxY(v)+'px';
+    const line = document.createElement('div');
+    line.className = (v===0) ? 'zeroline' : 'hgridline';
+    line.style.bottom = toPxY(v)+'px';
+    gridEl.appendChild(line);
+
+    const lab = document.createElement('div');
+    lab.className = 'gridlabel hlabel';
+    lab.style.bottom = toPxY(v)+'px';
     lab.textContent = `${v} m`;
     gridEl.appendChild(lab);
   });
-  for(let xm=0; xm<=12; xm++){
-    const v=document.createElement('div'); v.className='vgridline'; v.style.left=toPxX(xm)+'px'; gridEl.appendChild(v);
-    const lab=document.createElement('div'); lab.className='gridlabel vlabel'; lab.style.left=toPxX(xm)+'px'; lab.style.bottom=(toPxY(-2.4))+'px'; lab.textContent=`${xm} m`; gridEl.appendChild(lab);
+
+  // --- 垂直グリッド（x） ---
+  // 画面右端が何 m まで見えているかを計算（xPan を考慮）
+  const rightPx = scene.clientWidth - 8;                 // 右マージン分控えめ
+  const rightXM = Math.ceil( (rightPx - origin.x)/scaleX + xPan ); // 画面内の最大 x[m]
+
+  const maxXM = Math.max(12, rightXM);  // 12m以上まで必ず描画（保険）
+  for(let xm = 0; xm <= maxXM; xm++){
+    const v = document.createElement('div');
+    v.className = 'vgridline';
+    v.style.left = toPxX(xm) + 'px';
+    gridEl.appendChild(v);
+
+    const lab = document.createElement('div');
+    lab.className = 'gridlabel vlabel';
+    lab.style.left = toPxX(xm) + 'px';
+    lab.style.bottom = (toPxY(-2.4)) + 'px';
+    lab.textContent = `${xm} m`;
+    gridEl.appendChild(lab);
   }
 }
 function placeBall(x,y){
