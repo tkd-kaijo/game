@@ -2,10 +2,10 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>水平投射ゲーム〜5球で10点取れ！〜</title>
 <style>
-/* --- 省略なく全部含めていますが、見栄えは以前のまま --- */
+
 :root{--bg:#0f1220; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1; --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a}
 *{box-sizing:border-box} html,body{height:100%}
 body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",Meiryo,"Noto Sans JP",sans-serif;background: radial-gradient(1200px 600px at 70% -10%, #1a1f38, #0b0e1a 60%), var(--bg);color:var(--text);display:flex;min-height:100svh;align-items:center;justify-content:center;padding:16px}
@@ -86,6 +86,31 @@ button:disabled{opacity:.5;cursor:not-allowed}
 }
 #challengeTextHUD {
   flex-grow: 1;            /* ← 残りスペースを使って課題文を表示 */
+}
+
+  /* === iPhone/小画面対策：bodyのflex縦センターをやめる === */
+@media (max-width: 768px){
+  body{
+    display:block;          /* ← 最重要：flexをやめる */
+    min-height:100dvh;      /* URLバー出入りの高さ変動に耐える */
+    padding:12px 12px 16px; /* 上下に少し余白 */
+  }
+  .app{ margin: 0 auto; }   /* 横だけ中央寄せ */
+
+  /* 狭幅では課題ボックスは折り返し可に（今は nowrap 指定が入っている） */
+  .challengeBox{ 
+    flex-wrap: wrap;        /* ← iPhoneでは1行固定をやめて可視性優先 */
+    justify-content: flex-start;
+  }
+}
+
+/* === 上部2要素（タイトル＆課題）を“軽く固定” === */
+:root{ --safe-top: env(safe-area-inset-top, 0px); }
+.title, .challengeBox{
+  position: sticky;
+  top: calc(var(--safe-top) + 6px);   /* ノッチ・URLバー対策 */
+  z-index: 10;
+  background: transparent;            /* 背景はそのまま。重なりが気になるなら半透明を足す */
 }
 </style>
 </head>
@@ -402,14 +427,33 @@ function toPxY(ym){ return origin.y + ym*scaleY; }
 function toCanvasYCenter(ym){ return scene.clientHeight - (origin.y + ym*scaleY + BALL_R); }
 let baselineTop = null;
 function getVH(){ const vvh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight; return Math.min(window.innerHeight, vvh); }
+
 function fitSceneToViewport(){
-   const vh = getVH();
-   const margin = 12;
-   // ← 毎回いまの位置で再計測
-   const topNow = scene.getBoundingClientRect().top;
-   let desired = Math.floor(vh - topNow - margin);
+  // 実際に見えているviewportの高さ（URLバー込み）を優先
+  const vh = (window.visualViewport?.height)
+    ? Math.min(window.innerHeight, window.visualViewport.height)
+    : window.innerHeight;
+
+  const margin = 12;
+
+  // 現在のシーン上端位置（タイトル/課題の高さ変動にも追随）
+  const topNow = scene.getBoundingClientRect().top;
+
+  // ★ タイトル＋課題ボックス分の“保険”を常に残す
+  const SAFE_HEADROOM = 72; // 64〜96の範囲で環境に応じて微調整可
+
+  // 欲張りすぎない希望高さ
+  let desired = Math.floor(vh - topNow - margin - SAFE_HEADROOM);
+
+  // 下限/上限でクランプ
+  desired = Math.max(240, Math.min(desired, vh - margin - 20));
+
+  const prev = parseFloat(getComputedStyle(scene).height);
+  if(!isNaN(prev) && Math.abs(prev - desired) < 2) return;
+
+  scene.style.height = desired + 'px';
+}
   
-  desired=Math.max(240,Math.min(desired,vh-margin)); const prev=parseFloat(getComputedStyle(scene).height); if(!isNaN(prev)&&Math.abs(prev-desired)<2)return; scene.style.height=desired+'px'; }
 function fitScales(){ const usableH=scene.clientHeight; scaleY=Math.max(4,(usableH-TOP_PAD_PX)/(Y_MAX_VISIBLE+BOTTOM_VISIBLE_M)); const usableW=scene.clientWidth - origin.x - 16; scaleX=Math.max(24,Math.min(90,usableW/(5+0.6))); bottomPadPx=BOTTOM_VISIBLE_M*scaleY; origin.y=groundOffsetPx+bottomPadPx; groundEl.style.bottom=`0px`; }
 function layoutSubground(){ subgroundEl.style.bottom = `${toPxY(-BOTTOM_VISIBLE_M)}px`; subgroundEl.style.height = `${BOTTOM_VISIBLE_M * scaleY}px`; }
 function renderGrid(){
