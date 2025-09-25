@@ -165,7 +165,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 (()=>{
 // ======= エンドポイント =======
-const GAS_BASE = 'https://script.google.com/macros/s/AKfycbzCFWyQccEauFx7n9HI0Deh-Z0N6U0p8w1HmPn5TuBJjyl6zKO_G1U4Ehy9L-R330CHxA/exec';
+const GAS_BASE = 'https://script.google.com/macros/s/AKfycbxzxBItdotn4SyTvMy_XxY-V0pchUq5QM5-X32N8DVsRLf_bjFHePXN6cvL8o4XQYncQw/exec';
 const GAS_SESSION_URL = GAS_BASE + '?fn=session';
 const GAS_LOCK_URL    = GAS_BASE + '?path=lock';
 const GAS_SUBMIT_URL  = GAS_BASE + '?path=submit';
@@ -244,6 +244,7 @@ let stage = 'vert';     // 'vert' | 'horiz'
 let h = null;           // 鉛直の目標高さ
 let coef = RULE.widthCoef0;
 let finished = false;
+  let keepPrevTarget = false; // 水平成功後のターゲット板を、次の鉛直成功まで残すフラグ
 
 const stepsTickets = [];  // { v0, ticket:{...}, sig }
 let curX = 0, curY = 0;   // 現在地を持ち越し
@@ -466,10 +467,11 @@ function animateVertical(v0){
   setTimeout(()=>{ placeBall(x0, h); }, Math.max(0, tLand*1000));
   return res;
 }
-function animateHorizontal(v0, L, W){
+function animateHorizontal(v0, L, W, { fallThroughOnFail = false } = {}){
   const t = Math.sqrt(2*h/RULE.g);
   const xStart = curX;
   const xFinal = xStart + v0 * t;
+
   const t0 = performance.now();
   function step(now){
     const dt = Math.min((now-t0)/1000, t);
@@ -481,7 +483,28 @@ function animateHorizontal(v0, L, W){
     if(dt < t - 1e-3) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
-  setTimeout(()=>{ placeBall(xFinal, 0); }, Math.max(0, t*1000));
+
+  // 地面到達後の処理
+  setTimeout(()=>{
+    // いったん地面に置く（成功・失敗共通で時刻合わせ）
+    placeBall(xFinal, 0);
+
+    // 失敗時は「下に突き抜けて消える」演出
+    if(fallThroughOnFail){
+      const vy0 = -Math.sqrt(2*RULE.g*h); // 地面到達時の鉛直速度（下向き）
+      const t1 = performance.now();
+      function step2(now){
+        const dt = (now - t1)/1000;
+        const y = 0 + vy0*dt - 0.5*RULE.g*dt*dt; // y<0へ
+        placeBall(xFinal, y);
+        // シーン下端よりさらに少し下まで描画してから終了
+        const screenBottomM = -(scene.clientHeight/scaleY) - 5;
+        if(y > screenBottomM) requestAnimationFrame(step2);
+      }
+      requestAnimationFrame(step2);
+    }
+  }, Math.max(0, t*1000));
+
   return { xFinal, t, W };
 }
 
@@ -540,41 +563,41 @@ async function doStep(){
         }
       }, Math.max(450, verdict.tLand*1000+100));
 
+} else {
+  const j = await lockClose('horiz', loopIndex, {h:String(h)});
+  const v0 = Number(j.v0);
+  const L  = Number(j.Ltarget);
+  const W  = Number(j.coef) * L;
+
+  // 課題文には表示しない／シーン内にだけ表示
+  clearPlatform();
+  const targetX = curX + L;
+  setTargetAtX(targetX, W);
+
+  const verdict = checkHorizontal(v0, h, L, j.coef, RULE.g);
+  // ← 成否を渡して、失敗なら「下へ突き抜ける」
+  const { t } = animateHorizontal(v0, L, W, { fallThroughOnFail: !verdict.ok });
+  stepsTickets.push({ v0, ticket:{...j.ticket, h }, sig:j.sig });
+
+  setTimeout(()=>{
+    if(!verdict.ok){
+      statusText.textContent='板に乗れず → ゲームオーバー';
+      endGame(); // ← 後述の endGame() 修正で板も消える
     }else{
-      const j = await lockClose('horiz', loopIndex, {h:String(h)});
-      const v0 = Number(j.v0);
-      const L  = (pendingL??Number(j.Ltarget));
-     const c  = (pendingCoef??Number(j.coef));
-     const W  = c * L;
+// 直前の水平で残していた板があれば、ここで消す
+  if(keepPrevTarget){
+    clearTarget();
+    keepPrevTarget = false;
+  }
+  stage='horiz';
+  refreshHUD();
+  lockBtn.disabled=false;
+}
+      
+  }, Math.max(450, t*1000+120));
+}
 
-      // 課題文には表示しない／シーン内にだけ表示
-      clearPlatform();
-      const targetX = curX + L;
-      setTargetAtX(targetX, W);
-
-      const verdict = checkHorizontal(v0, h, L, j.coef, RULE.g);
-      const { t } = animateHorizontal(v0, L, W);
-      stepsTickets.push({ v0, ticket:{...j.ticket, h }, sig:j.sig });
-
-      setTimeout(async ()=>{
-        if(!verdict.ok){
-          statusText.textContent='板に乗れず → ゲームオーバー';
-          endGame();
-        }else{
-          loopIndex += 1;
-          coef *= RULE.widthCoefDecay;
-          stage='vert';
-          h = null;
-          clearTarget();
-          refreshHUD();
-
-try{ await previewVertical(); }catch(e){ console.warn('preview vert failed', e); }
-         pendingL=null; pendingCoef=null;
-         lockBtn.disabled=false;
-          
-        }
-      }, Math.max(450, t*1000+120));
-    }
+      
   }catch(e){
     console.error(e); showToast('サーバに接続できません'); lockBtn.disabled=false;
   }
@@ -583,10 +606,14 @@ try{ await previewVertical(); }catch(e){ console.warn('preview vert failed', e);
 function endGame(){
   finished = true;
   lockBtn.disabled = true;
+  // どの状態で終わっても UI を整理
+  clearTarget();
+  keepPrevTarget = false;
   submitBox.style.display='block';
 }
 async function resetAll(){
   loopIndex=0; stage='vert'; h=null; coef=RULE.widthCoef0; finished=false;
+  keepPrevTarget=false;
   stepsTickets.length=0;
   clearTarget(); clearPlatform();
   curX=0; curY=0; placeBall(curX,curY);
