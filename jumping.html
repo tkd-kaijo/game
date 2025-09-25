@@ -38,7 +38,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .ball{position:absolute;width:18px;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff,#bfeaff 30%,#6ae3ff 45%,#0aa3c0 70%,#067089 100%);box-shadow:0 8px 24px rgba(106,227,255,.45);z-index:2}
 .velvec{position:absolute;height:3px;background:#8ff2ff;box-shadow:0 0 10px rgba(106,227,255,.6);transform-origin:left center;z-index:2}
 .velvec::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);border-left:8px solid #8ff2ff;border-top:5px solid transparent;border-bottom:5px solid transparent;filter:drop-shadow(0 0 6px rgba(106,227,255,.6))}
-.platform{position:absolute;left:0;right:auto;background:linear-gradient(180deg,#8f95a3,#6f7482);border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 6px 14px rgba(0,0,0,.25);z-index:1}
+.platform{
+  position:absolute;left:0;right:auto;
+  background:linear-gradient(180deg,#8f95a3,#6f7482);
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:inset 0 6px 14px rgba(0,0,0,.25);
+  z-index:1;
+  display:none; /* 押すまで隠す（プレビューで表示に切り替える） */
+}
 .target{position:absolute;border:2px dashed #ffd36a;border-radius:6px;z-index:2}
 .readouts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
 .stat{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px}
@@ -53,8 +60,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
   background:linear-gradient(180deg,#8b5e3c,#5e3b23);
   border-top:1px solid rgba(255,255,255,.12);
   box-shadow:inset 0 2px 6px rgba(0,0,0,.35);
-  display:none; /* 初期は非表示 */
-  z-index:1;   /* ball より下, grid より上くらい */
+  display:none;
+  z-index:1;
 }
 </style>
 </head>
@@ -114,22 +121,23 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 (()=>{
 // ======= エンドポイント =======
-const GAS_BASE = 'https://script.google.com/macros/s/AKfycbyvfLjm9zB05mzmOlobJ9sAsM2reN-JGcDgRH8ZsbUsUdCcK9wUj0gY6G72tvzgJv60Xg/exec';
+const GAS_BASE = 'https://script.google.com/macros/s/AKfycbwvxm20Hlm_cPhu9EimDfFCS5MH4mhZsErkguvDcFsgDw_gZNVvnCvagTer-FDWCrT7mA/exec'; // 例: https://script.google.com/macros/s/XXXX/exec
 const GAS_SESSION_URL = GAS_BASE + '?fn=session';
 const GAS_LOCK_URL    = GAS_BASE + '?path=lock';
 const GAS_SUBMIT_URL  = GAS_BASE + '?path=submit';
 
-// ======= ルール（フロント側は表示/アニメ用のみ） =======
+// ======= ルール（表示/アニメ用） =======
 const RULE = {
   version: 'v2-vert-then-horiz',
   g: 9.8,
-  vMin: 0, vMax: 6,
   cycleSec: 4,
   heights: [4.9, 19.6, 44.1],
   Ls: [3,4,5,6],
   apexSafeRatio: 1.2,
   widthCoef0: 0.5,
-  widthCoefDecay: 0.9
+  widthCoefDecay: 0.9,
+  vertV: {min:0, max:40},  // 鉛直用
+  horizV:{min:0, max:6}    // 水平用
 };
 
 // ======= DOM =======
@@ -160,7 +168,7 @@ const studentNameInput = document.getElementById('studentName');
 const toast = document.getElementById('toast');
 const showToast = (m)=>{ toast.textContent=m; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2200) };
 const floorBand = document.getElementById('floorBand');
-  
+
 // ======= セッション =======
 let session = { sessionId:'', nonce:'', ruleVersion: RULE.version, t0Ms:0, phiSec:0, offsetMs:0, rttMs:0, ticketSig:'' };
 async function fetchSession(){
@@ -189,11 +197,15 @@ const ensureSessionReady = ()=> !!(session.sessionId && session.ticketSig);
 // ======= ステップ&ループ =======
 let loopIndex = 0;        // 0,1,2,...
 let stage = 'vert';       // 'vert' | 'horiz'
-let h = null;             // 現在の高さ（鉛直の成功で確定）
+let h = null;             // 現在の目標高さ（サーバが決める）
 let coef = RULE.widthCoef0;
 let finished = false;
 
 const stepsTickets = [];  // { v0, ticket:{...}, sig }
+
+// 位置を持ち越す（常にこれが「現在地」）
+let curX = 0;
+let curY = 0;
 
 // ======= レイアウト座標変換 =======
 const BALL_DIAM_PX=18, BALL_R=BALL_DIAM_PX/2;
@@ -224,16 +236,21 @@ function renderGrid(){
     lab.textContent = `${v} m`;
     gridEl.appendChild(lab);
   });
-  for(let xm=0; xm<=8; xm++){
+  for(let xm=0; xm<=12; xm++){
     const v=document.createElement('div'); v.className='vgridline'; v.style.left=toPxX(xm)+'px'; gridEl.appendChild(v);
     const lab=document.createElement('div'); lab.className='gridlabel vlabel'; lab.style.left=toPxX(xm)+'px'; lab.style.bottom=(toPxY(-2.4))+'px'; lab.textContent=`${xm} m`; gridEl.appendChild(lab);
   }
 }
-function placeBall(x,y){ ball.style.left=(toPxX(x)-BALL_R)+'px'; ball.style.bottom=toPxY(y)+'px'; posNowEl.textContent=`${x.toFixed(2)} m, ${y.toFixed(2)} m`; }
+function placeBall(x,y){
+  curX = x; curY = y;
+  ball.style.left=(toPxX(x)-BALL_R)+'px';
+  ball.style.bottom=toPxY(y)+'px';
+  posNowEl.textContent=`${x.toFixed(2)} m, ${y.toFixed(2)} m`;
+}
 function setPlatform(heightM){
   platformEl.style.display='block';
   platformEl.style.left='0px';
-  platformEl.style.right=(scene.clientWidth - toPxX(0.4))+'px'; // 0〜少し右
+  platformEl.style.right='0px';
   platformEl.style.bottom = toPxY(heightM)+'px';
   platformEl.style.height = '6px';
 }
@@ -247,18 +264,23 @@ function setTarget(L,W){
 }
 function clearTarget(){ targetEl.style.display='none'; }
 
-// ======= ルーレット描画 =======
-let running=true;
+// ======= ルーレット描画（モード別レンジ）=======
+function getVRange(){
+  return (stage==='vert') ? RULE.vertV : RULE.horizV;
+}
 function vFromNowMs(nowMs){
   const unit = ((((nowMs - session.t0Ms)/1000) / session.phiSec) % 1 + 1) % 1;
-  return RULE.vMin + unit*(RULE.vMax - RULE.vMin);
+  const {min,max} = getVRange();
+  return min + unit*(max - min);
 }
 function updateSpeedUI(v){
-  const c = Math.max(RULE.vMin, Math.min(RULE.vMax, v));
-  const ratio = (c-RULE.vMin)/(RULE.vMax-RULE.vMin);
+  const {min,max} = getVRange();
+  const c = Math.max(min, Math.min(max, v));
+  const ratio = (c-min)/(max-min);
   fillEl.style.width = (ratio*100).toFixed(2)+'%';
   speedLabel.textContent = c.toFixed(2)+' m/s';
 }
+let running=true;
 function rouletteLoop(){
   if(!running) return;
   const displayNow = Date.now() + session.offsetMs;
@@ -267,7 +289,7 @@ function rouletteLoop(){
   requestAnimationFrame(rouletteLoop);
 }
 
-// ======= 判定関数 =======
+// ======= 判定 =======
 function checkVertical(v0y, h, g=9.8, apexRatio=1.2){
   const ymax = v0y*v0y/(2*g);
   const okReach = (v0y*v0y >= 2*g*h);
@@ -284,12 +306,12 @@ function checkHorizontal(v0x, h, L, coef, g=9.8){
   return { ok: hit, x, t, W };
 }
 
-// ======= サーバロック =======
+// ======= サーバ：v0確定 & 課題 stateless 取得 =======
 async function lockClose(mode, loopIndex, extra={}){
   const body = new URLSearchParams({
     sessionId: session.sessionId,
     nonce: session.nonce,
-    round: String(1),           // 互換のため固定（未使用）
+    round: String(1),
     intent: 'close',
     mode,
     loopIndex: String(loopIndex),
@@ -309,36 +331,54 @@ async function lockClose(mode, loopIndex, extra={}){
   return j; // {ok, v0, ticket, sig, yPlatform?, Ltarget?, coef?}
 }
 
+// ======= プレビュー（初期表示用：v0は使わない）=======
+async function previewVertical(){
+  const j = await lockClose('vert', loopIndex);
+  h = Number(j.yPlatform);
+  challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
+  statusText.textContent = `鉛直：目標高さ h=${h} m`;
+  setFloorBand(h);
+  setPlatform(h);
+  clearTarget();
+  placeBall(curX, curY); // 現在地（初回は 0,0）
+}
+
 // ======= アニメ =======
 function animateVertical(v0){
   const res = checkVertical(v0, h, RULE.g, RULE.apexSafeRatio);
   const tLand = res.tLand;
+  const x0 = curX;
   const t0 = performance.now();
   function step(now){
     const t = Math.min((now-t0)/1000, tLand);
     const y = v0*t - 0.5*RULE.g*t*t;
-    placeBall(0, Math.max(0,y));
+    placeBall(x0, Math.max(0,y));
     tValEl.textContent = t.toFixed(2)+' s';
     xLandVal.textContent = '—';
     if(t < tLand - 1e-3) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+  // 最終着地位置に更新（xは不変、y=h）
+  setTimeout(()=>{ placeBall(x0, h); }, Math.max(0, tLand*1000));
   return res;
 }
 function animateHorizontal(v0, L, W){
   const t = Math.sqrt(2*h/RULE.g);
-  const xFinal = v0 * t;
+  const xStart = curX;
+  const xFinal = xStart + v0 * t; // 今回は「現在地」からの水平
   const t0 = performance.now();
   function step(now){
     const dt = Math.min((now-t0)/1000, t);
     const y = Math.max(0, h - 0.5*RULE.g*dt*dt);
-    const x = v0*dt;
+    const x = xStart + v0*dt;
     placeBall(x,y);
     tValEl.textContent = dt.toFixed(2)+' s';
     xLandVal.textContent = xFinal.toFixed(2)+' m';
     if(dt < t - 1e-3) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+  // 最終着地位置（地面）に更新
+  setTimeout(()=>{ placeBall(xFinal, 0); }, Math.max(0, t*1000));
   return { xFinal, t, W };
 }
 
@@ -347,7 +387,9 @@ function refreshHUD(){
   loopBadge.textContent = `ループ ${loopIndex+1}`;
   stageBadge.textContent = `ステップ: ${stage==='vert'?'鉛直':'水平'}`;
   if(stage==='vert'){
-    challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 1.2h を超えると板割れ）`;
+    challengeText.textContent = (h==null)
+      ? `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 1.2h を超えると板割れ）`
+      : `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
   }else{
     challengeText.textContent = `水平：地面の板 L = 3/4/5/6 m（幅 = c·L, いま c=${coef.toFixed(3)}）に着地`;
   }
@@ -358,52 +400,61 @@ async function doStep(){
   lockBtn.disabled = true;
   try{
     if(stage==='vert'){
-      // サーバで v0 & 課題確定
+      // v0確定（課題も stateless に同じhが返る）
       const j = await lockClose('vert', loopIndex);
-      
       const v0 = Number(j.v0);
       h = Number(j.yPlatform);
-challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
-setFloorBand(h);
-      
-      // 表示
-      statusText.textContent = `鉛直：目標高さ h=${h} m`;
+      // 表示を更新（板は投射後に表示したい指示 → ここで表示ON）
+      setFloorBand(h);
       setPlatform(h);
       clearTarget();
-      placeBall(0,0);
+      statusText.textContent = `鉛直：目標高さ h=${h} m`;
+      refreshHUD();
       // アニメ & 判定
       const verdict = checkVertical(v0, h, RULE.g, RULE.apexSafeRatio);
       animateVertical(v0);
       stepsTickets.push({ v0, ticket:{...j.ticket}, sig:j.sig });
       setTimeout(()=>{
-        if(!verdict.ok){ statusText.textContent='板が割れた／届かなかった → ゲームオーバー'; endGame(); }
-        else {clearFloorBand(); stage='horiz'; refreshHUD(); lockBtn.disabled=false; }
+        if(!verdict.ok){
+          statusText.textContent='板が割れた／届かなかった → ゲームオーバー';
+          endGame();
+        }else{
+          // 着地後、その座標のまま水平へ
+          clearFloorBand();
+          stage='horiz';
+          refreshHUD();
+          lockBtn.disabled=false;
+        }
       }, Math.max(450, verdict.tLand*1000+100));
     }else{
-     const j = await lockClose('horiz', loopIndex, {h:String(h)});
-     clearFloorBand();
-      
+      // 水平ステップの課題生成（高さ情報は送る）
+      const j = await lockClose('horiz', loopIndex, {h:String(h)});
+      clearFloorBand();
       const v0 = Number(j.v0);
       const L  = Number(j.Ltarget);
       const W  = Number(j.coef) * L;
       statusText.textContent = `水平：L=${L} m, 幅=${(W).toFixed(2)} m`;
       clearPlatform();
-      setTarget(L, W);
-      placeBall(0,h);
+      setTarget(curX + L, W); // 現在地から L 先をターゲットに（視覚的にも現在地基準）
+      // アニメ & 判定（x は現在地からの到達距離で判定）
       const verdict = checkHorizontal(v0, h, L, j.coef, RULE.g);
-      animateHorizontal(v0, L, W);
-      stepsTickets.push({ v0, ticket:{...j.ticket}, sig:j.sig });
+      const { xFinal, t } = animateHorizontal(v0, L, W);
+      stepsTickets.push({ v0, ticket:{...j.ticket, h }, sig:j.sig });
       setTimeout(()=>{
-        if(!verdict.ok){ statusText.textContent='板に乗れず → ゲームオーバー'; endGame(); }
-        else {
-          // ループ前進
+        if(!verdict.ok){
+          statusText.textContent='板に乗れず → ゲームオーバー';
+          endGame();
+        }else{
+          // 成功：位置を維持したまま次ループの鉛直へ
           loopIndex += 1;
           coef *= RULE.widthCoefDecay;
           stage='vert';
+          h = null; // 次ループのプレビューで決まる
+          clearTarget();
           refreshHUD();
           lockBtn.disabled=false;
         }
-      }, Math.max(450, verdict.t*1000+120));
+      }, Math.max(450, t*1000+120));
     }
   }catch(e){
     console.error(e); showToast('サーバに接続できません'); lockBtn.disabled=false;
@@ -418,7 +469,8 @@ function endGame(){
 function resetAll(){
   loopIndex=0; stage='vert'; h=null; coef=RULE.widthCoef0; finished=false;
   stepsTickets.length=0;
-  clearTarget(); clearPlatform(); placeBall(0,0);
+  clearTarget(); clearPlatform(); clearFloorBand();
+  curX=0; curY=0; placeBall(curX,curY);
   submitBox.style.display='none';
   studentIdInput.value=''; studentNameInput.value='';
   statusText.textContent='';
@@ -451,7 +503,6 @@ async function submitResult(){
     console.log('[submit response]', j);
     if(j && j.ok){
       showToast(`提出OK：到達ループ ${j.reachedLoops}、最高L=${j.maxL||'-'}m`);
-      // （提出後は任意にリセット）
     }else{
       showToast(j && j.error || '提出失敗');
     }
@@ -473,13 +524,12 @@ submitBtn.addEventListener('click', submitResult);
 
 // ======= 初期化 =======
 function layoutInit(){
-  // 適当なスケール
   const usableH = scene.clientHeight - 16; // pad
   scaleY = Math.max(6, Math.min(usableH/50, 10));
   const usableW = scene.clientWidth - origin.x - 16;
-  scaleX = Math.max(24, Math.min(usableW/8, 90));
+  scaleX = Math.max(24, Math.min(usableW/12, 90));
   renderGrid();
-  placeBall(0,0);
+  placeBall(curX,curY);
 }
 window.addEventListener('resize', layoutInit);
 
@@ -487,6 +537,8 @@ window.addEventListener('resize', layoutInit);
   layoutInit();
   await fetchSession();
   refreshHUD();
+  // 初期プレビュー（鉛直の課題と板を先に見せる）
+  try{ await previewVertical(); }catch(e){ console.warn('preview failed', e); }
   running=true; requestAnimationFrame(rouletteLoop);
 })();
 })();
