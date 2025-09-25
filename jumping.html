@@ -522,7 +522,7 @@ async function doStep(){
       animateVertical(v0);
       stepsTickets.push({ v0, ticket:{...j.ticket}, sig:j.sig });
 
-      setTimeout(()=>{
+      setTimeout(async ()=>{
         if(!verdict.ok){
           if(verdict.okReach && !verdict.okSafe){
             // 高すぎて割れた
@@ -556,7 +556,7 @@ async function doStep(){
       const { t } = animateHorizontal(v0, L, W);
       stepsTickets.push({ v0, ticket:{...j.ticket, h }, sig:j.sig });
 
-      setTimeout(()=>{
+      setTimeout(async ()=>{
         if(!verdict.ok){
           statusText.textContent='板に乗れず → ゲームオーバー';
           endGame();
