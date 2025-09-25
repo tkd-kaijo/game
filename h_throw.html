@@ -70,7 +70,46 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .submitRow button{padding:10px 14px;border-radius:10px;border:none;font-weight:700;cursor:pointer;color:#03131a;background:linear-gradient(180deg,#b1ffd1,#7affaf);box-shadow:0 8px 22px rgba(122,255,175,.28)}
 .helpText{font-size:12px;color:#cfe3ff;opacity:.9;margin-top:6px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:#0b1022;color:#eafff3;padding:10px 14px;border:1px solid rgba(255,255,255,.1);border-radius:10px;display:none;z-index:9999}
-#leaderboardCard{grid-column:1 / -1}
+
+  /* === 中央ポップアップ === */
+.popup-backdrop{
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  display:none; z-index: 9998;
+}
+
+.popup{
+  position: fixed; inset: 0;
+  display:none; place-items:center;
+  z-index: 9999;
+}
+.popup-card{
+  min-width: 260px; max-width: 90vw;
+  padding: 20px 22px; border-radius: 14px;
+  background: linear-gradient(180deg,#0b1022,#0b1022);
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
+  text-align: center;
+  color: #eafff3;
+  animation: popupIn .18s ease-out;
+}
+.popup-title{
+  font-size: clamp(22px,4.6vw,28px);
+  font-weight: 900; letter-spacing: .02em;
+  margin: 2px 0 6px;
+  color: #b1ffd1;
+  text-shadow: 0 0 18px rgba(122,255,175,.35);
+}
+.popup-note{
+  font-size: 14px; color: #cfe3ff; opacity: .9;
+}
+@keyframes popupIn{
+  from{ transform: scale(.96); opacity: 0 }
+  to  { transform: scale(1);    opacity: 1 }
+}
+  
+  
+  #leaderboardCard{grid-column:1 / -1}
 #leaderboardCardMobile{display:none}
 @media (max-width:640px){.playgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"scene readouts";gap:10px}.scene{grid-area:scene;min-width:0}.readouts{grid-area:readouts;min-width:0;grid-template-columns:1fr}#leaderboardCard{display:none}#leaderboardCardMobile{display:block;margin-top:10px}}
 .challengeBox {
@@ -183,6 +222,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <div class="helpText" id="submitHelp">10点以上で提出できます。</div>
   </div>
   <div class="toast" id="toast"></div>
+  <!-- 中央ポップアップ -->
+<div class="popup-backdrop" id="popupBackdrop" aria-hidden="true"></div>
+<div class="popup" id="popup" role="dialog" aria-modal="true" aria-labelledby="popupTitle">
+  <div class="popup-card" role="document">
+    <div class="popup-title" id="popupTitle">送信しました！</div>
+    <div class="popup-note" id="popupNote">ランキングへ反映まで数秒かかることがあります。</div>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -238,6 +285,35 @@ const studentNameInput = document.getElementById('studentName');
 const toast = document.getElementById('toast');
 const showToast = (m)=>{ toast.textContent=m; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2200) };
 
+// === ポップアップ制御 ===
+const popup = document.getElementById('popup');
+const popupBackdrop = document.getElementById('popupBackdrop');
+const popupTitle = document.getElementById('popupTitle');
+const popupNote = document.getElementById('popupNote');
+
+function showPopup(title = '送信しました！', note = 'ランキングへ反映まで数秒かかることがあります。', autoHideMs = 2200){
+  if (popupTitle) popupTitle.textContent = title;
+  if (popupNote)  popupNote.textContent  = note;
+  if (popupBackdrop) popupBackdrop.style.display = 'block';
+  if (popup) popup.style.display = 'grid';
+
+  // ESC / クリックで閉じる
+  const onEsc = (e)=>{ if(e.key === 'Escape') hidePopup(); };
+  window.addEventListener('keydown', onEsc, { once:true });
+
+  const closeOnce = ()=> hidePopup();
+  popupBackdrop?.addEventListener('click', closeOnce, { once:true });
+  popup?.addEventListener('click', (e)=>{ if(e.target === popup) closeOnce(); }, { once:true });
+
+  if (autoHideMs > 0){
+    setTimeout(hidePopup, autoHideMs);
+  }
+}
+function hidePopup(){
+  if (popup) popup.style.display = 'none';
+  if (popupBackdrop) popupBackdrop.style.display = 'none';
+}
+  
 /* ========= セッション & 時刻補正 ========= */
 let session = {
   sessionId:'', nonce:'', ruleVersion: RULE.version, serverG: RULE.g,
@@ -983,10 +1059,10 @@ const res = await fetch(GAS_SUBMIT_URL, {
 console.log('[submit response]', json);
 
     if(json && json.ok){
-      showToast('送信しました！');
-      submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
-      setTimeout(loadLeaderboard, 4000);
-    }else{
+  showPopup('送信しました！', '反映までお待ちください', 2400);
+  submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+  setTimeout(loadLeaderboard, 4000);
+}else{
       const msg = ({
         'INVALID_STUDENT_ID':'学籍番号が正しくありません',
         'EMPTY_NAME':'氏名を入力してください',
