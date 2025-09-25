@@ -328,7 +328,12 @@ body.prestart .btn{ pointer-events: none; opacity: .6; }
 
   // 水平投射の候補
   const Y_CANDIDATES = [4.9, 19.6, 44.1];
-  const TARGET_CANDIDATES = [1,2,3,4,5];
+  // 高さごとに許可するターゲットxの候補
+  const TARGET_BY_HEIGHT = {
+    '4.9':  [1,2,3,4,5],
+    '19.6': [3,4,5],
+    '44.1': [3,4,5],
+  };
   const H_LINES = [4.9,9.8,14.7,19.6,24.5,29.4,34.3,39.2,44.1];
   const X_GRID_MAX = 5;
   const BOTTOM_VISIBLE_M = 3.2;
@@ -512,11 +517,12 @@ body.prestart .btn{ pointer-events: none; opacity: .6; }
 
     /* ---- 課題 ---- */
     pickChallenge(){
-      // 前回と同一の {y0,x} を避ける
+      // 前回と同一の {y0,x} を避けつつ、高さに応じてx候補を制限
       let y, x, safety=32;
       do{
         y = Y_CANDIDATES[Math.floor(Math.random()*Y_CANDIDATES.length)];
-        x = TARGET_CANDIDATES[Math.floor(Math.random()*TARGET_CANDIDATES.length)];
+        const allowed = TARGET_BY_HEIGHT[y.toFixed(1)] || TARGET_BY_HEIGHT['4.9'];
+        x = allowed[Math.floor(Math.random()*allowed.length)];
       }while(this.prevCombo && this.prevCombo.y===y && this.prevCombo.x===x && --safety>0);
       this.y0=y; this.xTarget=x; this.prevCombo={y,x};
       this.challengeLabel.textContent = `初期高さ y₀ = ${y.toFixed(1)} m｜ターゲット x = ${x} m を狙え！`;
