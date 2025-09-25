@@ -46,6 +46,16 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .stat .value{font-variant-numeric:tabular-nums;font-weight:800;font-size:22px}
 .submitBox{display:none;margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.06)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:#0b1022;color:#eafff3;padding:10px 14px;border:1px solid rgba(255,255,255,.1);border-radius:10px;display:none;z-index:9999}
+.floorBand{
+  position:absolute;
+  left:0; right:0;
+  height:12px;
+  background:linear-gradient(180deg,#8b5e3c,#5e3b23);
+  border-top:1px solid rgba(255,255,255,.12);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.35);
+  display:none; /* 初期は非表示 */
+  z-index:1;   /* ball より下, grid より上くらい */
+}
 </style>
 </head>
 <body>
@@ -71,6 +81,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
       <div class="scene" id="scene" aria-label="投射シーン">
         <div class="grid" id="grid"></div>
+        <div class="floorBand" id="floorBand" aria-hidden="true"></div>
         <div class="ball" id="ball"></div>
         <div class="velvec" id="velvec" aria-hidden="true"></div>
         <div class="platform" id="platform"></div>
@@ -148,7 +159,8 @@ const studentNameInput = document.getElementById('studentName');
 
 const toast = document.getElementById('toast');
 const showToast = (m)=>{ toast.textContent=m; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2200) };
-
+const floorBand = document.getElementById('floorBand');
+  
 // ======= セッション =======
 let session = { sessionId:'', nonce:'', ruleVersion: RULE.version, t0Ms:0, phiSec:0, offsetMs:0, rttMs:0, ticketSig:'' };
 async function fetchSession(){
@@ -189,7 +201,15 @@ let scaleY=8, scaleX=40;
 const origin={ x: 30, y: 8+8 }; // ground offset + bottom pad（簡易）
 function toPxX(xm){ return origin.x + xm*scaleX; }
 function toPxY(ym){ return origin.y + ym*scaleY; }
-
+function setFloorBand(heightM){
+  if(!floorBand) return;
+  floorBand.style.bottom = toPxY(heightM) + 'px';
+  floorBand.style.display = 'block';
+}
+function clearFloorBand(){
+  if(!floorBand) return;
+  floorBand.style.display = 'none';
+}
 function renderGrid(){
   gridEl.innerHTML='';
   const ys=[0,4.9,9.8,14.7,19.6,24.5,29.4,34.3,39.2,44.1];
@@ -340,8 +360,12 @@ async function doStep(){
     if(stage==='vert'){
       // サーバで v0 & 課題確定
       const j = await lockClose('vert', loopIndex);
+      
       const v0 = Number(j.v0);
       h = Number(j.yPlatform);
+challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
+setFloorBand(h);
+      
       // 表示
       statusText.textContent = `鉛直：目標高さ h=${h} m`;
       setPlatform(h);
@@ -353,10 +377,12 @@ async function doStep(){
       stepsTickets.push({ v0, ticket:{...j.ticket}, sig:j.sig });
       setTimeout(()=>{
         if(!verdict.ok){ statusText.textContent='板が割れた／届かなかった → ゲームオーバー'; endGame(); }
-        else { stage='horiz'; refreshHUD(); lockBtn.disabled=false; }
+        else {clearFloorBand(); stage='horiz'; refreshHUD(); lockBtn.disabled=false; }
       }, Math.max(450, verdict.tLand*1000+100));
     }else{
-      const j = await lockClose('horiz', loopIndex, {h:String(h)});
+     const j = await lockClose('horiz', loopIndex, {h:String(h)});
+     clearFloorBand();
+      
       const v0 = Number(j.v0);
       const L  = Number(j.Ltarget);
       const W  = Number(j.coef) * L;
