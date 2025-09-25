@@ -165,7 +165,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 (()=>{
 // ======= エンドポイント =======
-const GAS_BASE = 'https://script.google.com/macros/s/AKfycbxS2NDGh3auPyfU59cvjuvf1vCm4oD4Dc9i9ma5M_GEBAutiQlLWYHxsPGZDr6FHhyg5A/exec';
+const GAS_BASE = 'https://script.google.com/macros/s/AKfycby8o6hx_jaj_yEdQRUHhfPe9IufpsUgyYNIiYr7rrZ2y-aY0BaMXaCKFi27NgmABM2csw/exec';
 const GAS_SESSION_URL = GAS_BASE + '?fn=session';
 const GAS_LOCK_URL    = GAS_BASE + '?path=lock';
 const GAS_SUBMIT_URL  = GAS_BASE + '?path=submit';
@@ -568,6 +568,12 @@ function refreshHUD(){
 
 async function doStep(){
   if(finished) return;
+
+  // ① クリック瞬間の見た目をフリーズ（UIの数値も固定表示）
+  const vFreeze = vFromNowMs(Date.now() + session.offsetMs);
+  updateSpeedUI(vFreeze);
+  running = false; // ルーレット更新停止
+
   lockBtn.disabled = true;
 
   try{
@@ -577,13 +583,11 @@ async function doStep(){
       const v0 = Number(j.v0);
       h = Number(j.yPlatform);
 
-      // 目標床を事前に表示
       setPlatform(h, curX);
-      clearTarget(); // 鉛直中はターゲット非表示
+      clearTarget();
       statusText.textContent = `鉛直：目標高さ h=${h} m`;
       refreshHUD();
 
-      // 鉛直の到達/安全判定（到達しない場合は下に落ちて消える演出）
       const verdict = checkVertical(v0, h, RULE.g, RULE.apexSafeRatio);
       const { tStop } = animateVertical(v0, { fallThroughOnUnderreach: !verdict.okReach });
       stepsTickets.push({ v0, ticket:{...j.ticket}, sig:j.sig });
@@ -591,27 +595,28 @@ async function doStep(){
       setTimeout(async ()=>{
         if(!verdict.ok){
           if(verdict.okReach && !verdict.okSafe){
-            // 高すぎて割れた
             breakPlatformEffect();
             statusText.textContent='最高点が高すぎ → 板が割れた → ゲームオーバー';
           }else{
-            // 届かない → すでに下に落下する演出中
             statusText.textContent='届かず → ゲームオーバー';
           }
-          endGame();
+          endGame(); // ← 失敗時はルーレット再開しない
           return;
         }
 
-        // 鉛直成功：ここで「前の水平ターゲット」を消す（残っていれば）
+        // 鉛直成功：前ループの水平ターゲットが残っていれば消す
         if(keepPrevTarget){
           clearTarget();
           keepPrevTarget = false;
         }
 
-        // 次は水平ステップへ
+        // 次は水平
         stage='horiz';
         refreshHUD();
         try{ await previewHorizontal(); }catch(e){ console.warn('preview horiz failed', e); }
+
+        // ② 次が打てる状態になったのでルーレット再開
+        running = true; requestAnimationFrame(rouletteLoop);
         lockBtn.disabled=false;
       }, Math.max(450, tStop*1000+120));
 
@@ -622,7 +627,6 @@ async function doStep(){
       const L  = Number(j.Ltarget);
       const W  = Number(j.coef) * L;
 
-      // ターゲットは課題文には出さず、アニメ内だけに事前表示
       clearPlatform();
       const targetX = curX + L;
       setTargetAtX(targetX, W);
@@ -634,22 +638,25 @@ async function doStep(){
       setTimeout(async ()=>{
         if(!verdict.ok){
           statusText.textContent='板に乗れず → ゲームオーバー';
-          endGame();
+          endGame(); // ← 失敗時はルーレット再開しない
           return;
         }
 
-        // 水平成功：ターゲット板は「次の鉛直が成功するまで」残す
+        // 水平成功：板は次の鉛直成功まで残す
         keepPrevTarget = true;
 
-        // ループ前進して、次は鉛直ステップ
+        // ループ前進 → 次は鉛直
         loopIndex += 1;
         coef *= RULE.widthCoefDecay;
         stage='vert';
-        h = null; // 次ループの鉛直目標は未確定
+        h = null;
         refreshHUD();
 
-        // 次の鉛直の課題を事前表示（床を表示）
+        // 次の鉛直を事前表示
         try{ await previewVertical(); }catch(e){ console.warn('preview vert failed', e); }
+
+        // ② 次が打てる状態になったのでルーレット再開
+        running = true; requestAnimationFrame(rouletteLoop);
         lockBtn.disabled=false;
       }, Math.max(450, t*1000+120));
     }
@@ -657,6 +664,8 @@ async function doStep(){
   }catch(e){
     console.error(e);
     showToast('サーバに接続できません');
+    // エラー時はユーザー操作を戻す＋ルーレット再開
+    running = true; requestAnimationFrame(rouletteLoop);
     lockBtn.disabled=false;
   }
 }
