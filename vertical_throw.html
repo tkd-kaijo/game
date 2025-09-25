@@ -157,6 +157,26 @@
   .helpText{ font-size:12px; color:#cfe3ff; opacity:.9; margin-top:6px; }
   .toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0b1022; color:#eafff3; padding:10px 14px; border:1px solid rgba(255,255,255,.1); border-radius:10px; display:none; z-index:9999}
   #leaderboardCard{ grid-column: 1 / -1; }
+
+  /* === iPhone/小画面対策：縦センターをやめて通常フローに === */
+@media (max-width: 768px){
+  body{
+    display:block;          /* ← 最重要：flexレイアウトをやめる */
+    min-height:100dvh;      /* iOSのアドレスバー出入り対策 */
+    padding:12px 12px 16px; /* 上下の余白を少しだけ確保 */
+  }
+  .app{ margin: 0 auto; }   /* 横方向のみ中央寄せ */
+}
+
+  :root{ --safe-top: env(safe-area-inset-top, 0px); }
+
+.title, .challengeBox{
+  position: sticky;
+  top: calc(var(--safe-top) + 6px);
+  z-index: 5;
+  backdrop-filter: saturate(120%) blur(0px); /* 見た目変えたくなければ削除OK */
+}
+  
 </style>
 </head>
 <body>
@@ -198,7 +218,7 @@
           <div class="stat"><div class="label">時間 t</div><div class="value" id="tVal">0.00 s</div></div>
 
           <section class="card" id="leaderboardCard" aria-live="polite">
-            <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
+            <h3 style="margin:0 0 8px">トップ20</h3>
             <div id="leaderboard">読み込み中…</div>
           </section>
         </div>
@@ -432,18 +452,35 @@ function renderGrid(scale){
   }
 }
 function fitSceneToViewport(){
-  const vh = (window.visualViewport?.height) ? Math.min(window.innerHeight, window.visualViewport.height) : window.innerHeight;
+  // 実際に見えている高さ（URLバー込み）をできるだけ正確に取得
+  const vh = (window.visualViewport?.height)
+    ? Math.min(window.innerHeight, window.visualViewport.height)
+    : window.innerHeight;
+
   const margin = 12;
+
+  // 現在のシーン上端の位置を測る
   const topNow = scene.getBoundingClientRect().top;
-  let desired = Math.floor(vh - topNow - margin);
-  desired = Math.max(220, Math.min(desired, vh - margin));
+
+  // ★ タイトル＋課題ボックス分の“保険”。ここがポイント！
+  const SAFE_HEADROOM = 72;  // 必要なら 64〜96 の範囲で微調整可
+
+  // 余裕を多めに引いた希望高さ
+  let desired = Math.floor(vh - topNow - margin - SAFE_HEADROOM);
+
+  // 下限/上限のクランプ（過大・過小を防ぐ）
+  desired = Math.max(220, Math.min(desired, vh - margin - 20));
+
   const prev = parseFloat(getComputedStyle(scene).height);
   if(!isNaN(prev) && Math.abs(prev - desired) < 2) return;
+
   scene.style.height = desired + 'px';
+
+  // 以降は既存処理
   currentScale = scalePxPerMeterForMaxMeters(60);
   renderGrid();
   hLine.style.bottom = groundOffsetPx + 'px';
-  ball.style.bottom = groundOffsetPx + 'px';
+  ball.style.bottom  = groundOffsetPx + 'px';
 }
 
 /* ========= サウンド ========= */
