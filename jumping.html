@@ -450,8 +450,11 @@ async function lockClose(mode, loopIndex, extra={}){
 // ======= プレビュー（鉛直：床幅1m、x=現在地）=======
 
 async function previewVertical(){
+  // ← 追加：loop2以降でパン
   xPan = (loopIndex >= 1) ? curX : 0;
   renderGrid();
++ placeBall(curX, curY); // ★ パン反映後に球も再配置（これが抜けていると球だけ動かない）
+
   const j = await lockOpen('vert', loopIndex); // ← close ではなく open
   h = Number(j.yPlatform);
   // HUD（鉛直は目標を出す）
