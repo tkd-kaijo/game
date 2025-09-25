@@ -72,7 +72,19 @@ button:disabled{opacity:.5;cursor:not-allowed}
   75%{ transform:translateX(-50%) rotate(1deg) }
   100%{ transform:translateX(-50%) rotate(0deg) }
 }
-.target{position:absolute;border:2px dashed #ffd36a;border-radius:6px;z-index:2}
+
+.target{
+  position:absolute;
+  border-radius:6px;
+  z-index:2;
+  height:12px;
+  background:
+    linear-gradient(180deg,#a9b3c1 0%, #808a98 60%, #6a737f 100%);
+  border:1px solid rgba(255,255,255,.18);
+  box-shadow:
+    inset 0 3px 8px rgba(0,0,0,.35),
+    0 4px 10px rgba(0,0,0,.35);
+}
 .targetLabel{
   position:absolute; transform:translate(-50%, -6px);
   font-size:12px; color:#ffd36a; background:rgba(0,0,0,.4);
@@ -153,7 +165,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 (()=>{
 // ======= エンドポイント =======
-const GAS_BASE = 'https://script.google.com/macros/s/AKfycbwvxm20Hlm_cPhu9EimDfFCS5MH4mhZsErkguvDcFsgDw_gZNVvnCvagTer-FDWCrT7mA/exec';
+const GAS_BASE = 'https://script.google.com/macros/s/AKfycbzCFWyQccEauFx7n9HI0Deh-Z0N6U0p8w1HmPn5TuBJjyl6zKO_G1U4Ehy9L-R330CHxA/exec';
 const GAS_SESSION_URL = GAS_BASE + '?fn=session';
 const GAS_LOCK_URL    = GAS_BASE + '?path=lock';
 const GAS_SUBMIT_URL  = GAS_BASE + '?path=submit';
@@ -356,7 +368,30 @@ function checkHorizontal(v0x, h, L, coef, g=9.8){
   const hit = Math.abs(x - L) <= (W/2);
   return { ok: hit, x, t, W };
 }
-
+// ======= 課題だけ先にもらう（open） =======
+async function lockOpen(mode, loopIndex, extra={}){
+  const body = new URLSearchParams({
+    sessionId: session.sessionId,
+    nonce: session.nonce,
+    intent: 'open',           // ← 事前表示
+    mode,
+    loopIndex: String(loopIndex),
+    t0Ms: String(session.t0Ms),
+    phiSec: String(session.phiSec),
+    ticketSig: String(session.ticketSig),
+    ruleVersion: String(session.ruleVersion),
+    ...extra
+  });
+  const res = await fetch(GAS_LOCK_URL, {
+    method:'POST', body,
+    headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'},
+    credentials:'omit'
+  });
+  const txt = await res.text();
+  let j=null; try{ j=JSON.parse(txt) }catch{}
+  if(!j || !j.ok) throw new Error('lock_open_fail:' + (j && j.error || res.status));
+  return j; // { ok, yPlatform? | Ltarget?, coef? }
+}
 // ======= サーバ：v0確定 & 課題 stateless 取得 =======
 async function lockClose(mode, loopIndex, extra={}){
   const body = new URLSearchParams({
@@ -383,13 +418,34 @@ async function lockClose(mode, loopIndex, extra={}){
 }
 
 // ======= プレビュー（鉛直：床幅1m、x=現在地）=======
+
 async function previewVertical(){
-  const j = await lockClose('vert', loopIndex);
+  const j = await lockOpen('vert', loopIndex); // ← close ではなく open
   h = Number(j.yPlatform);
+  // HUD（鉛直は目標を出す）
   challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
-  statusText.textContent = `鉛直：目標高さ h=${h} m`;
+  statusText.textContent = '';
+  // シーンに先出し
   setPlatform(h, curX);
   clearTarget();
+}
+
+  // ======= プレビュー（水平：現在地 + L にターゲット事前表示）=======
+let pendingL = null, pendingCoef = null;
+async function previewHorizontal(){
+  const j = await lockOpen('horiz', loopIndex, { h:String(h) });
+  const L = Number(j.Ltarget);
+  const c = Number(j.coef);
+  pendingL = L; pendingCoef = c;
+  const W = c * L;
+  const targetX = curX + L;
+  // HUDは最小表示に
+  stageBadge.textContent = 'ステップ: 水平';
+  challengeText.textContent = 'アニメ内のターゲット板に着地';
+  statusText.textContent = '';
+  // シーンに先出し
+  clearPlatform();
+  setTargetAtX(targetX, W);
 }
 
 // ======= アニメ =======
@@ -433,13 +489,19 @@ function animateHorizontal(v0, L, W){
 function refreshHUD(){
   loopBadge.textContent = `ループ ${loopIndex+1}`;
   stageBadge.textContent = `ステップ: ${stage==='vert'?'鉛直':'水平'}`;
+
   if(stage==='vert'){
-    challengeText.textContent = (h==null)
-      ? `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 1.2h を超えると板割れ）`
-      : `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
+    // 鉛直は目標高さを出す（ご要望どおり）
+    if(h==null){
+      challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 1.2h を超えると板割れ）`;
+    }else{
+      challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.2h を超えると板割れ）`;
+    }
+    statusText.textContent = '';
   }else{
-    // 距離は課題文に出さない
-    challengeText.textContent = `水平：アニメ内のターゲット板に着地（幅 = c·L, いま c=${coef.toFixed(3)}）`;
+    // 水平はミニマム表示のみ
+    challengeText.textContent = `アニメ内のターゲット板に着地`;
+    statusText.textContent = '';
   }
 }
 
@@ -473,6 +535,7 @@ async function doStep(){
         }else{
           stage='horiz';
           refreshHUD();
+          try{ await previewHorizontal(); }catch(e){ console.warn('preview horiz failed', e); }
           lockBtn.disabled=false;
         }
       }, Math.max(450, verdict.tLand*1000+100));
@@ -480,8 +543,9 @@ async function doStep(){
     }else{
       const j = await lockClose('horiz', loopIndex, {h:String(h)});
       const v0 = Number(j.v0);
-      const L  = Number(j.Ltarget);
-      const W  = Number(j.coef) * L;
+      const L  = (pendingL??Number(j.Ltarget));
+     const c  = (pendingCoef??Number(j.coef));
+     const W  = c * L;
 
       // 課題文には表示しない／シーン内にだけ表示
       clearPlatform();
@@ -503,9 +567,11 @@ async function doStep(){
           h = null;
           clearTarget();
           refreshHUD();
-          lockBtn.disabled=false;
-          // 次の鉛直プレビューを即座に出す
-          previewVertical().catch(()=>{});
+
+try{ await previewVertical(); }catch(e){ console.warn('preview vert failed', e); }
+         pendingL=null; pendingCoef=null;
+         lockBtn.disabled=false;
+          
         }
       }, Math.max(450, t*1000+120));
     }
