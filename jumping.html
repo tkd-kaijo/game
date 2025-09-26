@@ -190,7 +190,7 @@ const RULE = {
   cycleSec: 4,
   heights: [4.9, 19.6, 44.1],
   Ls: [3,4,5,6],
-  apexSafeRatio: 2.0,
+  apexSafeRatio: 1.69,
   widthCoef0: 0.5,
   widthCoefDecay: 0.9,
   vertV: {min:0, max:40},  // 鉛直
@@ -418,7 +418,7 @@ function rouletteLoop(){
 }
 
 // ======= 判定 =======
-function checkVertical(v0y, h, g=9.8, apexRatio=2.0){
+function checkVertical(v0y, h, g=9.8, apexRatio=1.69){
   const ymax = v0y*v0y/(2*g);
   const okReach = (v0y*v0y >= 2*g*h);
   const okSafe  = (ymax <= apexRatio*h);
@@ -637,9 +637,9 @@ function refreshHUD(){
   if(stage==='vert'){
     // 鉛直は目標高さを出す（ご要望どおり）
     if(h==null){
-      challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が 2.0h を超えると板割れ）`;
+      challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が1.69h を超えると板割れ）`;
     }else{
-      challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 2.0h を超えると板割れ）`;
+      challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.69h を超えると板割れ）`;
     }
     statusText.textContent = '';
   }else{
@@ -725,23 +725,28 @@ setTimeout(async ()=>{
           endGame(); // ← 失敗時はルーレット再開しない
           return;
         }
+else{
+  // ★水平成功：着地したターゲット板は残すが、
+  //   いま球が乗っていた「土台の板（鉛直の板）」はここで消す
+  clearPlatform();
 
-        // 水平成功：板は次の鉛直成功まで残す
-        keepPrevTarget = true;
+  // 次の鉛直ステップ中は、今のターゲット板を表示したままにする
+  keepPrevTarget = true;
 
-        // ループ前進 → 次は鉛直
-        loopIndex += 1;
-        coef *= RULE.widthCoefDecay;
-        stage='vert';
-        h = null;
-        refreshHUD();
+  // ループ前進 → 次は鉛直
+  loopIndex += 1;
+  coef *= RULE.widthCoefDecay;
+  stage='vert';
+  h = null;
+  refreshHUD();
 
-        // 次の鉛直を事前表示
-        try{ await previewVertical(); }catch(e){ console.warn('preview vert failed', e); }
+  // 次の鉛直を事前表示（ここでパンも走り、残したターゲット板も一緒にスライド）
+  try{ await previewVertical(); }catch(e){ console.warn('preview vert failed', e); }
 
-        // ② 次が打てる状態になったのでルーレット再開
-        running = true; requestAnimationFrame(rouletteLoop);
-        lockBtn.disabled=false;
+  // ルーレット再開
+  running = true; requestAnimationFrame(rouletteLoop);
+  lockBtn.disabled=false;
+}
       }, Math.max(450, t*1000+120));
     }
 
