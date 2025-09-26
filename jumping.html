@@ -207,6 +207,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
           <label for="studentName">氏名：</label>
           <input id="studentName" type="text" placeholder="海城太郎" />
           <button id="submitBtn" class="secondary">送信</button>
+          
+          <p id="submitStatus" style="margin:10px 0 0; font-size:14px; color:#cfe3ff;"></p>
         </div>
         <div class="modalHelp" id="submitHelp">ゲームオーバー後に提出できます。</div>
       </section>
@@ -260,6 +262,7 @@ const xLandVal = document.getElementById('xLandVal');
 
 const submitBox = document.getElementById('submitBox');
 const submitBtn = document.getElementById('submitBtn');
+const submitStatus = document.getElementById('submitStatus');
 const studentIdInput = document.getElementById('studentId');
 const studentNameInput = document.getElementById('studentName');
 
@@ -270,9 +273,13 @@ const floorBand = document.getElementById('floorBand');
 const submitModalBackdrop = document.getElementById('submitModalBackdrop');
 const submitCloseBtn = document.getElementById('submitCloseBtn');
 
-function openSubmitModal(){
+ffunction openSubmitModal(){
   submitModalBackdrop.classList.add('open');
   submitModalBackdrop.setAttribute('aria-hidden', 'false');
+  // ステータス初期化＆ボタンを有効状態に戻す
+  if (submitStatus) submitStatus.textContent = '';
+  submitBtn.disabled = false;
+  submitBtn.textContent = '送信';
   setTimeout(()=> studentIdInput?.focus(), 0);
 }
 function closeSubmitModal(){
@@ -878,10 +885,25 @@ async function resetAll(){
 }
 // ======= 提出 =======
 async function submitResult(){
+  // 多重送信ガード
+  if (submitBtn.disabled) return;
+
   const studentId = studentIdInput.value.trim();
   const studentName = studentNameInput.value.trim();
-  if(!/^\d{4}$/.test(studentId) || !studentName){ showToast('4桁番号と氏名を入力してください'); return; }
-  if(!stepsTickets.length){ showToast('提出データがありません'); return; }
+  if(!/^\d{4}$/.test(studentId) || !studentName){
+    if (submitStatus) submitStatus.textContent = '4桁番号と氏名を入力してください。';
+    return;
+  }
+  if(!stepsTickets.length){
+    if (submitStatus) submitStatus.textContent = '提出データがありません。';
+    return;
+  }
+
+  // UIロック & 表示
+  submitBtn.disabled = true;
+  const prevLabel = submitBtn.textContent;
+  submitBtn.textContent = '送信中…';
+  if (submitStatus) submitStatus.textContent = '';
 
   const payload = stepsTickets.map(x => ({ ...x.ticket, sig: x.sig, v0: x.v0 }));
   const body = new URLSearchParams({
@@ -896,16 +918,34 @@ async function submitResult(){
   });
 
   try{
-    const res = await fetch(GAS_SUBMIT_URL, { method:'POST', body, headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'}, credentials:'omit' });
+    const res = await fetch(GAS_SUBMIT_URL, {
+      method:'POST',
+      body,
+      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8','Accept':'application/json'},
+      credentials:'omit'
+    });
     const j = await res.json().catch(()=>({}));
-    console.log('[submit response]', j);
+
     if(j && j.ok){
-      showToast(`提出OK：到達ループ ${j.reachedLoops}、最高L=${j.maxL||'-'}m`);
+      // モーダル内に成功メッセージ
+      if (submitStatus) submitStatus.textContent = `送信しました！ 到達ループ ${j.reachedLoops}、記録 ${j.maxL?.toFixed ? j.maxL.toFixed(2) : j.maxL} m`;
+      // 併せてトーストも（任意）
+      showToast(`提出OK：到達ループ ${j.reachedLoops}、記録 ${j.maxL?.toFixed ? j.maxL.toFixed(2) : j.maxL} m`);
+      // 成功後はボタンは無効のまま。少し待って自動で閉じる
+      setTimeout(() => {
+        closeSubmitModal();
+      }, 1200);
     }else{
-      showToast(j && j.error || '提出失敗');
+      // 失敗：メッセージ表示＆再トライできるように戻す
+      if (submitStatus) submitStatus.textContent = (j && j.error) ? `送信失敗：${j.error}` : '送信に失敗しました。';
+      submitBtn.disabled = false;
+      submitBtn.textContent = prevLabel;
     }
   }catch(e){
-    console.error(e); showToast('提出に失敗しました');
+    console.error(e);
+    if (submitStatus) submitStatus.textContent = 'ネットワークエラー：送信に失敗しました。';
+    submitBtn.disabled = false;
+    submitBtn.textContent = prevLabel;
   }
 }
 
