@@ -178,7 +178,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 (()=>{
 // ======= エンドポイント =======
-const GAS_BASE = 'https://script.google.com/macros/s/AKfycbxLyAOjGgOCA4E9DxBkMyTQTSg0doMz2mp-adTY-VSoBTrVFFtI-pactTAqPsiqlKxC2Q/exec';
+const GAS_BASE = 'https://script.google.com/macros/s/AKfycbzqvBYBpjB8dDzc7v0BgukleZCU8JWSDKQ-DxxOUeHOfKkW4Epz5AfFQf3BMLEyPytkoA/exec';
 const GAS_SESSION_URL = GAS_BASE + '?fn=session';
 const GAS_LOCK_URL    = GAS_BASE + '?path=lock';
 const GAS_SUBMIT_URL  = GAS_BASE + '?path=submit';
@@ -192,7 +192,7 @@ const RULE = {
   Ls: [3,4,5,6],
   apexSafeRatio: 1.69,
   widthCoef0: 0.5,
-  widthCoefDecay: 0.9,
+  widthCoefDecay: 0.85,
   vertV: {min:0, max:40},  // 鉛直
   horizV:{min:0, max:6}    // 水平
 };
@@ -258,7 +258,7 @@ let lastTargetWm = null;
 let loopIndex = 0;
 let stage = 'vert';     // 'vert' | 'horiz'
 let h = null;           // 鉛直の目標高さ
-let coef = RULE.widthCoef0;
+let coef = 1.0;  // 係数は単なる「倍率」として扱う
 let finished = false;
   let keepPrevTarget = false; // 水平成功後のターゲット板を、次の鉛直成功まで残すフラグ
 
@@ -429,7 +429,7 @@ function checkVertical(v0y, h, g=9.8, apexRatio=1.69){
 function checkHorizontal(v0x, h, L, coef, g=9.8){
   const t = Math.sqrt(2*h/g);
   const x = v0x * t;
-  const W = coef * L;
+  const W = coef * 2.0;
   const hit = Math.abs(x - L) <= (W/2);
   return { ok: hit, x, t, W };
 }
@@ -504,16 +504,14 @@ let pendingL = null, pendingCoef = null;
 async function previewHorizontal(){
   const j = await lockOpen('horiz', loopIndex, { h:String(h) });
   const L = Number(j.Ltarget);
-  const c = Number(j.coef);
-  pendingL = L; pendingCoef = c;
-  const W = c * L;
+  pendingL = L;                // サーバのLだけ使う
+  const W = 2.0 * coef;        // ★ 最初2.0m固定→係数で減衰
   const targetX = curX + L;
 
-  // HUDは幅入り表記に
-stageBadge.textContent = 'ステップ: 水平';
-challengeText.textContent = `アニメ内のターゲット板(幅 ${W.toFixed(2)}m)に着地`;
-statusText.textContent = '';
-  // シーンに先出し
+  stageBadge.textContent = 'ステップ: 水平';
+  challengeText.textContent = `アニメ内のターゲット板(幅 ${W.toFixed(2)}m)に着地`;
+  statusText.textContent = '';
+
   setTargetAtX(targetX, W);
 }
 
@@ -668,7 +666,7 @@ async function doStep(){
       h = Number(j.yPlatform);
 
       setPlatform(h, curX);
-      clearTarget();
+      
       statusText.textContent = `鉛直：目標高さ h=${h} m`;
       refreshHUD();
 
@@ -710,14 +708,14 @@ setTimeout(async ()=>{
       const j = await lockClose('horiz', loopIndex, { h:String(h) });
       const v0 = Number(j.v0);
       const L  = Number(j.Ltarget);
-      const W  = Number(j.coef) * L;
+      const W  = 2.0 * coef;
 
       
       const targetX = curX + L;
       setTargetAtX(targetX, W);
 
-      const verdict = checkHorizontal(v0, h, L, j.coef, RULE.g);
-      const { t } = animateHorizontal(v0, L, W, { fallThroughOnFail: !verdict.ok });
+      const verdict = checkHorizontal(v0, h, L, coef, RULE.g); // ★ j.2.0 は誤記
+      const { t } = animateHorizontal(v0, L, 2.0*coef, { fallThroughOnFail: !verdict.ok });
       stepsTickets.push({ v0, ticket:{...j.ticket, h }, sig:j.sig });
 
       setTimeout(async ()=>{
@@ -773,7 +771,7 @@ async function resetAll(){
   loopIndex = 0;
   stage = 'vert';
   h = null;
-  coef = RULE.widthCoef0;
+  coef = 1.0;
   finished = false;
   keepPrevTarget = false;
   pendingL = null;
