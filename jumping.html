@@ -120,6 +120,37 @@ button:disabled{opacity:.5;cursor:not-allowed}
   display:none;
   z-index:2; /* 板の上に */
 }
+/* === Submit Modal === */
+.modalBackdrop{
+  position:fixed; inset:0; display:none;
+  background:rgba(0,0,0,.55); z-index:9998;
+  backdrop-filter: blur(4px);
+}
+.modalBackdrop.open{ display:block; }
+.modal{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:min(560px, calc(100% - 24px));
+  background:var(--card); color:var(--text);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px; padding:16px;
+  box-shadow:0 18px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.modalHeader{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px }
+.modalTitle{ margin:0; font-size:18px; font-weight:800; letter-spacing:.02em }
+.modalClose{
+  appearance:none; border:none; cursor:pointer;
+  width:36px; height:36px; border-radius:10px;
+  background:rgba(255,255,255,.08); color:var(--text); font-size:20px; line-height:36px;
+}
+.modalBody{ display:grid; gap:10px }
+.modalRow{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+.modal input{
+  padding:8px; border-radius:8px;
+  border:1px solid rgba(255,255,255,.2);
+  background:#0f1430; color:#fff;
+}
+.modalHelp{ color:#cfe3ff; font-size:13px }
 </style>
 </head>
 <body>
@@ -160,18 +191,28 @@ button:disabled{opacity:.5;cursor:not-allowed}
       </div>
     </section>
 
-    <section class="submitBox" id="submitBox" aria-live="polite">
-      <h3 style="margin-top:0">提出</h3>
-      <div class="submitRow" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <label for="studentId">4桁番号：</label>
-        <input id="studentId" type="text" placeholder="3143" inputmode="numeric" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0f1430;color:#fff" />
-        <label for="studentName">氏名：</label>
-        <input id="studentName" type="text" placeholder="海城太郎" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0f1430;color:#fff" />
-        <button id="submitBtn" class="secondary">送信</button>
-      </div>
-      <div class="helpText" id="submitHelp" style="margin-top:8px;color:#cfe3ff">ゲームオーバー後に提出できます。</div>
-    </section>
-  </main>
+    <!-- Submit Modal -->
+<div id="submitModalBackdrop" class="modalBackdrop" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="submitTitle">
+    <div class="modalHeader">
+      <h3 id="submitTitle" class="modalTitle">提出</h3>
+      <button id="submitCloseBtn" class="modalClose" aria-label="閉じる">×</button>
+    </div>
+    <div class="modalBody">
+      <!-- 互換用に id=submitBox を内包しておく（JSの既存参照のため） -->
+      <section class="submitBox" id="submitBox" aria-live="polite" style="display:block">
+        <div class="modalRow">
+          <label for="studentId">4桁番号：</label>
+          <input id="studentId" type="text" placeholder="3143" inputmode="numeric" />
+          <label for="studentName">氏名：</label>
+          <input id="studentName" type="text" placeholder="海城太郎" />
+          <button id="submitBtn" class="secondary">送信</button>
+        </div>
+        <div class="modalHelp" id="submitHelp">ゲームオーバー後に提出できます。</div>
+      </section>
+    </div>
+  </div>
+</div>
 
   <div class="toast" id="toast"></div>
 
@@ -225,6 +266,27 @@ const studentNameInput = document.getElementById('studentName');
 const toast = document.getElementById('toast');
 const showToast = (m)=>{ toast.textContent=m; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2200) };
 const floorBand = document.getElementById('floorBand');
+// === Submit Modal helpers ===
+const submitModalBackdrop = document.getElementById('submitModalBackdrop');
+const submitCloseBtn = document.getElementById('submitCloseBtn');
+
+function openSubmitModal(){
+  submitModalBackdrop.classList.add('open');
+  submitModalBackdrop.setAttribute('aria-hidden', 'false');
+  setTimeout(()=> studentIdInput?.focus(), 0);
+}
+function closeSubmitModal(){
+  submitModalBackdrop.classList.remove('open');
+  submitModalBackdrop.setAttribute('aria-hidden', 'true');
+}
+
+submitCloseBtn.addEventListener('click', closeSubmitModal);
+submitModalBackdrop.addEventListener('click', (e)=>{
+  if(e.target === submitModalBackdrop) closeSubmitModal(); // 背景クリックで閉じる
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeSubmitModal();
+});
 
 // ======= セッション =======
 let session = { sessionId:'', nonce:'', ruleVersion: RULE.version, t0Ms:0, phiSec:0, offsetMs:0, rttMs:0, ticketSig:'' };
@@ -764,7 +826,8 @@ function endGame(){
   // どの状態で終わっても UI を整理
   clearTarget();
   keepPrevTarget = false;
-  submitBox.style.display='block';
+  // 送信モーダルを開く
+  openSubmitModal();
 }
 async function resetAll(){
   // 進行状態
@@ -778,37 +841,39 @@ async function resetAll(){
   pendingCoef = null;
 
   // 表示・座標
-  xPan = 0;                 // ★ 画面パンを初期化
-  curX = 0; 
+  xPan = 0;
+  curX = 0;
   curY = 0;
 
   // UIクリア
   stepsTickets.length = 0;
   clearTarget();
   clearPlatform();
-  hidePlatformHole();       // ★ 割れ穴を非表示
+  hidePlatformHole && hidePlatformHole();
   platformEl.classList.remove('broken');
   floorBand.style.display = 'none';
-  submitBox.style.display = 'none';
   studentIdInput.value = '';
   studentNameInput.value = '';
   statusText.textContent = '';
 
-  // グリッド再描画 → 球の再配置（パンの反映もここで効く）
+  // モーダルを閉じる
+  closeSubmitModal();
+
+  // グリッド再描画 → 球の再配置
   renderGrid();
   placeBall(curX, curY);
 
   // HUD
   refreshHUD();
 
-  // 事前表示（鉛直：目標板を出す）
+  // 事前表示（鉛直）
   try { await previewVertical(); } catch(e){ console.warn('preview failed', e); }
 
-  // ルーレットを再開
+  // ルーレット再開
   running = true;
   requestAnimationFrame(rouletteLoop);
 
-  // ボタン操作を可能に
+  // ボタン
   lockBtn.disabled = false;
 }
 // ======= 提出 =======
