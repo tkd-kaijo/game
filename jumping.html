@@ -493,7 +493,7 @@ async function previewVertical(){
 
   const j = await lockOpen('vert', loopIndex);
   h = Number(j.yPlatform);
-  challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が ${RULE.apexSafeRatio}h を超えると板割れ）`;
+  challengeText.textContent = `鉛直：目標高さ h=${h} m（※高く上げすぎると板が割れて落ちる）`;
   statusText.textContent = '';
   setPlatform(h, curX);
   // ★ “板を残す”仕様なのでここで clearTarget() はしない
@@ -636,9 +636,9 @@ function refreshHUD(){
   if(stage==='vert'){
     // 鉛直は目標高さを出す（ご要望どおり）
     if(h==null){
-      challengeText.textContent = `鉛直：高さ 4.9 / 19.6 / 44.1 m の板に着地（最高点が1.69h を超えると板割れ）`;
+      challengeText.textContent = `鉛直：アニメ内の板に着地（※高く上げすぎると板が割れて落ちる）`;
     }else{
-      challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 1.69h を超えると板割れ）`;
+      challengeText.textContent = `鉛直：目標高さ h=${h} m（※高く上げすぎると板が割れて落ちる）`;
     }
     statusText.textContent = '';
   }else{
