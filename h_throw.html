@@ -1136,6 +1136,7 @@ function buildFilterUI(container){
 }
 
 // === ランキング（GASのJSONを使用） ===
+// === ランキング（GASのJSONを使用） ===
 async function loadLeaderboard(){
   const desktopBox = document.getElementById('leaderboard');
   const mobileBox  = document.getElementById('leaderboardMobile');
@@ -1161,38 +1162,8 @@ async function loadLeaderboard(){
   }
 }
 
-  function renderFromRows(cols, rows){
-    const idx={
-      timestamp: findIndex(cols,/time|タイムスタンプ|timestamp/i,0),
-      studentId: findIndex(cols,/番号|学籍|id/i,1),
-      studentName: findIndex(cols,/氏名|名前|name/i,2),
-      totalScore: findIndex(cols,/score|スコア|合計|点/i,3)
-    };
-    let recs=rows.map(r=>({
-      timestamp: String(r[idx.timestamp]??''),
-      id: String(r[idx.studentId]??'').trim(),
-      name: String(r[idx.studentName]??'').trim(),
-      score: Number(String(r[idx.totalScore]??'').replace(/[^\d.-]/g,''))
-    }));
-    // 提出条件を満たした記録のみ
-    recs = recs.filter(x=>Number.isFinite(x.score) && x.score>=10);
-    // クラスで絞り込み（all のときはそのまま）
-    if(leaderboardFilter !== 'all'){
-      recs = recs.filter(x => /^\d{4}$/.test(x.id) && x.id.startsWith(leaderboardFilter));
-    }
-    // 同じ人はベストスコアのみ
-    recs = bestByKey(recs,x=>x.id||x.name);
-    // スコア降順 → タイムスタンプ降順
-    recs.sort((a,b)=>b.score-a.score || (new Date(b.timestamp)-new Date(a.timestamp)));
-    recs = recs.slice(0,20);
-    const html=renderTableHTML(recs);
-    if(desktopBox) desktopBox.innerHTML=html;
-    if(mobileBox)  mobileBox.innerHTML=html;
-  }
-}
-function parseCSV(text){ const rows=[]; let cur=[],field='',inQ=false; for(let i=0;i<text.length;i++){ const ch=text[i],next=text[i+1]; if(inQ){ if(ch==='"'&&next==='"'){field+='"'; i++;} else if(ch==='"'){inQ=false;} else {field+=ch;} } else { if(ch==='"'){inQ=true;} else if(ch===','){cur.push(field); field='';} else if(ch==='\n'){cur.push(field); rows.push(cur); cur=[]; field='';} else if(ch==='\r'){} else {field+=ch;} } } if(field.length||cur.length){cur.push(field); rows.push(cur);} const cols=rows.shift()||[]; return{cols,rows}; }
-function findIndex(arr,regex,fallback=-1){ const i=arr.findIndex(h=>regex.test(String(h))); return i>=0?i:fallback; }
-function bestByKey(list,keyFn){ const best=new Map(); for(const r of list){ const k=keyFn(r); if(!k) continue; const cur=best.get(k); if(!cur||r.score>cur.score) best.set(k,r); } return Array.from(best.values()); }
+// ▼▼ ここから下は CSV 用の関数は削除してOK。renderTableHTML と escapeHTML だけ残す ▼▼
+
 function renderTableHTML(items){
   if(!items.length) return 'まだランキングはありません。';
   const left=items.slice(0,10), right=items.slice(10,20);
@@ -1233,8 +1204,11 @@ function renderTableHTML(items){
     </tbody>
   </table>`;
 }
-function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g, c=>(
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
 /* リサイズ対応 */
 function handleResize(){
   baselineTop=null; fitSceneToViewport(); fitScales(); layoutSubground(); renderGrid(); layoutBuilding(curY || y0);
