@@ -151,6 +151,18 @@ button:disabled{opacity:.5;cursor:not-allowed}
   z-index: 10;
   background: transparent;            /* 背景はそのまま。重なりが気になるなら半透明を足す */
 }
+  .lbFilter{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+ .lbFilter button{
+   appearance:none;border:none;cursor:pointer;
+   border-radius:999px;padding:6px 10px;font-weight:700;
+   font-size:13px; letter-spacing:.01em;
+   color:#03131a;background:linear-gradient(180deg,#d7e7ff,#b8cfff);
+   box-shadow:0 4px 12px rgba(184,207,255,.28), inset 0 1px 0 rgba(255,255,255,.6)
+ }
+ .lbFilter button.active{
+   background:linear-gradient(180deg,#8ff2ff,#6ae3ff);
+   box-shadow:0 6px 16px rgba(106,227,255,.35), inset 0 1px 0 rgba(255,255,255,.7)
+ }
 </style>
 </head>
 <body>
@@ -196,13 +208,15 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
           <section class="card" id="leaderboardCard" aria-live="polite">
             <h3 style="margin:0 0 8px">トップ20</h3>
+            <div class="lbFilter" id="lbFilterDesktop"></div>
             <div id="leaderboard">読み込み中…</div>
           </section>
         </div>
       </div>
 
       <section class="card" id="leaderboardCardMobile" aria-live="polite">
-        <h3 style="margin:0 0 8px">トップ20(※平常点的には「提出できたか否か」のみの判断)</h3>
+        <h3 style="margin:0 0 8px">トップ20</h3>
+        <div class="lbFilter" id="lbFilterMobile"></div>
         <div id="leaderboardMobile">読み込み中…</div>
       </section>
     </section>
@@ -1092,9 +1106,47 @@ console.log('[submit response]', json);
 if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
 /* ランキング（元のまま） */
-async function loadLeaderboard(){ /* 省略せずそのまま */ 
+// === クラス・フィルタ ===
+const LB_FILTERS = [
+  {key:'all', label:'全体'},
+  {key:'31',  label:'3年1組'},
+  {key:'32',  label:'3年2組'},
+  {key:'33',  label:'3年3組'},
+  {key:'34',  label:'3年4組'},
+  {key:'35',  label:'3年5組'},
+  {key:'36',  label:'3年6組'},
+  {key:'37',  label:'3年7組'},
+  {key:'38',  label:'3年8組'},
+];
+const LB_FILTER_KEY = 'hproj_lb_filter';
+let leaderboardFilter = (()=>{
+  try{ return localStorage.getItem(LB_FILTER_KEY) || 'all'; }catch{ return 'all'; }
+})();
+function setLeaderboardFilter(key){
+  leaderboardFilter = key;
+  try{ localStorage.setItem(LB_FILTER_KEY, key); }catch{}
+  loadLeaderboard(); // 再描画
+}
+function buildFilterUI(container){
+  if(!container) return;
+  container.innerHTML = '';
+  for(const f of LB_FILTERS){
+    const btn = document.createElement('button');
+    btn.textContent = f.label;
+    if(f.key === leaderboardFilter) btn.classList.add('active');
+    btn.addEventListener('click', ()=> setLeaderboardFilter(f.key));
+    container.appendChild(btn);
+  }
+}
+
+// === ランキング読み込み ===
+async function loadLeaderboard(){
   const desktopBox = document.getElementById('leaderboard');
   const mobileBox  = document.getElementById('leaderboardMobile');
+  // フィルタUIを毎回同期
+  buildFilterUI(document.getElementById('lbFilterDesktop'));
+  buildFilterUI(document.getElementById('lbFilterMobile'));
+
   if (!desktopBox && !mobileBox) return;
   try{
     if(!CSV_URL || /【/.test(CSV_URL)){
@@ -1108,16 +1160,40 @@ async function loadLeaderboard(){ /* 省略せずそのまま */
     const text = await res.text();
     const { cols, rows } = parseCSV(text);
     renderFromRows(cols, rows);
-  }catch(e){ console.error(e); const msg='ランキングを読み込めませんでした…'; if(desktopBox) desktopBox.textContent=msg; if(mobileBox) mobileBox.textContent=msg; }
+  }catch(e){
+    console.error(e);
+    const msg='ランキングを読み込めませんでした…';
+    if(desktopBox) desktopBox.textContent=msg;
+    if(mobileBox)  mobileBox.textContent=msg;
+  }
+
   function renderFromRows(cols, rows){
-    const idx={ timestamp:findIndex(cols,/time|タイムスタンプ|timestamp/i,0), studentId:findIndex(cols,/番号|学籍|id/i,1), studentName:findIndex(cols,/氏名|名前|name/i,2), totalScore:findIndex(cols,/score|スコア|合計|点/i,3) };
-    let recs=rows.map(r=>({ timestamp:String(r[idx.timestamp]??''), id:String(r[idx.studentId]??'').trim(), name:String(r[idx.studentName]??'').trim(), score:Number(String(r[idx.totalScore]??'').replace(/[^\d.-]/g,'')) }));
-    recs=recs.filter(x=>Number.isFinite(x.score)&&x.score>=10);
-    recs=bestByKey(recs,x=>x.id||x.name);
+    const idx={
+      timestamp: findIndex(cols,/time|タイムスタンプ|timestamp/i,0),
+      studentId: findIndex(cols,/番号|学籍|id/i,1),
+      studentName: findIndex(cols,/氏名|名前|name/i,2),
+      totalScore: findIndex(cols,/score|スコア|合計|点/i,3)
+    };
+    let recs=rows.map(r=>({
+      timestamp: String(r[idx.timestamp]??''),
+      id: String(r[idx.studentId]??'').trim(),
+      name: String(r[idx.studentName]??'').trim(),
+      score: Number(String(r[idx.totalScore]??'').replace(/[^\d.-]/g,''))
+    }));
+    // 提出条件を満たした記録のみ
+    recs = recs.filter(x=>Number.isFinite(x.score) && x.score>=10);
+    // クラスで絞り込み（all のときはそのまま）
+    if(leaderboardFilter !== 'all'){
+      recs = recs.filter(x => /^\d{4}$/.test(x.id) && x.id.startsWith(leaderboardFilter));
+    }
+    // 同じ人はベストスコアのみ
+    recs = bestByKey(recs,x=>x.id||x.name);
+    // スコア降順 → タイムスタンプ降順
     recs.sort((a,b)=>b.score-a.score || (new Date(b.timestamp)-new Date(a.timestamp)));
-    recs=recs.slice(0,20);
+    recs = recs.slice(0,20);
     const html=renderTableHTML(recs);
-    if(desktopBox) desktopBox.innerHTML=html; if(mobileBox) mobileBox.innerHTML=html;
+    if(desktopBox) desktopBox.innerHTML=html;
+    if(mobileBox)  mobileBox.innerHTML=html;
   }
 }
 function parseCSV(text){ const rows=[]; let cur=[],field='',inQ=false; for(let i=0;i<text.length;i++){ const ch=text[i],next=text[i+1]; if(inQ){ if(ch==='"'&&next==='"'){field+='"'; i++;} else if(ch==='"'){inQ=false;} else {field+=ch;} } else { if(ch==='"'){inQ=true;} else if(ch===','){cur.push(field); field='';} else if(ch==='\n'){cur.push(field); rows.push(cur); cur=[]; field='';} else if(ch==='\r'){} else {field+=ch;} } } if(field.length||cur.length){cur.push(field); rows.push(cur);} const cols=rows.shift()||[]; return{cols,rows}; }
