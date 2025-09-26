@@ -599,7 +599,7 @@ async function setupRound(){
   if (!ready) {
     showToast('セッション未確立のため開始できません（再読み込み推奨）');
     lockBtn.disabled = true;
-    retryBtn.disabled = false;
+    retryBtn.disabled = true;
     return;
   }
 
@@ -613,7 +613,7 @@ async function setupRound(){
     console.error(e); showToast('サーバーに接続できません。(課題取得失敗)');
    // 取得失敗時：ボタン状態を「投射不可・次へ不可」にし、再試行待ち
    lockBtn.disabled = true;
-   retryBtn.disabled = false; // いったん次へは押せる（授業運用次第で true にしてもOK）
+   retryBtn.disabled = true; // いったん次へは押せる（授業運用次第で true にしてもOK）
     isOpening = false;
    return; // ← ここで抜けておく
     
@@ -675,6 +675,11 @@ function animateThrow(v0, ticket){
 /* 進行 */
 function nextRound(){ 
   if (finished) { showToast('5投が終わりました。提出かリセットをしてください'); return; }
+  // このガードが超重要：未投のまま進めない
+ if (!ticketsByRound.has(currentRound)) {
+   showToast('このラウンドはまだ投げていません（課題取得失敗時は再読み込みを）');
+   return;
+ }
   if(currentRound < RULE.rounds){ currentRound += 1; } 
   setupRound(); }
 function resetGame(){
