@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>鉛直→水平 2ステップ投射チャレンジ</title>
+<title>板渡りゲーム〜できるだけ遠くまで渡れ！〜</title>
 <style>
 :root{--bg:#0f1220; --card:#171a2b; --accent:#6ae3ff; --accent2:#8effa1; --text:#e8edf2; --muted:#9aa7b3; --ok:#8effa1; --ng:#ff9aa8; --yellow:#ffd36a}
 *{box-sizing:border-box}
@@ -124,7 +124,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </head>
 <body>
   <main class="app">
-    <div class="title">鉛直→水平 2ステップ投射チャレンジ</div>
+    <div class="title">板渡りゲーム〜できるだけ遠くまで渡れ！〜</div>
 
     <div class="hud" id="hud">
       <span class="badge" id="loopBadge">ループ 1</span>
@@ -252,6 +252,9 @@ async function fetchSession(){
 const ensureSessionReady = ()=> !!(session.sessionId && session.ticketSig);
 
 // ======= ステップ&ループ =======
+// 水平ターゲット（最後に着地した板）の世界座標と幅[m]を保持
+let lastTargetXM = null;
+let lastTargetWm = null;
 let loopIndex = 0;
 let stage = 'vert';     // 'vert' | 'horiz'
 let h = null;           // 鉛直の目標高さ
@@ -311,12 +314,16 @@ function clearPlatform(){ platformEl.style.display='none'; platformEl.classList.
 // 水平ターゲット（現在地 + L）
 let targetLabelEl = null;
 function setTargetAtX(targetXM, Wm){
+  // 値を保持（パン後に再配置できるようにする）
+  lastTargetXM = Number(targetXM);
+  lastTargetWm = Number(Wm);
+
   targetEl.style.display='block';
   targetEl.style.left = (toPxX(targetXM) - (Wm*scaleX)/2)+'px';
   targetEl.style.bottom = toPxY(0)+'px';
   targetEl.style.width  = (Wm*scaleX)+'px';
   targetEl.style.height = '10px';
-  // ラベル
+
   if(!targetLabelEl){
     targetLabelEl = document.createElement('div');
     targetLabelEl.className = 'targetLabel';
@@ -327,9 +334,17 @@ function setTargetAtX(targetXM, Wm){
   targetLabelEl.textContent = `x = ${targetXM.toFixed(2)} m`;
   targetLabelEl.style.display='block';
 }
+function refreshTargetIfNeeded(){
+  if(lastTargetXM != null && lastTargetWm != null){
+    // 既存の板を、保持している世界座標でもう一度配置（toPxXはxPanを考慮する）
+    setTargetAtX(lastTargetXM, lastTargetWm);
+  }
+}
 function clearTarget(){
   targetEl.style.display='none';
   if(targetLabelEl) targetLabelEl.style.display='none';
+  lastTargetXM = null;
+  lastTargetWm = null;
 }
 
 // グリッド他
@@ -470,19 +485,18 @@ async function lockClose(mode, loopIndex, extra={}){
 // ======= プレビュー（鉛直：床幅1m、x=現在地）=======
 
 async function previewVertical(){
-  // ← 追加：loop2以降でパン
+  // ループ2以降はパンして、球の見かけ位置をループ1と同じに
   xPan = (loopIndex >= 1) ? curX : 0;
   renderGrid();
- placeBall(curX, curY); // ★ パン反映後に球も再配置（これが抜けていると球だけ動かない）
+  placeBall(curX, curY);        // パン反映後に球も再配置
+  refreshTargetIfNeeded();      // ← ここで板もパン後の位置に再配置（残す）
 
-  const j = await lockOpen('vert', loopIndex); // ← close ではなく open
+  const j = await lockOpen('vert', loopIndex);
   h = Number(j.yPlatform);
-  // HUD（鉛直は目標を出す）
-  challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が 2.0h を超えると板割れ）`;
+  challengeText.textContent = `鉛直：目標高さ h=${h} m（最高点が ${RULE.apexSafeRatio}h を超えると板割れ）`;
   statusText.textContent = '';
-  // シーンに先出し
   setPlatform(h, curX);
-  clearTarget();
+  // ★ “板を残す”仕様なのでここで clearTarget() はしない
 }
 
   // ======= プレビュー（水平：現在地 + L にターゲット事前表示）=======
@@ -845,6 +859,7 @@ function layoutInit(){
   scaleX = Math.max(24, Math.min(usableW/12, 90));
   renderGrid();
   placeBall(curX,curY);
+  refreshTargetIfNeeded(); // ← 追加：リサイズ時も板を再配置
   // 床バンドの幅(破片演出用)は都度設定
 }
 window.addEventListener('resize', layoutInit);
