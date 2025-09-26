@@ -248,11 +248,10 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 (() => {
 /* ========= GAS エンドポイント ========= */
-const GAS_SESSION_URL = 'https://script.google.com/macros/s/AKfycbySQ28IY6Fvs-GZdArOlmcw0GY_OuOhgTKclsleFIw7D0GnumgK0NVhaSc8Zu3W0zJMRQ/exec?fn=session';
-const GAS_SUBMIT_URL  = 'https://script.google.com/macros/s/AKfycbySQ28IY6Fvs-GZdArOlmcw0GY_OuOhgTKclsleFIw7D0GnumgK0NVhaSc8Zu3W0zJMRQ/exec?path=submit';
-const GAS_LOCK_URL    = 'https://script.google.com/macros/s/AKfycbySQ28IY6Fvs-GZdArOlmcw0GY_OuOhgTKclsleFIw7D0GnumgK0NVhaSc8Zu3W0zJMRQ/exec?path=lock';
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyOTJEBzV8JvxrNSIWYcyZLEvOXFJDwhXfOCPtACgvqaGwjRn70ZuJKQNLwqPS8_3YeTFt8gNpJrnM/pub?gid=1914198285&single=true&output=csv";
-
+const GAS_SESSION_URL = 'https://script.google.com/macros/s/AKfycbwbciJ_F18V6a7NZientQgyIChFsxvgyknPIXRpdofmwYse7OuTDKJSi7mRSUNtUSsbKA/exec?fn=session';
+const GAS_SUBMIT_URL  = 'https://script.google.com/macros/s/AKfycbwbciJ_F18V6a7NZientQgyIChFsxvgyknPIXRpdofmwYse7OuTDKJSi7mRSUNtUSsbKA/exec?path=submit';
+const GAS_LOCK_URL    = 'https://script.google.com/macros/s/AKfycbwbciJ_F18V6a7NZientQgyIChFsxvgyknPIXRpdofmwYse7OuTDKJSi7mRSUNtUSsbKA/exec?path=lock';
+const GAS_LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwbciJ_F18V6a7NZientQgyIChFsxvgyknPIXRpdofmwYse7OuTDKJSi7mRSUNtUSsbKA/exec?fn=leaderboard';
 
   
 /* ========= 物理・ルール ========= */
@@ -1078,10 +1077,10 @@ const res = await fetch(GAS_SUBMIT_URL, {
 console.log('[submit response]', json);
 
     if(json && json.ok){
-  showPopup('送信しました！', '反映までお待ちください', 2400);
-  submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
-  setTimeout(loadLeaderboard, 4000);
-}else{
+   showPopup('送信しました！', '反映しました', 2000);
+   submitBtn.disabled = true; studentIdInput.disabled = true; studentNameInput.disabled = true;
+   loadLeaderboard(); // ← 即更新
+ }else{
       const msg = ({
         'INVALID_STUDENT_ID':'学籍番号が正しくありません',
         'EMPTY_NAME':'氏名を入力してください',
@@ -1105,7 +1104,6 @@ console.log('[submit response]', json);
   
 if(submitBtn){ submitBtn.addEventListener('click', submitResult); }
 
-/* ランキング（元のまま） */
 // === クラス・フィルタ ===
 const LB_FILTERS = [
   {key:'all', label:'全体'},
@@ -1119,13 +1117,11 @@ const LB_FILTERS = [
   {key:'38',  label:'3年8組'},
 ];
 const LB_FILTER_KEY = 'hproj_lb_filter';
-let leaderboardFilter = (()=>{
-  try{ return localStorage.getItem(LB_FILTER_KEY) || 'all'; }catch{ return 'all'; }
-})();
+let leaderboardFilter = (()=>{ try{ return localStorage.getItem(LB_FILTER_KEY) || 'all'; }catch{ return 'all'; } })();
 function setLeaderboardFilter(key){
   leaderboardFilter = key;
   try{ localStorage.setItem(LB_FILTER_KEY, key); }catch{}
-  loadLeaderboard(); // 再描画
+  loadLeaderboard();
 }
 function buildFilterUI(container){
   if(!container) return;
@@ -1139,33 +1135,31 @@ function buildFilterUI(container){
   }
 }
 
-// === ランキング読み込み ===
+// === ランキング（GASのJSONを使用） ===
 async function loadLeaderboard(){
   const desktopBox = document.getElementById('leaderboard');
   const mobileBox  = document.getElementById('leaderboardMobile');
-  // フィルタUIを毎回同期
   buildFilterUI(document.getElementById('lbFilterDesktop'));
   buildFilterUI(document.getElementById('lbFilterMobile'));
 
   if (!desktopBox && !mobileBox) return;
+
+  const url = `${GAS_LEADERBOARD_URL}&klass=${encodeURIComponent(leaderboardFilter)}&cb=${Date.now()}`;
   try{
-    if(!CSV_URL || /【/.test(CSV_URL)){
-      const html='ランキングのCSV URLが未設定です。';
-      if(desktopBox) desktopBox.textContent=html;
-      if(mobileBox)  mobileBox.textContent=html;
-      return;
-    }
-    const url = CSV_URL + (CSV_URL.includes('?') ? '&':'?') + 'cb=' + Date.now();
-    const res = await fetch(url, { credentials:'omit', cache:'no-store' });
-    const text = await res.text();
-    const { cols, rows } = parseCSV(text);
-    renderFromRows(cols, rows);
+    const res = await fetch(url, { cache:'no-store', credentials:'omit' });
+    const j = await res.json();
+    if (!j || !j.ok){ throw new Error('bad_json'); }
+    const items = Array.isArray(j.items) ? j.items : [];
+    const html = renderTableHTML(items);
+    if(desktopBox) desktopBox.innerHTML = html;
+    if(mobileBox)  mobileBox.innerHTML  = html;
   }catch(e){
-    console.error(e);
+    console.error('[leaderboard]', e);
     const msg='ランキングを読み込めませんでした…';
     if(desktopBox) desktopBox.textContent=msg;
     if(mobileBox)  mobileBox.textContent=msg;
   }
+}
 
   function renderFromRows(cols, rows){
     const idx={
