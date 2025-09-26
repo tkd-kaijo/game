@@ -508,10 +508,11 @@ async function previewHorizontal(){
   pendingL = L; pendingCoef = c;
   const W = c * L;
   const targetX = curX + L;
-  // HUDは最小表示に
-  stageBadge.textContent = 'ステップ: 水平';
-  challengeText.textContent = 'アニメ内のターゲット板に着地';
-  statusText.textContent = '';
+
+  // HUDは幅入り表記に
+stageBadge.textContent = 'ステップ: 水平';
+challengeText.textContent = `アニメ内のターゲット板(幅 ${W.toFixed(2)}m)に着地`;
+statusText.textContent = '';
   // シーンに先出し
   setTargetAtX(targetX, W);
 }
